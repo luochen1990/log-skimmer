@@ -1,0 +1,245 @@
+﻿2026-10-16T01:23:00.2955121Z Current runner version: '2.337.0'
+2026-10-16T01:23:00.2974475Z ##[group]Runner Image Provisioner
+2026-10-16T01:23:00.2975259Z Hosted Compute Agent
+2026-10-16T01:23:00.2975748Z Version: 20261012.601
+2026-10-16T01:23:00.2976260Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-16T01:23:00.2976936Z Build Date: 2026-10-12T17:48:21Z
+2026-10-16T01:23:00.2977498Z Worker ID: {44667ed8-eb1c-4732-be55-c29852b829a4}
+2026-10-16T01:23:00.2978072Z Region: centralus
+2026-10-16T01:23:00.2978737Z Cloud: Azure
+2026-10-16T01:23:00.2979198Z ##[endgroup]
+2026-10-16T01:23:00.2980265Z ##[group]Operating System
+2026-10-16T01:23:00.2980765Z Ubuntu
+2026-10-16T01:23:00.2981172Z 24.04.5
+2026-10-16T01:23:00.2981617Z LTS
+2026-10-16T01:23:00.2982034Z ##[endgroup]
+2026-10-16T01:23:00.2982498Z ##[group]Runner Image
+2026-10-16T01:23:00.2983020Z Image: ubuntu-24.04
+2026-10-16T01:23:00.2983457Z Version: 20261012.334.1
+2026-10-16T01:23:00.2984503Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-16T01:23:00.2985781Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+2026-10-16T01:23:00.2986554Z ##[endgroup]
+2026-10-16T01:23:00.2987345Z ##[group]GITHUB_TOKEN Permissions
+2026-10-16T01:23:00.2989365Z Metadata: read
+2026-10-16T01:23:00.2989876Z ##[endgroup]
+2026-10-16T01:23:00.2991916Z Secret source: None
+2026-10-16T01:23:00.2992662Z Cache mode: write
+2026-10-16T01:23:00.2993253Z Prepare workflow directory
+2026-10-16T01:23:00.3261284Z Prepare all required actions
+2026-10-16T01:23:00.3300878Z Getting action download info
+2026-10-16T01:23:00.5683613Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-16T01:23:00.6433349Z Download action repository 'dorny/paths-filter@v4' (SHA:ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d)
+2026-10-16T01:23:01.0480693Z Complete job name: changes
+2026-10-16T01:23:01.1032853Z ##[group]Run actions/checkout@v7
+2026-10-16T01:23:01.1033551Z with:
+2026-10-16T01:23:01.1034091Z   repository: nix-community/home-manager
+2026-10-16T01:23:01.1037272Z   token: ***
+2026-10-16T01:23:01.1037736Z   ssh-strict: true
+2026-10-16T01:23:01.1038173Z   ssh-user: git
+2026-10-16T01:23:01.1038848Z   persist-credentials: true
+2026-10-16T01:23:01.1039373Z   clean: true
+2026-10-16T01:23:01.1039813Z   sparse-checkout-cone-mode: true
+2026-10-16T01:23:01.1040324Z   fetch-depth: 1
+2026-10-16T01:23:01.1040748Z   fetch-tags: false
+2026-10-16T01:23:01.1041180Z   show-progress: true
+2026-10-16T01:23:01.1041623Z   lfs: false
+2026-10-16T01:23:01.1042025Z   submodules: false
+2026-10-16T01:23:01.1042462Z   set-safe-directory: true
+2026-10-16T01:23:01.1042963Z   allow-unsafe-pr-checkout: false
+2026-10-16T01:23:01.1043606Z ##[endgroup]
+2026-10-16T01:23:01.1893220Z Syncing repository: nix-community/home-manager
+2026-10-16T01:23:01.1895563Z ##[group]Getting Git version info
+2026-10-16T01:23:01.1896836Z Working directory is '/home/runner/work/home-manager/home-manager'
+2026-10-16T01:23:01.1898535Z [command]/usr/bin/git version
+2026-10-16T01:23:01.1963420Z git version 2.55.0
+2026-10-16T01:23:01.1978658Z ##[endgroup]
+2026-10-16T01:23:01.1985602Z Temporarily overriding HOME='/home/runner/work/_temp/39e7b9bd-cfe4-4443-9be9-e1d1a8538cf6' before making global git config changes
+2026-10-16T01:23:01.1987345Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-16T01:23:01.1990116Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/home-manager/home-manager
+2026-10-16T01:23:01.2028019Z Deleting the contents of '/home/runner/work/home-manager/home-manager'
+2026-10-16T01:23:01.2030947Z ##[group]Determining repository object format
+2026-10-16T01:23:01.2032325Z ##[endgroup]
+2026-10-16T01:23:01.2033399Z ##[group]Initializing the repository
+2026-10-16T01:23:01.2034637Z [command]/usr/bin/git init /home/runner/work/home-manager/home-manager
+2026-10-16T01:23:01.2119378Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-16T01:23:01.2122103Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-16T01:23:01.2123314Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-16T01:23:01.2124277Z hint: call:
+2026-10-16T01:23:01.2124962Z hint:
+2026-10-16T01:23:01.2125643Z hint: 	git config --global init.defaultBranch <name>
+2026-10-16T01:23:01.2126440Z hint:
+2026-10-16T01:23:01.2127215Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-16T01:23:01.2128707Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-16T01:23:01.2129729Z hint:
+2026-10-16T01:23:01.2130292Z hint: 	git branch -m <name>
+2026-10-16T01:23:01.2130938Z hint:
+2026-10-16T01:23:01.2132279Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-16T01:23:01.2133740Z Initialized empty Git repository in /home/runner/work/home-manager/home-manager/.git/
+2026-10-16T01:23:01.2136010Z [command]/usr/bin/git remote add origin https://github.com/nix-community/home-manager
+2026-10-16T01:23:01.2171927Z ##[endgroup]
+2026-10-16T01:23:01.2173111Z ##[group]Disabling automatic garbage collection
+2026-10-16T01:23:01.2173987Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-16T01:23:01.2199780Z ##[endgroup]
+2026-10-16T01:23:01.2200665Z ##[group]Setting up auth
+2026-10-16T01:23:01.2205864Z Removing SSH command configuration
+2026-10-16T01:23:01.2211813Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-16T01:23:01.2230431Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-16T01:23:01.2514895Z Removing HTTP extra header
+2026-10-16T01:23:01.2520746Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-16T01:23:01.2545664Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-16T01:23:01.2712746Z Removing includeIf entries pointing to credentials config files
+2026-10-16T01:23:01.2717539Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-16T01:23:01.2741445Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-16T01:23:01.2901051Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-16T01:23:01.2929249Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/home-manager/home-manager/.git.path /home/runner/work/_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config
+2026-10-16T01:23:01.2954022Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/home-manager/home-manager/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config
+2026-10-16T01:23:01.2984249Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config
+2026-10-16T01:23:01.3011586Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config
+2026-10-16T01:23:01.3034071Z ##[endgroup]
+2026-10-16T01:23:01.3035276Z ##[group]Fetching the repository
+2026-10-16T01:23:01.3040011Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +daa34086b0dad753169c0d348bb14500c4668c68:refs/remotes/pull/10065/merge
+2026-10-16T01:23:02.3899491Z From https://github.com/nix-community/home-manager
+2026-10-16T01:23:02.3901096Z  * [new ref]         daa34086b0dad753169c0d348bb14500c4668c68 -> pull/10065/merge
+2026-10-16T01:23:02.3905694Z ##[endgroup]
+2026-10-16T01:23:02.3907276Z ##[group]Determining the checkout info
+2026-10-16T01:23:02.3908568Z ##[endgroup]
+2026-10-16T01:23:02.3909602Z [command]/usr/bin/git sparse-checkout disable
+2026-10-16T01:23:02.3953108Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-16T01:23:02.3980536Z ##[group]Checking out the ref
+2026-10-16T01:23:02.3982525Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/10065/merge
+2026-10-16T01:23:02.5151112Z Note: switching to 'refs/remotes/pull/10065/merge'.
+2026-10-16T01:23:02.5152143Z 
+2026-10-16T01:23:02.5152855Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-16T01:23:02.5154665Z changes and commit them, and you can discard any commits you make in this
+2026-10-16T01:23:02.5156427Z state without impacting any branches by switching back to a branch.
+2026-10-16T01:23:02.5157431Z 
+2026-10-16T01:23:02.5158192Z If you want to create a new branch to retain commits you create, you may
+2026-10-16T01:23:02.5160012Z do so (now or later) by using -c with the switch command. Example:
+2026-10-16T01:23:02.5160907Z 
+2026-10-16T01:23:02.5161327Z   git switch -c <new-branch-name>
+2026-10-16T01:23:02.5162024Z 
+2026-10-16T01:23:02.5162459Z Or undo this operation with:
+2026-10-16T01:23:02.5163187Z 
+2026-10-16T01:23:02.5163643Z   git switch -
+2026-10-16T01:23:02.5164314Z 
+2026-10-16T01:23:02.5165329Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-16T01:23:02.5166818Z 
+2026-10-16T01:23:02.5168324Z HEAD is now at daa3408 Merge f0e1560a6a52eb2237ef672c49482cda111f55f3 into 640725978b99076e18e069f6e7d2959124584f8f
+2026-10-16T01:23:02.5174367Z ##[endgroup]
+2026-10-16T01:23:02.5207022Z [command]/usr/bin/git log -1 --format=%H
+2026-10-16T01:23:02.5227752Z daa34086b0dad753169c0d348bb14500c4668c68
+2026-10-16T01:23:02.5525424Z ##[group]Run dorny/paths-filter@v4
+2026-10-16T01:23:02.5526597Z with:
+2026-10-16T01:23:02.5530377Z   filters: tests:
+  - 'flake.lock'
+  - 'flake.nix'
+  - 'modules/**'
+  - 'nix-darwin/**'
+  - 'nixos/**'
+  - 'tests/**'
+docs:
+  - '**.md'
+  - 'docs/**'
+  - 'flake.lock'
+  - 'flake.nix'
+  - 'modules/**'
+format:
+  - '**/*.nix'
+hm:
+  - 'flake.lock'
+  - 'flake.nix'
+  - 'home-manager/**'
+parse:
+  - '**/*.nix'
+  - 'flake.lock'
+
+2026-10-16T01:23:02.5541327Z   token: ***
+2026-10-16T01:23:02.5542279Z   list-files: none
+2026-10-16T01:23:02.5543253Z   initial-fetch-depth: 100
+2026-10-16T01:23:02.5544345Z   predicate-quantifier: some
+2026-10-16T01:23:02.5545466Z ##[endgroup]
+2026-10-16T01:23:02.6290543Z ##[group]Fetching list of changed files for PR#10065 from GitHub API
+2026-10-16T01:23:02.6296551Z Invoking listFiles(pull_number: 10065, per_page: 100)
+2026-10-16T01:23:03.0562222Z Received 6 items
+2026-10-16T01:23:03.0563825Z [modified] docs/release-notes/rl-2611.md
+2026-10-16T01:23:03.0564887Z [added] modules/misc/news/2026/10/2026-10-10_15-42-25.nix
+2026-10-16T01:23:03.0565871Z [modified] modules/programs/claude-code/options.nix
+2026-10-16T01:23:03.0566734Z [modified] tests/modules/programs/claude-code/default.nix
+2026-10-16T01:23:03.0567717Z [added] tests/modules/programs/claude-code/prefer-xdg-directories-legacy.nix
+2026-10-16T01:23:03.0569013Z [added] tests/modules/programs/claude-code/prefer-xdg-directories.nix
+2026-10-16T01:23:03.0571787Z ##[endgroup]
+2026-10-16T01:23:03.0572581Z Detected 6 changed files
+2026-10-16T01:23:03.0573445Z Results:
+2026-10-16T01:23:03.0574488Z ##[group]Filter tests = true
+2026-10-16T01:23:03.0575208Z Matching files:
+2026-10-16T01:23:03.0575949Z modules/misc/news/2026/10/2026-10-10_15-42-25.nix [added]
+2026-10-16T01:23:03.0576861Z modules/programs/claude-code/options.nix [modified]
+2026-10-16T01:23:03.0577772Z tests/modules/programs/claude-code/default.nix [modified]
+2026-10-16T01:23:03.0579101Z tests/modules/programs/claude-code/prefer-xdg-directories-legacy.nix [added]
+2026-10-16T01:23:03.0580154Z tests/modules/programs/claude-code/prefer-xdg-directories.nix [added]
+2026-10-16T01:23:03.0583916Z ##[endgroup]
+2026-10-16T01:23:03.0585400Z ##[group]Filter docs = true
+2026-10-16T01:23:03.0586258Z Matching files:
+2026-10-16T01:23:03.0587158Z docs/release-notes/rl-2611.md [modified]
+2026-10-16T01:23:03.0588193Z modules/misc/news/2026/10/2026-10-10_15-42-25.nix [added]
+2026-10-16T01:23:03.0589420Z modules/programs/claude-code/options.nix [modified]
+2026-10-16T01:23:03.0590814Z ##[endgroup]
+2026-10-16T01:23:03.0592119Z ##[group]Filter format = true
+2026-10-16T01:23:03.0592929Z Matching files:
+2026-10-16T01:23:03.0593926Z modules/misc/news/2026/10/2026-10-10_15-42-25.nix [added]
+2026-10-16T01:23:03.0595064Z modules/programs/claude-code/options.nix [modified]
+2026-10-16T01:23:03.0596303Z tests/modules/programs/claude-code/default.nix [modified]
+2026-10-16T01:23:03.0597913Z tests/modules/programs/claude-code/prefer-xdg-directories-legacy.nix [added]
+2026-10-16T01:23:03.0599534Z tests/modules/programs/claude-code/prefer-xdg-directories.nix [added]
+2026-10-16T01:23:03.0601187Z ##[endgroup]
+2026-10-16T01:23:03.0602452Z ##[group]Filter hm = false
+2026-10-16T01:23:03.0603436Z Matching files: none
+2026-10-16T01:23:03.0604559Z ##[endgroup]
+2026-10-16T01:23:03.0605600Z ##[group]Filter parse = true
+2026-10-16T01:23:03.0606332Z Matching files:
+2026-10-16T01:23:03.0607043Z modules/misc/news/2026/10/2026-10-10_15-42-25.nix [added]
+2026-10-16T01:23:03.0607841Z modules/programs/claude-code/options.nix [modified]
+2026-10-16T01:23:03.0608908Z tests/modules/programs/claude-code/default.nix [modified]
+2026-10-16T01:23:03.0609928Z tests/modules/programs/claude-code/prefer-xdg-directories-legacy.nix [added]
+2026-10-16T01:23:03.0611023Z tests/modules/programs/claude-code/prefer-xdg-directories.nix [added]
+2026-10-16T01:23:03.0612214Z ##[endgroup]
+2026-10-16T01:23:03.0613106Z Changes output set to ["tests","docs","format","parse"]
+2026-10-16T01:23:03.0930085Z Post job cleanup.
+2026-10-16T01:23:03.1668315Z [command]/usr/bin/git version
+2026-10-16T01:23:03.1695333Z git version 2.55.0
+2026-10-16T01:23:03.1728465Z Temporarily overriding HOME='/home/runner/work/_temp/2f4d0992-2e6f-40d8-945a-4b2d1eb3b697' before making global git config changes
+2026-10-16T01:23:03.1729794Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-16T01:23:03.1733631Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/home-manager/home-manager
+2026-10-16T01:23:03.1759446Z Removing SSH command configuration
+2026-10-16T01:23:03.1764822Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-16T01:23:03.1793506Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-16T01:23:03.1976377Z Removing HTTP extra header
+2026-10-16T01:23:03.1981379Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-16T01:23:03.2006954Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-16T01:23:03.2179966Z Removing includeIf entries pointing to credentials config files
+2026-10-16T01:23:03.2185934Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-16T01:23:03.2206711Z includeif.gitdir:/home/runner/work/home-manager/home-manager/.git.path
+2026-10-16T01:23:03.2207317Z includeif.gitdir:/home/runner/work/home-manager/home-manager/.git/worktrees/*.path
+2026-10-16T01:23:03.2207963Z includeif.gitdir:/github/workspace/.git.path
+2026-10-16T01:23:03.2208675Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-16T01:23:03.2213917Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/home-manager/home-manager/.git.path
+2026-10-16T01:23:03.2233006Z /home/runner/work/_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config
+2026-10-16T01:23:03.2241841Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/home-manager/home-manager/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-2b82b9c3\-64b4\-499a\-833c\-fd4b4b679977\.config
+2026-10-16T01:23:03.2271473Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/home-manager/home-manager/.git/worktrees/*.path
+2026-10-16T01:23:03.2297837Z /home/runner/work/_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config
+2026-10-16T01:23:03.2307658Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/home-manager/home-manager/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-2b82b9c3\-64b4\-499a\-833c\-fd4b4b679977\.config
+2026-10-16T01:23:03.2334840Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-16T01:23:03.2350144Z /github/runner_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config
+2026-10-16T01:23:03.2352702Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-2b82b9c3\-64b4\-499a\-833c\-fd4b4b679977\.config
+2026-10-16T01:23:03.2382990Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-16T01:23:03.2396030Z /github/runner_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config
+2026-10-16T01:23:03.2401515Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-2b82b9c3\-64b4\-499a\-833c\-fd4b4b679977\.config
+2026-10-16T01:23:03.2429956Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-16T01:23:03.2629877Z Removing credentials config '/home/runner/work/_temp/git-credentials-2b82b9c3-64b4-499a-833c-fd4b4b679977.config'
+2026-10-16T01:23:03.2765292Z Evaluate and set job outputs
+2026-10-16T01:23:03.2774626Z Set output 'docs'
+2026-10-16T01:23:03.2776468Z Set output 'format'
+2026-10-16T01:23:03.2777102Z Set output 'hm'
+2026-10-16T01:23:03.2777513Z Set output 'parse'
+2026-10-16T01:23:03.2777992Z Set output 'tests'
+2026-10-16T01:23:03.2778784Z Cleaning up orphan processes

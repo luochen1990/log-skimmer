@@ -1,0 +1,187 @@
+2026-10-15T20:00:22.1651580Z Runner 1609124e-f0f4-4569-989c-90efd0a2c298 (version:v13.2.0) received task 20408 of job check, triggered by event: schedule
+2026-10-15T20:00:22.1664452Z workflow prepared
+2026-10-15T20:00:22.1668705Z Skipping step 'set -euo pipefail\ncount=$(curl -sf --max-time 30 -H "Authorization: token $TOKEN" \\n  "$API/repos/$REPO/actions/runs?status=success&workflow_id=ci-full.yml&limit=50" \\n  | jq --arg sha "$SHA" '[.workflow_runs[]? | select(.commit_sha == $sha)] | length')\nif [ "$count" -gt 0 ]; then\n  echo "should_skip=true" >> "$GITHUB_OUTPUT"\n  echo "✓ 跳过: commit ${SHA:0:8} 已有成功的 ci-full.yml run × ${count}"\nelse\n  echo "should_skip=false" >> "$GITHUB_OUTPUT"\n  echo "→ 不跳过: commit ${SHA:0:8} 无成功的 ci-full.yml run 记录"\nfi\n' due to '${{ github.event_name == 'push' }}'
+2026-10-15T20:00:22.1712881Z → 触发 P1 check (POST http://10.233.77.1:9123/trigger/63d7b4e66e708f022af577498dbce8e0a8ae3a93?level=nightly)
+2026-10-15T20:00:22.2288205Z ← HTTP 202 {"status": "triggered", "unit": "forgejo-ci-p1-nightly"}
+2026-10-15T20:00:22.2309320Z ✓ 已触发 (unit=forgejo-ci-p1-nightly), 开始轮询 P1 结果 (每 30s 一次, 最长 160 分钟)
+2026-10-15T20:00:22.3466725Z   … [0m00s] Starting Forgejo CI P1 check (deploy gate, tier=nightly) for commit @63d7b4e66e708f022af577498dbce8e0a8ae3a93...
+2026-10-15T20:00:22.3467074Z   … [0m00s] [p1] 获取 P1 槽位, 开始处理 63d7b4e6 (TIER=nightly)
+2026-10-15T20:00:22.3467181Z   … [0m00s] [p1] oss-cache clone-rw git.lambda.lc/lc-studio/nixos @ 63d7b4e6 (tier=nightly)
+2026-10-15T20:00:52.4955522Z   … [0m30s] [p1]   {
+2026-10-15T20:00:52.4956214Z   … [0m30s] [p1]     "base_commit": "63d7b4e66e708f022af577498dbce8e0a8ae3a93",
+2026-10-15T20:00:52.4957333Z   … [0m30s] [p1]     "clone_path": "/home/lc/.cache/forgejo-ci-worktrees/wt-nightly-63d7b4e66e708f022af577498dbce8e0a8ae3a93",
+2026-10-15T20:00:52.4957751Z   … [0m30s] [p1]     "codegraph_ready": false
+2026-10-15T20:00:52.4957868Z   … [0m30s] [p1]   }
+2026-10-15T20:00:52.4958947Z   … [0m30s] [p1] 🛰 观测副本构建已触发: https://build.luo.xyz/#/b/20261016-040023-936c
+2026-10-15T20:00:52.4960812Z   … [0m30s] [p1] just check --full --nightly (P1: P0 + units 构建 + flake check + build 全部 host, 这可能需要 20-60min)...
+2026-10-15T20:00:52.4961483Z   … [0m30s] [p1] === 尝试 1/3 ===
+2026-10-15T20:00:52.4963018Z   … [0m30s] just _neve_w check --full --nightly
+2026-10-15T20:00:52.4966420Z   … [0m30s] nix develop .#tools -c neve check --full --nightly
+2026-10-15T20:00:52.5037037Z   … [0m30s] … (更多日志下次显示)
+2026-10-15T20:01:22.6229680Z   … [1m00s] ✓ 191 文件编译冒烟通过 (24.6s)
+2026-10-15T20:01:22.6230387Z   … [1m00s] ✓ 全部通过
+2026-10-15T20:01:22.6230468Z   … [1m00s] 完整验证 (P1 / nightly): P0 → units 构建链 → flake check → build 全部 host → 重量级测试
+2026-10-15T20:01:22.6230562Z   … [1m00s] flake inputs 漂移检查 (neve-flake-doctor: 同源重复节点 + 同名 rev 漂移):
+2026-10-15T20:01:22.6230656Z   … [1m00s] All ok!
+2026-10-15T20:01:22.6230812Z   … [1m00s] neve-os selftest:
+2026-10-15T20:01:22.6231090Z   … [1m00s] == TestGenLanHosts
+2026-10-15T20:01:22.6231437Z   … [1m00s] ⚠ 网络类失败: git 服务器不可达或 flake input 不在本地缓存。
+2026-10-15T20:01:22.6231988Z   … [1m00s] 若当前离网: 联网后重跑即自动预取该 input (此后本机离线也可用, ~/.cache/nix 常驻);
+2026-10-15T20:01:22.6232477Z   … [1m00s] 若网络正常仍失败: 检查该 rev 是否仍在远端 (force-push?) 或凭据是否有效。
+2026-10-15T20:01:22.6257380Z   … [1m00s] … (更多日志下次显示)
+2026-10-15T20:01:52.7434683Z   … [1m30s] ⚡ 已固化 127 个 check 产物 GC roots → /home/lc/.cache/nixos/check-roots/83a007d6a741873fcad9c0af816285c14cb614f5 (保留最近 20 tree)
+2026-10-15T20:01:52.7435101Z   … [1m30s] units 合并构建: 20 units 目录 (含 extra 13), 单进程共享求值
+2026-10-15T20:01:52.7435238Z   … [1m30s] fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source'
+2026-10-15T20:01:52.7435317Z   … [1m30s] fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source'
+2026-10-15T20:01:52.7435708Z   … [1m30s] fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source'
+2026-10-15T20:01:52.7436260Z   … [1m30s] fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source'
+2026-10-15T20:01:52.7436782Z   … [1m30s] fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source'
+2026-10-15T20:01:52.7437355Z   … [1m30s] fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source'
+2026-10-15T20:01:52.7437867Z   … [1m30s] fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source'
+2026-10-15T20:01:52.7438435Z   … [1m30s] fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source'
+2026-10-15T20:01:52.7460470Z   … [1m30s] … (更多日志下次显示)
+2026-10-15T20:02:22.8632413Z   … [2m00s] NixOS user units verify: 7 host: bootstrap, home-pc, home-router, installer-iso, mini-pc, pssd-nixos, ssh-installer
+2026-10-15T20:02:52.9814488Z   … [2m30s] ✓ bootstrap        0 fatal / 2 warn
+2026-10-15T20:02:52.9815017Z   … [2m30s] ✓ home-pc          0 fatal / 2 warn
+2026-10-15T20:02:52.9815158Z   … [2m30s] ✓ home-router      0 fatal / 2 warn
+2026-10-15T20:02:52.9815252Z   … [2m30s] ✓ installer-iso    0 fatal / 2 warn
+2026-10-15T20:02:52.9815305Z   … [2m30s] ✓ mini-pc          0 fatal / 2 warn
+2026-10-15T20:02:52.9815410Z   … [2m30s] ✓ pssd-nixos       0 fatal / 2 warn
+2026-10-15T20:02:52.9816000Z   … [2m30s] ✓ ssh-installer    0 fatal / 3 warn
+2026-10-15T20:02:52.9816150Z   … [2m30s] ✓ NixOS user units verify 通过
+2026-10-15T20:02:52.9816643Z   … [2m30s] HM user units verify: 5 target: home-pc:lc, home-router:lc, installer-iso:installer, mini-pc:lc, pssd-nixos:lc
+2026-10-15T20:03:23.0988525Z   … [3m01s] <静默中…>
+2026-10-15T20:03:53.2193630Z   … [3m31s] - drop-in 合并视图: 5 target, 5 宿主并入 verify
+2026-10-15T20:03:53.2193994Z   … [3m31s] ✓ user units      0 fatal / 2 warn (25 文件去重后)
+2026-10-15T20:03:53.2194078Z   … [3m31s] 图形链自燃守卫: 早期 target 拉起的 user unit 不得点燃图形链 (linger 无会话自燃 → greeter 登录死锁)
+2026-10-15T20:03:53.2205320Z   … [3m31s] ✓ bootstrap        0 违规
+2026-10-15T20:03:53.2205440Z   … [3m31s] ✓ home-pc          0 违规
+2026-10-15T20:03:53.2205489Z   … [3m31s] ✓ home-router      0 违规
+2026-10-15T20:03:53.2205532Z   … [3m31s] ✓ installer-iso    0 违规
+2026-10-15T20:03:53.2205594Z   … [3m31s] ✓ mini-pc          0 违规
+2026-10-15T20:03:53.2205634Z   … [3m31s] ✓ pssd-nixos       0 违规
+2026-10-15T20:03:53.2205670Z   … [3m31s] ✓ ssh-installer    0 违规
+2026-10-15T20:03:53.2223136Z   … [3m31s] … (更多日志下次显示)
+2026-10-15T20:04:23.3388077Z   … [4m01s] derivation evaluated to /nix/store/ka19ckakq4ayghr536kirgb6m43r846h-web-entry-tests.drv
+2026-10-15T20:04:23.3388411Z   … [4m01s] checking derivation checks.x86_64-linux.capability-graph...
+2026-10-15T20:04:23.3388486Z   … [4m01s] derivation evaluated to /nix/store/j7fwfn7901jnm7p5f1379bm34jx5x0x2-cap-test.drv
+2026-10-15T20:04:23.3388855Z   … [4m01s] checking derivation checks.x86_64-linux.wifi...
+2026-10-15T20:04:23.3389194Z   … [4m01s] derivation evaluated to /nix/store/rlii3ns5h0430hrpndza28mq6kwws4sy-wifi-deploy-tests.drv
+2026-10-15T20:04:23.3389469Z   … [4m01s] checking derivation checks.x86_64-linux.build-observatory...
+2026-10-15T20:04:23.3389911Z   … [4m01s] derivation evaluated to /nix/store/7klyxgzmiminhqwnzj6hqqfkb3ycjgjb-build-observatory-tests.drv
+2026-10-15T20:04:23.3390175Z   … [4m01s] checking derivation checks.x86_64-linux.calibre-web...
+2026-10-15T20:04:23.3390882Z   … [4m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-15T20:04:23.3391287Z   … [4m01s] derivation evaluated to /nix/store/1lpvfpz54d5n8286sca4g7xzvbhvvzhq-calibre-web-eval.drv
+2026-10-15T20:04:23.3412730Z   … [4m01s] … (更多日志下次显示)
+2026-10-15T20:04:53.4604987Z   … [4m31s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-15T20:04:53.4605435Z   … [4m31s] derivation evaluated to /nix/store/qwnwbnzqajh047sdskaryfmsfj0q7xc3-roaming-dns-eval.drv
+2026-10-15T20:04:53.4605498Z   … [4m31s] checking derivation checks.x86_64-linux.git-hooks...
+2026-10-15T20:04:53.4605764Z   … [4m31s] derivation evaluated to /nix/store/0p4xmgrgjgm907zx3bw8bl5pzfk49va5-git-hooks-test.drv
+2026-10-15T20:04:53.4606072Z   … [4m31s] checking derivation checks.x86_64-linux.netbird-provision...
+2026-10-15T20:04:53.4606497Z   … [4m31s] derivation evaluated to /nix/store/cvcqq67pxqawfiksvsi291gd3a0602sz-netbird-provision-tests.drv
+2026-10-15T20:04:53.4606765Z   … [4m31s] checking derivation checks.x86_64-linux.neve-to-go...
+2026-10-15T20:04:53.4607176Z   … [4m31s] derivation evaluated to /nix/store/qks5bcgdhfb39dky69zymmbkzd2kxwwm-neve-to-go-tests.drv
+2026-10-15T20:04:53.4607534Z   … [4m31s] checking derivation checks.x86_64-linux.opencode-rotate...
+2026-10-15T20:04:53.4608029Z   … [4m31s] derivation evaluated to /nix/store/yhj9r2fk8ss51cf3lapf1gwbwcc5n9i7-opencode-rotate-tests.drv
+2026-10-15T20:04:53.4809256Z   … [4m31s] … (更多日志下次显示)
+2026-10-15T20:05:23.6000701Z   … [5m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-15T20:05:23.6001344Z   … [5m01s] derivation evaluated to /nix/store/72rni6kxpr9ngfdplr4vld1wykhwwbw5-system-revision.drv
+2026-10-15T20:05:23.6001414Z   … [5m01s] checking derivation checks.x86_64-linux.neve-complete...
+2026-10-15T20:05:23.6001529Z   … [5m01s] derivation evaluated to /nix/store/0j3xn5yg1c4m91aq1rsix47zl6a5gz80-neve-complete-tests.drv
+2026-10-15T20:05:23.6001861Z   … [5m01s] checking derivation checks.x86_64-linux.neve-check-guards...
+2026-10-15T20:05:23.6002323Z   … [5m01s] derivation evaluated to /nix/store/vq1dq4pwfcpy4y58i0gdqpyrarn6klrh-neve-check-guards-tests.drv
+2026-10-15T20:05:23.6002616Z   … [5m01s] checking derivation checks.x86_64-linux.neve-root-sentinel...
+2026-10-15T20:05:23.6003074Z   … [5m01s] derivation evaluated to /nix/store/y5yr1dw7z077r3bkk3pw6qs6hm7bzrcq-neve-root-sentinel-tests.drv
+2026-10-15T20:05:23.6003431Z   … [5m01s] checking derivation checks.x86_64-linux.frunner-reclaim...
+2026-10-15T20:05:23.6004034Z   … [5m01s] derivation evaluated to /nix/store/p5cgm81h8xj7yhdx67cc59skr927xs09-frunner-reclaim-tests.drv
+2026-10-15T20:05:23.6032289Z   … [5m01s] … (更多日志下次显示)
+2026-10-15T20:05:53.7218900Z   … [5m31s] derivation evaluated to /nix/store/cfg5y8i722zipqprjvva12kaf19pqz3n-fdroid-declared-eval.drv
+2026-10-15T20:05:53.7219240Z   … [5m31s] checking derivation checks.x86_64-linux.niri-gesture-bridge-daemon...
+2026-10-15T20:05:53.7219394Z   … [5m31s] derivation evaluated to /nix/store/vvrs1l7wsqhqf6p3l042rzbrai02gral-niri-gesture-bridge-daemon-test.drv
+2026-10-15T20:05:53.7219634Z   … [5m31s] checking flake output 'heavyTests'...
+2026-10-15T20:05:53.7219841Z   … [5m31s] warning: unknown flake output 'heavyTests'
+2026-10-15T20:05:53.7220083Z   … [5m31s] checking flake output 'nixosConfigurations'...
+2026-10-15T20:05:53.7220421Z   … [5m31s] checking NixOS configuration 'nixosConfigurations.bootstrap'...
+2026-10-15T20:05:53.7220785Z   … [5m31s] warning: stdenv.isDarwin is deprecated, use stdenv.hostPlatform.isDarwin instead
+2026-10-15T20:05:53.7221105Z   … [5m31s] checking NixOS configuration 'nixosConfigurations.pssd-nixos'...
+2026-10-15T20:06:23.8409741Z   … [6m01s] checking NixOS configuration 'nixosConfigurations.home-pc'...
+2026-10-15T20:06:23.8410074Z   … [6m01s] warning: stdenv.isLinux is deprecated, use stdenv.hostPlatform.isLinux instead
+2026-10-15T20:06:53.9608950Z   … [6m31s] checking NixOS configuration 'nixosConfigurations.mini-pc'...
+2026-10-15T20:06:53.9609317Z   … [6m31s] checking NixOS configuration 'nixosConfigurations.home-router'...
+2026-10-15T20:07:24.1063041Z   … [7m02s] warning: stdenv.is32bit is deprecated, use stdenv.hostPlatform.is32bit instead
+2026-10-15T20:07:24.1064026Z   … [7m02s] warning: stdenv.is64bit is deprecated, use stdenv.hostPlatform.is64bit instead
+2026-10-15T20:07:24.1064171Z   … [7m02s] warning: stdenv.isAarch32 is deprecated, use stdenv.hostPlatform.isAarch32 instead
+2026-10-15T20:07:24.1064293Z   … [7m02s] warning: stdenv.isAarch64 is deprecated, use stdenv.hostPlatform.isAarch64 instead
+2026-10-15T20:07:24.1064749Z   … [7m02s] warning: stdenv.isBSD is deprecated, use stdenv.hostPlatform.isBSD instead
+2026-10-15T20:07:24.1065880Z   … [7m02s] warning: stdenv.isBigEndian is deprecated, use stdenv.hostPlatform.isBigEndian instead
+2026-10-15T20:07:24.1066407Z   … [7m02s] warning: stdenv.isCygwin is deprecated, use stdenv.hostPlatform.isCygwin instead
+2026-10-15T20:07:24.1066963Z   … [7m02s] warning: stdenv.isDarwin is deprecated, use stdenv.hostPlatform.isDarwin instead
+2026-10-15T20:07:24.1067561Z   … [7m02s] warning: stdenv.isFreeBSD is deprecated, use stdenv.hostPlatform.isFreeBSD instead
+2026-10-15T20:07:24.1068069Z   … [7m02s] warning: stdenv.isLinux is deprecated, use stdenv.hostPlatform.isLinux instead
+2026-10-15T20:07:24.1162973Z   … [7m02s] … (更多日志下次显示)
+2026-10-15T20:07:54.2371764Z   … [7m32s] checking NixOS configuration 'nixosConfigurations.installer-iso'...
+2026-10-15T20:07:54.2372076Z   … [7m32s] checking NixOS configuration 'nixosConfigurations.ssh-installer'...
+2026-10-15T20:07:54.2372144Z   … [7m32s] checking flake output 'devShells'...
+2026-10-15T20:07:54.2372509Z   … [7m32s] checking derivation devShells.x86_64-linux.default...
+2026-10-15T20:07:54.2372669Z   … [7m32s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-15T20:07:54.2373016Z   … [7m32s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-15T20:07:54.2373320Z   … [7m32s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-15T20:07:54.2373631Z   … [7m32s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-15T20:07:54.2373925Z   … [7m32s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-15T20:07:54.2374256Z   … [7m32s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-15T20:07:54.2397345Z   … [7m32s] … (更多日志下次显示)
+2026-10-15T20:08:24.3561714Z   … [8m02s] ⚡ nat-nftables store 复用跳过, VM 未执行 (drv=j6dgmjyn) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:08:24.3562086Z   … [8m02s] ⚡ pssd-initrd  store 复用跳过, VM 未执行 (drv=rxjxlljb) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:08:24.3562647Z   … [8m02s] ⚡ roaming-dns  store 复用跳过, VM 未执行 (drv=l37xvqj3) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:08:24.3563270Z   … [8m02s] ⚡ rsshub       store 复用跳过, VM 未执行 (drv=98swk32l) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:08:24.3563572Z   … [8m02s] 合计: 全部通过 ✓
+2026-10-15T20:08:24.3563707Z   … [8m02s] [p1] ✓ P1 check 通过
+2026-10-15T20:08:24.3564122Z   … [8m02s] [p1] deploy ff: git push origin 63d7b4e6:refs/heads/deploy (尝试 1/3, master HEAD 实时核对通过)...
+2026-10-15T20:08:24.3564288Z   … [8m02s] [p1]   Everything up-to-date
+2026-10-15T20:08:24.3564827Z   … [8m02s] [p1] ✓ deploy 分支已就位于 63d7b4e6 (ff-only; deploy 缺失时首推创建, 已就位时幂等 no-op)
+2026-10-15T20:08:24.3565370Z   … [8m02s] [p1] ISO 发布 (nightly): 构建 hosts/installer-iso 并发布 release ...
+2026-10-15T20:08:24.3591234Z   … [8m02s] … (更多日志下次显示)
+2026-10-15T20:08:54.5282243Z   … [8m32s] <静默中…>
+2026-10-15T20:09:24.6827081Z   … [9m02s] <静默中…>
+2026-10-15T20:09:54.8465146Z   … [9m32s] <静默中…>
+2026-10-15T20:10:25.0142741Z   … [10m02s] <静默中…>
+2026-10-15T20:10:55.1340246Z   … [10m33s] <静默中…>
+2026-10-15T20:11:25.2509786Z   … [11m03s] [p1]   [iso-release] ISO 就绪: neve-os-installer-26.11.20261006.151fa4e.iso (4.0GiB) sha256=33f9f2747d659216…
+2026-10-15T20:11:25.2510187Z   … [11m03s] [p1]   [iso-release] 创建 release installer-iso-v20261015 (id=26)
+2026-10-15T20:11:55.3692050Z   … [11m33s] <静默中…>
+2026-10-15T20:12:25.4849554Z ✗ P1 check 失败 (exit 1) — deploy 停在旧位, 生产不受影响
+2026-10-15T20:12:25.4865931Z   … ⚡ mini-pc           cache (已构建 · 10-16 02:15)
+2026-10-15T20:12:25.4866275Z   … ⚡ pssd-nixos        cache (已构建 · 10-16 02:15)
+2026-10-15T20:12:25.4866602Z   … ⚡ ssh-installer     cache (已构建 · 10-16 02:15)
+2026-10-15T20:12:25.4866719Z   … ⚡ 全部命中缓存
+2026-10-15T20:12:25.4867357Z   … ⚡ 已固化 7 个 host toplevel GC roots → /home/lc/.cache/nixos/host-roots (每 host 恒保最近构建, gc 不回收)
+2026-10-15T20:12:25.4867555Z   … 重量级 VM 测试 (heavyTests, nightly 免指纹判定):
+2026-10-15T20:12:25.4868259Z   … ⚡ dae-thin     store 复用跳过, VM 未执行 (drv=yfr87ijm) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:12:25.4868896Z   … ⚡ eternal-terminal store 复用跳过, VM 未执行 (drv=9ixlnjvc) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:12:25.4869501Z   … ⚡ nat-nftables store 复用跳过, VM 未执行 (drv=j6dgmjyn) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:12:25.4870134Z   … ⚡ pssd-initrd  store 复用跳过, VM 未执行 (drv=rxjxlljb) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:12:25.4870737Z   … ⚡ roaming-dns  store 复用跳过, VM 未执行 (drv=l37xvqj3) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:12:25.4871355Z   … ⚡ rsshub       store 复用跳过, VM 未执行 (drv=98swk32l) [fetching path input 'path:/nix/store/f5r36isrbn7pa4fb0k9lsf57jj0k5fs0-source']
+2026-10-15T20:12:25.4871505Z   … 合计: 全部通过 ✓
+2026-10-15T20:12:25.4871659Z   … [p1] ✓ P1 check 通过
+2026-10-15T20:12:25.4872150Z   … [p1] deploy ff: git push origin 63d7b4e6:refs/heads/deploy (尝试 1/3, master HEAD 实时核对通过)...
+2026-10-15T20:12:25.4872304Z   … [p1]   Everything up-to-date
+2026-10-15T20:12:25.4872826Z   … [p1] ✓ deploy 分支已就位于 63d7b4e6 (ff-only; deploy 缺失时首推创建, 已就位时幂等 no-op)
+2026-10-15T20:12:25.4873188Z   … [p1] ISO 发布 (nightly): 构建 hosts/installer-iso 并发布 release ...
+2026-10-15T20:12:25.4873645Z   … [p1]   [iso-release] nix build .#nixosConfigurations.installer-iso.config.system.build.isoImage ...
+2026-10-15T20:12:25.4874141Z   … [p1]   [iso-release] ISO 就绪: neve-os-installer-26.11.20261006.151fa4e.iso (4.0GiB) sha256=33f9f2747d659216…
+2026-10-15T20:12:25.4874445Z   … [p1]   [iso-release] 创建 release installer-iso-v20261015 (id=26)
+2026-10-15T20:12:25.4874659Z   … [p1]   forgejo_client.nim(167)  requestRaw
+2026-10-15T20:12:25.4875642Z   … [p1]   Error: unhandled exception: upload asset neve-os-installer-26.11.20261006.151fa4e.iso → HTTP 400: {"message":"One of 'attachment' or 'external_url' is required","url":"https://git.lambda.lc/api/swagger"}
+2026-10-15T20:12:25.4875764Z   … [p1]    [ForgejoAPIError]
+2026-10-15T20:12:25.4876413Z   … [p1] ✗ ISO 发布失败 — nightly run 判红 (部署不受影响, 次日重试自愈; 排查: 上方脚本输出 / release-token 注入)
+2026-10-15T20:12:25.4876739Z   … [p1] 🛰 构建观测: https://build.luo.xyz/#/b/20261016-040023-936c
+2026-10-15T20:12:25.4877272Z   … forgejo-ci-p1-nightly@63d7b4e66e708f022af577498dbce8e0a8ae3a93.service: Main process exited, code=exited, status=1/FAILURE
+2026-10-15T20:12:25.4877715Z   … forgejo-ci-p1-nightly@63d7b4e66e708f022af577498dbce8e0a8ae3a93.service: Failed with result 'exit-code'.
+2026-10-15T20:12:25.4878236Z   … Failed to start Forgejo CI P1 check (deploy gate, tier=nightly) for commit @63d7b4e66e708f022af577498dbce8e0a8ae3a93.
+2026-10-15T20:12:25.4879274Z   … forgejo-ci-p1-nightly@63d7b4e66e708f022af577498dbce8e0a8ae3a93.service: Consumed 13min 25.201s CPU time over 11min 34.629s wall clock time, 25.7G memory peak, 2.9M read from disk, 49.3M written to disk, 8M incoming IP traffic, 4G outgoing IP traffic.
+2026-10-15T20:12:25.4880844Z   详见宿主: journalctl -u 'forgejo-ci-p1-nightly@63d7b4e66e708f022af577498dbce8e0a8ae3a93' --since '160 min ago'
+2026-10-15T20:12:25.4893196Z ⚙️ [runner]: RUN exit status 1
+2026-10-15T20:12:25.4893484Z 🏁  Job failed
+2026-10-15T20:12:25.4897161Z Job 'check' failed
+2026-10-15T20:12:25.4907369Z ::warning::This Forgejo instance does not support job summaries. This job summary will be discarded.

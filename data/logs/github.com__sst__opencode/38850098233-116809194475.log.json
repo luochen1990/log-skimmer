@@ -1,0 +1,10 @@
+{
+  "repo": "github.com/sst/opencode",
+  "run_id": 38850098233,
+  "job_id": 116809194475,
+  "conclusion": "success",
+  "workflow_name": "pr-standards",
+  "fetched_at": "2026-10-16T04:29:26Z",
+  "attempt": 1,
+  "ci": "github-actions"
+}

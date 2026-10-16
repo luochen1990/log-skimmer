@@ -1,0 +1,10 @@
+{
+  "repo": "github.com/niri-wm/niri",
+  "run_id": 38707551407,
+  "job_id": 116330619372,
+  "conclusion": "success",
+  "workflow_name": "cargo in /. - Update #1629143300",
+  "fetched_at": "2026-10-16T04:30:11Z",
+  "attempt": 1,
+  "ci": "github-actions"
+}

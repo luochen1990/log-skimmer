@@ -1,0 +1,123 @@
+2026-10-16T05:20:58.1347134Z Runner 1609124e-f0f4-4569-989c-90efd0a2c298 (version:v13.2.0) received task 20473 of job check, triggered by event: pull_request
+2026-10-16T05:20:58.1361965Z workflow prepared
+2026-10-16T05:20:58.1365904Z ⭐ Run Main set -euo pipefail\ncount=$(curl -sf --max-time 30 -H "Authorization: token $TOKEN" \\n  "$API/repos/$REPO/actions/runs?status=success&workflow_id=ci.yml&limit=50" \\n  | jq --arg sha "$SHA" '[.workflow_runs[]? | select(.commit_sha == $sha)] | length')\nif [ "$count" -gt 0 ]; then\n  echo "should_skip=true" >> "$GITHUB_OUTPUT"\n  echo "✓ 跳过: commit ${SHA:0:8} 已有成功的 ci.yml run × ${count}"\nelse\n  echo "should_skip=false" >> "$GITHUB_OUTPUT"\n  echo "→ 不跳过: commit ${SHA:0:8} 无成功的 ci.yml run 记录"\nfi
+2026-10-16T05:21:06.8747868Z → 不跳过: commit cfa3302a 无成功的 ci.yml run 记录
+2026-10-16T05:21:06.8796202Z → 触发 check (POST http://10.233.77.1:9123/trigger/cfa3302aa14b78e949348e86f02fc6256ea18b9c)
+2026-10-16T05:21:06.9371772Z ← HTTP 202 {"status": "triggered", "unit": "forgejo-ci-check"}
+2026-10-16T05:21:06.9372107Z ✓ 已触发, 开始轮询 check 结果 (每 15s 一次, 最长 130 分钟)
+2026-10-16T05:21:07.0528191Z   … [0m01s] Starting Forgejo CI check for commit @cfa3302aa14b78e949348e86f02fc6256ea18b9c...
+2026-10-16T05:21:07.0528504Z   … [0m01s] [check] 获取槽位 #0 (并发上限 3), 开始处理 cfa3302a
+2026-10-16T05:21:07.0528600Z   … [0m01s] [check] oss-cache clone-rw git.lambda.lc/lc-studio/nixos @ cfa3302a
+2026-10-16T05:21:22.1716522Z   … [0m16s] [check]   {
+2026-10-16T05:21:22.1716894Z   … [0m16s] [check]     "base_commit": "cfa3302aa14b78e949348e86f02fc6256ea18b9c",
+2026-10-16T05:21:22.1717143Z   … [0m16s] [check]     "clone_path": "/home/lc/.cache/forgejo-ci-worktrees/wt-check-cfa3302aa14b78e949348e86f02fc6256ea18b9c",
+2026-10-16T05:21:22.1717330Z   … [0m16s] [check]     "codegraph_ready": false
+2026-10-16T05:21:22.1717403Z   … [0m16s] [check]   }
+2026-10-16T05:21:22.1717994Z   … [0m16s] [check] just check (P0: lint + eval + 单测构建 + 触及包定向构建, 这可能需要几分钟)...
+2026-10-16T05:21:22.1718103Z   … [0m16s] [check] === 尝试 1/3 ===
+2026-10-16T05:21:22.1718275Z   … [0m16s] just _neve_w check
+2026-10-16T05:21:22.1718472Z   … [0m16s] nix develop .#tools -c neve check
+2026-10-16T05:21:22.1719017Z   … [0m16s] fetching git input 'git+file:///home/lc/.cache/forgejo-ci-worktrees/wt-check-cfa3302aa14b78e949348e86f02fc6256ea18b9c'
+2026-10-16T05:21:22.1739690Z   … [0m16s] … (更多日志下次显示)
+2026-10-16T05:21:37.2898721Z   … [0m31s] <静默中…>
+2026-10-16T05:21:52.4068192Z   … [0m46s] ✓ 191 文件编译冒烟通过 (19.0s)
+2026-10-16T05:21:52.4068492Z   … [0m46s] ✓ 全部通过
+2026-10-16T05:21:52.4068901Z   … [0m46s] flake inputs 漂移检查 (neve-flake-doctor: 同源重复节点 + 同名 rev 漂移):
+2026-10-16T05:21:52.4069034Z   … [0m46s] All ok!
+2026-10-16T05:21:52.4069232Z   … [0m46s] neve-os selftest:
+2026-10-16T05:21:52.4069438Z   … [0m46s] == TestGenLanHosts
+2026-10-16T05:21:52.4070081Z   … [0m46s] ⚠ 网络类失败: git 服务器不可达或 flake input 不在本地缓存。
+2026-10-16T05:21:52.4070920Z   … [0m46s] 若当前离网: 联网后重跑即自动预取该 input (此后本机离线也可用, ~/.cache/nix 常驻);
+2026-10-16T05:21:52.4071608Z   … [0m46s] 若网络正常仍失败: 检查该 rev 是否仍在远端 (force-push?) 或凭据是否有效。
+2026-10-16T05:21:52.4071780Z   … [0m46s] == TestRepoGuard
+2026-10-16T05:21:52.4096501Z   … [0m46s] … (更多日志下次显示)
+2026-10-16T05:22:07.5279468Z   … [1m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:07.5279769Z   … [1m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:07.5279909Z   … [1m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:07.5280297Z   … [1m01s] warning: 'system' has been renamed to/replaced by 'stdenv.hostPlatform.system'
+2026-10-16T05:22:07.5280641Z   … [1m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:07.5281389Z   … [1m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:07.5281712Z   … [1m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:07.5282080Z   … [1m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:07.5282434Z   … [1m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:07.5283136Z   … [1m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:07.5306214Z   … [1m01s] … (更多日志下次显示)
+2026-10-16T05:22:22.6466678Z   … [1m16s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:22.6467043Z   … [1m16s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:22.6467781Z   … [1m16s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:22.6468134Z   … [1m16s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:22.6468495Z   … [1m16s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:22.6468853Z   … [1m16s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:22.6469227Z   … [1m16s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:22.6469578Z   … [1m16s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:22.6469930Z   … [1m16s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:22.6470303Z   … [1m16s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:22.6490145Z   … [1m16s] … (更多日志下次显示)
+2026-10-16T05:22:37.7669449Z   … [1m31s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:37.7669795Z   … [1m31s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:37.7670056Z   … [1m31s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:37.7670362Z   … [1m31s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:37.7670724Z   … [1m31s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:37.7671085Z   … [1m31s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:37.7671449Z   … [1m31s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:37.7672161Z   … [1m31s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:37.7672874Z   … [1m31s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:37.7673590Z   … [1m31s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:37.7699237Z   … [1m31s] … (更多日志下次显示)
+2026-10-16T05:22:52.8868993Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8869509Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8869563Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8869816Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8870170Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8870540Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8870893Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8871256Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8871620Z   … [1m46s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:22:52.8872338Z   … [1m46s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:22:52.8892563Z   … [1m46s] … (更多日志下次显示)
+2026-10-16T05:23:08.0065259Z   … [2m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:08.0065661Z   … [2m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:08.0066382Z   … [2m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:08.0067065Z   … [2m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:08.0067782Z   … [2m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:08.0068456Z   … [2m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:08.0069157Z   … [2m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:08.0069833Z   … [2m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:08.0070216Z   … [2m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:08.0070563Z   … [2m01s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:08.0092231Z   … [2m01s] … (更多日志下次显示)
+2026-10-16T05:23:23.1263205Z   … [2m17s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:23.1263549Z   … [2m17s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-16T05:23:23.1264063Z   … [2m17s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:23.1264603Z   … [2m17s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:23.1265223Z   … [2m17s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:23.1265755Z   … [2m17s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:23.1266312Z   … [2m17s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:23.1266845Z   … [2m17s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:23.1267396Z   … [2m17s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:23.1267934Z   … [2m17s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:23.1293098Z   … [2m17s] … (更多日志下次显示)
+2026-10-16T05:23:38.2464950Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2465333Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2465601Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2465966Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2466334Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2466703Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2467058Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2467449Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2467778Z   … [2m32s] fetching path input 'path:/nix/store/v3i19cv73191ic2gqrs8h1hhv6jda1yq-source'
+2026-10-16T05:23:38.2468027Z   … [2m32s] ✓ 触及包定向构建 (41 个)    9.2s
+2026-10-16T05:23:38.2492175Z   … [2m32s] … (更多日志下次显示)
+2026-10-16T05:23:53.3651784Z   … [2m47s] ✓ home-pc:lc  0 fatal / 1 noise
+2026-10-16T05:23:53.3652154Z   … [2m47s] ✓ home-router:lc  0 fatal / 1 noise
+2026-10-16T05:23:53.3652231Z   … [2m47s] ✓ installer-iso:installer  0 fatal / 0 noise
+2026-10-16T05:23:53.3652343Z   … [2m47s] ✓ mini-pc:lc  0 fatal / 1 noise
+2026-10-16T05:23:53.3652424Z   … [2m47s] ✓ pssd-nixos:lc  0 fatal / 1 noise
+2026-10-16T05:23:53.3652620Z   … [2m47s] ✓ noctalia verify 全部通过
+2026-10-16T05:23:53.3652847Z   … [2m47s] nginx verify (conf 渲染 + nginx -t):
+2026-10-16T05:23:53.3653325Z   … [2m47s] nginx verify (conf 渲染 + nginx -t): 5 host (bootstrap, ssh-installer 无 nginx 跳过)
+2026-10-16T05:23:53.3653593Z   … [2m47s] ⚡ home-pc          指纹命中跳过 (conf=0jh8s2hh)
+2026-10-16T05:23:53.3653897Z   … [2m47s] ⚡ home-router      指纹命中跳过 (conf=ask7apyc)
+2026-10-16T05:23:53.3675003Z   … [2m47s] … (更多日志下次显示)
+2026-10-16T05:24:08.4792672Z ✓ check 通过
+2026-10-16T05:24:08.4807729Z 🏁  Job succeeded

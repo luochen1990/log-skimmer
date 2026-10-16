@@ -1,0 +1,10 @@
+{
+  "repo": "github.com/sst/opencode",
+  "run_id": 38844399476,
+  "job_id": 116791515213,
+  "conclusion": "failure",
+  "workflow_name": "triage",
+  "fetched_at": "2026-10-16T04:39:21Z",
+  "attempt": 1,
+  "ci": "github-actions"
+}

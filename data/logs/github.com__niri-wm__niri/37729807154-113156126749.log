@@ -1,0 +1,454 @@
+﻿2026-10-08T04:55:28.7835102Z Current runner version: '2.337.0'
+2026-10-08T04:55:28.7859313Z ##[group]Runner Image Provisioner
+2026-10-08T04:55:28.7860192Z Hosted Compute Agent
+2026-10-08T04:55:28.7860957Z Version: 20260901.588
+2026-10-08T04:55:28.7861618Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-08T04:55:28.7862575Z Build Date: 2026-09-01T19:56:44Z
+2026-10-08T04:55:28.7863382Z Worker ID: {e5ee988b-f1ff-4756-b27a-85c6fb3e84b0}
+2026-10-08T04:55:28.7864118Z Azure Region: westus
+2026-10-08T04:55:28.7864761Z ##[endgroup]
+2026-10-08T04:55:28.7866246Z ##[group]Operating System
+2026-10-08T04:55:28.7866911Z Ubuntu
+2026-10-08T04:55:28.7867545Z 24.04.5
+2026-10-08T04:55:28.7868069Z LTS
+2026-10-08T04:55:28.7868690Z ##[endgroup]
+2026-10-08T04:55:28.7869276Z ##[group]Runner Image
+2026-10-08T04:55:28.7869885Z Image: ubuntu-24.04
+2026-10-08T04:55:28.7870516Z Version: 20260927.320.1
+2026-10-08T04:55:28.7871808Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-08T04:55:28.7873707Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260927.320
+2026-10-08T04:55:28.7874706Z ##[endgroup]
+2026-10-08T04:55:28.7875933Z ##[group]GITHUB_TOKEN Permissions
+2026-10-08T04:55:28.7877853Z Contents: read
+2026-10-08T04:55:28.7878576Z Metadata: read
+2026-10-08T04:55:28.7879157Z Packages: read
+2026-10-08T04:55:28.7879713Z ##[endgroup]
+2026-10-08T04:55:28.7882518Z Secret source: None
+2026-10-08T04:55:28.7883672Z Cache mode: write
+2026-10-08T04:55:28.7884677Z Prepare workflow directory
+2026-10-08T04:55:28.8280940Z Prepare all required actions
+2026-10-08T04:55:28.8332373Z Getting action download info
+2026-10-08T04:55:29.2085672Z Download action repository 'actions/checkout@v6' (SHA:d23441a48e516b6c34aea4fa41551a30e30af803)
+2026-10-08T04:55:29.3190168Z Download action repository 'vmactions/freebsd-vm@v1' (SHA:c46abacb49f09938ca4e1702d15d836285d694cc)
+2026-10-08T04:55:30.6859303Z Complete job name: freebsd
+2026-10-08T04:55:30.7851305Z ##[group]Run actions/checkout@v6
+2026-10-08T04:55:30.7853066Z with:
+2026-10-08T04:55:30.7854025Z   show-progress: false
+2026-10-08T04:55:30.7855097Z   repository: niri-wm/niri
+2026-10-08T04:55:30.7864086Z   token: ***
+2026-10-08T04:55:30.7865034Z   ssh-strict: true
+2026-10-08T04:55:30.7866014Z   ssh-user: git
+2026-10-08T04:55:30.7867032Z   persist-credentials: true
+2026-10-08T04:55:30.7868121Z   clean: true
+2026-10-08T04:55:30.7869100Z   sparse-checkout-cone-mode: true
+2026-10-08T04:55:30.7870254Z   fetch-depth: 1
+2026-10-08T04:55:30.7871263Z   fetch-tags: false
+2026-10-08T04:55:30.7872419Z   lfs: false
+2026-10-08T04:55:30.7873359Z   submodules: false
+2026-10-08T04:55:30.7874376Z   set-safe-directory: true
+2026-10-08T04:55:30.7875501Z   allow-unsafe-pr-checkout: false
+2026-10-08T04:55:30.7876928Z env:
+2026-10-08T04:55:30.7880181Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-08T04:55:30.7886147Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-08T04:55:30.7891125Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-08T04:55:30.7895617Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-08T04:55:30.7898688Z   CARGO_HOME: /home/runner/work/niri/niri/cargo-home
+2026-10-08T04:55:30.7900015Z ##[endgroup]
+2026-10-08T04:55:30.8979519Z Syncing repository: niri-wm/niri
+2026-10-08T04:55:30.8982827Z ##[group]Getting Git version info
+2026-10-08T04:55:30.8984390Z Working directory is '/home/runner/work/niri/niri'
+2026-10-08T04:55:30.8986562Z [command]/usr/bin/git version
+2026-10-08T04:55:30.9048194Z git version 2.55.0
+2026-10-08T04:55:30.9074417Z ##[endgroup]
+2026-10-08T04:55:30.9095446Z Temporarily overriding HOME='/home/runner/work/_temp/ec58ab18-728c-4ead-b13f-6690a69db578' before making global git config changes
+2026-10-08T04:55:30.9101311Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-08T04:55:30.9108151Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/niri/niri
+2026-10-08T04:55:30.9154003Z Deleting the contents of '/home/runner/work/niri/niri'
+2026-10-08T04:55:30.9158335Z ##[group]Determining repository object format
+2026-10-08T04:55:30.9160749Z ##[endgroup]
+2026-10-08T04:55:30.9162900Z ##[group]Initializing the repository
+2026-10-08T04:55:30.9164803Z [command]/usr/bin/git init /home/runner/work/niri/niri
+2026-10-08T04:55:30.9272842Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-08T04:55:30.9275206Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-08T04:55:30.9277466Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-08T04:55:30.9279254Z hint: call:
+2026-10-08T04:55:30.9280199Z hint:
+2026-10-08T04:55:30.9281352Z hint: 	git config --global init.defaultBranch <name>
+2026-10-08T04:55:30.9283003Z hint:
+2026-10-08T04:55:30.9284364Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-08T04:55:30.9286719Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-08T04:55:30.9288364Z hint:
+2026-10-08T04:55:30.9289278Z hint: 	git branch -m <name>
+2026-10-08T04:55:30.9290581Z hint:
+2026-10-08T04:55:30.9292619Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-08T04:55:30.9296344Z Initialized empty Git repository in /home/runner/work/niri/niri/.git/
+2026-10-08T04:55:30.9306832Z [command]/usr/bin/git remote add origin https://github.com/niri-wm/niri
+2026-10-08T04:55:30.9351233Z ##[endgroup]
+2026-10-08T04:55:30.9353739Z ##[group]Disabling automatic garbage collection
+2026-10-08T04:55:30.9355451Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-08T04:55:30.9442340Z ##[endgroup]
+2026-10-08T04:55:30.9444299Z ##[group]Setting up auth
+2026-10-08T04:55:30.9445628Z Removing SSH command configuration
+2026-10-08T04:55:30.9449255Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-08T04:55:30.9481907Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-08T04:55:30.9834523Z Removing HTTP extra header
+2026-10-08T04:55:30.9840117Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-08T04:55:30.9874765Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-08T04:55:31.0084500Z Removing includeIf entries pointing to credentials config files
+2026-10-08T04:55:31.0089566Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-08T04:55:31.0125851Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-08T04:55:31.0343627Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-08T04:55:31.0380594Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/niri/niri/.git.path /home/runner/work/_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:55:31.0411604Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/niri/niri/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:55:31.0446819Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:55:31.0483574Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:55:31.0511199Z ##[endgroup]
+2026-10-08T04:55:31.0513196Z ##[group]Fetching the repository
+2026-10-08T04:55:31.0519895Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +3b1f729c4d69cd6455cd88334525b748c7e6a04e:refs/remotes/pull/4548/merge
+2026-10-08T04:55:31.8472641Z From https://github.com/niri-wm/niri
+2026-10-08T04:55:31.8474361Z  * [new ref]         3b1f729c4d69cd6455cd88334525b748c7e6a04e -> pull/4548/merge
+2026-10-08T04:55:31.8480228Z ##[endgroup]
+2026-10-08T04:55:31.8480964Z ##[group]Determining the checkout info
+2026-10-08T04:55:31.8481730Z ##[endgroup]
+2026-10-08T04:55:31.8487092Z [command]/usr/bin/git sparse-checkout disable
+2026-10-08T04:55:31.8538946Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-08T04:55:31.8566911Z ##[group]Checking out the ref
+2026-10-08T04:55:31.8570230Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/4548/merge
+2026-10-08T04:55:32.0726718Z Note: switching to 'refs/remotes/pull/4548/merge'.
+2026-10-08T04:55:32.0727283Z 
+2026-10-08T04:55:32.0727687Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-08T04:55:32.0728613Z changes and commit them, and you can discard any commits you make in this
+2026-10-08T04:55:32.0729543Z state without impacting any branches by switching back to a branch.
+2026-10-08T04:55:32.0729981Z 
+2026-10-08T04:55:32.0730229Z If you want to create a new branch to retain commits you create, you may
+2026-10-08T04:55:32.0731002Z do so (now or later) by using -c with the switch command. Example:
+2026-10-08T04:55:32.0731323Z 
+2026-10-08T04:55:32.0731497Z   git switch -c <new-branch-name>
+2026-10-08T04:55:32.0731714Z 
+2026-10-08T04:55:32.0731875Z Or undo this operation with:
+2026-10-08T04:55:32.0732422Z 
+2026-10-08T04:55:32.0732560Z   git switch -
+2026-10-08T04:55:32.0732757Z 
+2026-10-08T04:55:32.0733027Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-08T04:55:32.0733429Z 
+2026-10-08T04:55:32.0733820Z HEAD is now at 3b1f729 Merge 2c39409aff9fe67082773a6d154b5bcf573f51df into ed22699d99462f61ab171472d3ea67e844ea580d
+2026-10-08T04:55:32.0764896Z ##[endgroup]
+2026-10-08T04:55:32.0818097Z [command]/usr/bin/git log -1 --format=%H
+2026-10-08T04:55:32.0843854Z 3b1f729c4d69cd6455cd88334525b748c7e6a04e
+2026-10-08T04:55:32.1075946Z ##[group]Run sudo rm /var/lib/dpkg/info/man-db.*
+2026-10-08T04:55:32.1076529Z [36;1msudo rm /var/lib/dpkg/info/man-db.*[0m
+2026-10-08T04:55:32.1354295Z shell: /usr/bin/bash -e {0}
+2026-10-08T04:55:32.1354816Z env:
+2026-10-08T04:55:32.1356178Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-08T04:55:32.1358580Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-08T04:55:32.1360453Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-08T04:55:32.1362544Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-08T04:55:32.1363785Z   CARGO_HOME: /home/runner/work/niri/niri/cargo-home
+2026-10-08T04:55:32.1364300Z ##[endgroup]
+2026-10-08T04:55:32.1873947Z ##[group]Run vmactions/freebsd-vm@v1
+2026-10-08T04:55:32.1874341Z with:
+2026-10-08T04:55:32.1874798Z   release: 15.0
+2026-10-08T04:55:32.1875076Z   copyback: false
+2026-10-08T04:55:32.1875939Z   prepare: pkg update -f
+pkg install -y git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+
+2026-10-08T04:55:32.1880528Z   run: export CARGO_HOME="$PWD/cargo-home"
+
+cargo fetch
+
+(
+  cd $CARGO_HOME/registry/src/index.crates.io-*/
+  patch -p0 <<'PATCH'
+--- pipewire-sys-0.10.1/build.rs
++++ pipewire-sys-0.10.1/build.rs
+@@ -23,6 +23,8 @@
+         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+         .size_t_is_usize(true)
+         .allowlist_function("pw_.*")
++        .allowlist_function("pipewire_init")
++        .allowlist_function("pipewire_deinit")
+         .allowlist_type("pw_.*")
+         .allowlist_var("pw_.*")
+         .allowlist_var("PW_.*")
+--- pipewire-sys-0.10.1/src/lib.rs
++++ pipewire-sys-0.10.1/src/lib.rs
+@@ -13,0 +14,7 @@
++
++// On FreeBSD, pw_init and pw_deinit are macros aliasing pipewire_init/pipewire_deinit,
++// so bindgen generates the underlying symbol names. Re-export them under the expected names.
++#[cfg(target_os = "freebsd")]
++pub use bindings::pipewire_init as pw_init;
++#[cfg(target_os = "freebsd")]
++pub use bindings::pipewire_deinit as pw_deinit;
+--- libdisplay-info-sys-0.3.0/Cargo.toml
++++ libdisplay-info-sys-0.3.0/Cargo.toml
+@@ -45 +45 @@
+-version = ">= 0.1.0, < 0.4.0"
++version = ">= 0.1.0"
+PATCH
+)
+
+cargo build \
+  --offline \
+  --no-default-features --features dbus,xdp-gnome-screencast
+
+2026-10-08T04:55:32.1884906Z   osname: freebsd
+2026-10-08T04:55:32.1885176Z   mem: 6144
+2026-10-08T04:55:32.1885434Z   disable-cache: false
+2026-10-08T04:55:32.1885735Z   cache-after-prepare: false
+2026-10-08T04:55:32.1888181Z   token: ***
+2026-10-08T04:55:32.1888446Z env:
+2026-10-08T04:55:32.1889333Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-08T04:55:32.1890884Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-08T04:55:32.1892341Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-08T04:55:32.1893518Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-08T04:55:32.1894351Z   CARGO_HOME: /home/runner/work/niri/niri/cargo-home
+2026-10-08T04:55:32.1894715Z ##[endgroup]
+2026-10-08T04:55:32.4770048Z ##[group]Configuration AnyVM.org
+2026-10-08T04:55:32.4770853Z Using ANYVM_VERSION: 0.7.2
+2026-10-08T04:55:32.4771499Z Using BUILDER_VERSION: 2.2.8
+2026-10-08T04:55:32.4772388Z Target OS: freebsd, Release: 15.0
+2026-10-08T04:55:32.4773861Z Downloading https://github.com/anyvm-org/anyvm/releases/download/v0.7.2/anyvm.py to /home/runner/work/_actions/vmactions/freebsd-vm/v1/anyvm.py
+2026-10-08T04:55:32.6661968Z Redirecting to https://release-assets.githubusercontent.com/github-production-release-asset/1101802944/c7bad618-34b5-4337-a7eb-2ebe4ef8c331?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-10-08T05%3A29%3A43Z&rscd=attachment%3B+filename%3Danyvm.py&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-10-08T04%3A28%3A54Z&ske=2026-10-08T05%3A29%3A43Z&sks=b&skv=2018-11-09&sig=XCDiGDiHWVClG3Gq2P7KURlHD8Qt3ZP080fgxjPxD3Y%3D&jwt=***
+2026-10-08T04:55:32.6909302Z ##[endgroup]
+2026-10-08T04:55:32.6910554Z ##[group]Installing dependencies
+2026-10-08T04:55:32.6911579Z Installing dependencies...
+2026-10-08T04:55:32.9425903Z Cache hit for: apt-pkgs-linux-x64-ubuntu24-20260927.320.1-39e60be92fd52804cabcb07c17c01ac3
+2026-10-08T04:55:34.2090731Z Received 2747182 of 23718702 (11.6%), 2.6 MBs/sec
+2026-10-08T04:55:34.4948543Z Received 23718702 of 23718702 (100.0%), 17.6 MBs/sec
+2026-10-08T04:55:34.4949520Z Cache Size: ~23 MB (23718702 B)
+2026-10-08T04:55:34.5059799Z [command]/usr/bin/tar -xf /home/runner/work/_temp/62f4d89e-ac78-4e57-b82d-7c10179af914/cache.tzst -P -C /home/runner/work/niri/niri --use-compress-program unzstd
+2026-10-08T04:55:34.5412645Z Cache restored successfully
+2026-10-08T04:55:34.5426498Z Restored apt packages from cache: apt-pkgs-linux-x64-ubuntu24-20260927.320.1-39e60be92fd52804cabcb07c17c01ac3
+2026-10-08T04:55:34.5772369Z [command]/usr/bin/sudo apt-get install -y -q -o Acquire::Retries=3 -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-unsafe-io -o Acquire::Languages=none --no-install-recommends qemu-utils qemu-system-x86 ovmf
+2026-10-08T04:55:35.3665353Z Reading package lists...
+2026-10-08T04:55:35.5514289Z Building dependency tree...
+2026-10-08T04:55:35.5527081Z Reading state information...
+2026-10-08T04:55:35.6934518Z The following additional packages will be installed:
+2026-10-08T04:55:35.6935424Z   ipxe-qemu libbrlapi0.8 libcacard0 libdaxctl1 libfdt1 libndctl6 libpcsclite1
+2026-10-08T04:55:35.6943100Z   libpmem1 librdmacm1t64 liburing2 libusbredirparser1t64 qemu-system-common
+2026-10-08T04:55:35.6944259Z   qemu-system-data seabios
+2026-10-08T04:55:35.6972885Z Suggested packages:
+2026-10-08T04:55:35.6986524Z   pcscd samba vde2
+2026-10-08T04:55:35.7003195Z Recommended packages:
+2026-10-08T04:55:35.7004004Z   ipxe-qemu-256k-compat-efi-roms qemu-system-gui qemu-system-modules-spice
+2026-10-08T04:55:35.7004922Z   qemu-system-modules-opengl qemu-block-extra cpu-checker
+2026-10-08T04:55:35.7064051Z The following NEW packages will be installed:
+2026-10-08T04:55:35.7073824Z   ipxe-qemu libbrlapi0.8 libcacard0 libdaxctl1 libfdt1 libndctl6 libpcsclite1
+2026-10-08T04:55:35.7074997Z   libpmem1 librdmacm1t64 liburing2 libusbredirparser1t64 ovmf
+2026-10-08T04:55:35.7076020Z   qemu-system-common qemu-system-data qemu-system-x86 qemu-utils seabios
+2026-10-08T04:55:36.8445512Z 0 upgraded, 17 newly installed, 0 to remove and 6 not upgraded.
+2026-10-08T04:55:36.8446220Z Need to get 0 B/23.8 MB of archives.
+2026-10-08T04:55:36.8446850Z After this operation, 112 MB of additional disk space will be used.
+2026-10-08T04:55:36.8682482Z Selecting previously unselected package ipxe-qemu.
+2026-10-08T04:55:36.8847686Z (Reading database ... 
+2026-10-08T04:55:36.8848744Z dpkg: warning: files list file for package 'man-db' missing; assuming package has no files currently installed
+2026-10-08T04:55:36.8849649Z (Reading database ... 5%
+2026-10-08T04:55:36.8850028Z (Reading database ... 10%
+2026-10-08T04:55:36.8850397Z (Reading database ... 15%
+2026-10-08T04:55:36.8850755Z (Reading database ... 20%
+2026-10-08T04:55:36.8851108Z (Reading database ... 25%
+2026-10-08T04:55:36.8851470Z (Reading database ... 30%
+2026-10-08T04:55:36.8851849Z (Reading database ... 35%
+2026-10-08T04:55:36.8852372Z (Reading database ... 40%
+2026-10-08T04:55:36.8852749Z (Reading database ... 45%
+2026-10-08T04:55:36.8853114Z (Reading database ... 50%
+2026-10-08T04:55:36.8892567Z (Reading database ... 55%
+2026-10-08T04:55:37.0304226Z (Reading database ... 60%
+2026-10-08T04:55:37.2391787Z (Reading database ... 65%
+2026-10-08T04:55:37.4393406Z (Reading database ... 70%
+2026-10-08T04:55:37.6257711Z (Reading database ... 75%
+2026-10-08T04:55:37.7828337Z (Reading database ... 80%
+2026-10-08T04:55:37.9891788Z (Reading database ... 85%
+2026-10-08T04:55:38.1826829Z (Reading database ... 90%
+2026-10-08T04:55:38.3880623Z (Reading database ... 95%
+2026-10-08T04:55:38.3881232Z (Reading database ... 100%
+2026-10-08T04:55:38.3882184Z (Reading database ... 202015 files and directories currently installed.)
+2026-10-08T04:55:38.3939590Z Preparing to unpack .../00-ipxe-qemu_1.21.1+git-20220113.fbbdc3926-0ubuntu2_all.deb ...
+2026-10-08T04:55:38.3974561Z Unpacking ipxe-qemu (1.21.1+git-20220113.fbbdc3926-0ubuntu2) ...
+2026-10-08T04:55:38.4331282Z Selecting previously unselected package libbrlapi0.8:amd64.
+2026-10-08T04:55:38.4458094Z Preparing to unpack .../01-libbrlapi0.8_6.6-4ubuntu5_amd64.deb ...
+2026-10-08T04:55:38.4476164Z Unpacking libbrlapi0.8:amd64 (6.6-4ubuntu5) ...
+2026-10-08T04:55:38.4682703Z Selecting previously unselected package libpcsclite1:amd64.
+2026-10-08T04:55:38.4805938Z Preparing to unpack .../02-libpcsclite1_2.0.3-1build1_amd64.deb ...
+2026-10-08T04:55:38.4814775Z Unpacking libpcsclite1:amd64 (2.0.3-1build1) ...
+2026-10-08T04:55:38.5039727Z Selecting previously unselected package libcacard0:amd64.
+2026-10-08T04:55:38.5162615Z Preparing to unpack .../03-libcacard0_1%3a2.8.0-3build4_amd64.deb ...
+2026-10-08T04:55:38.5171232Z Unpacking libcacard0:amd64 (1:2.8.0-3build4) ...
+2026-10-08T04:55:38.5383763Z Selecting previously unselected package libdaxctl1:amd64.
+2026-10-08T04:55:38.5510610Z Preparing to unpack .../04-libdaxctl1_77-2ubuntu2_amd64.deb ...
+2026-10-08T04:55:38.5521271Z Unpacking libdaxctl1:amd64 (77-2ubuntu2) ...
+2026-10-08T04:55:38.5731764Z Selecting previously unselected package libndctl6:amd64.
+2026-10-08T04:55:38.5857308Z Preparing to unpack .../05-libndctl6_77-2ubuntu2_amd64.deb ...
+2026-10-08T04:55:38.5865575Z Unpacking libndctl6:amd64 (77-2ubuntu2) ...
+2026-10-08T04:55:38.6074404Z Selecting previously unselected package libpmem1:amd64.
+2026-10-08T04:55:38.6199573Z Preparing to unpack .../06-libpmem1_1.13.1-1.1ubuntu2_amd64.deb ...
+2026-10-08T04:55:38.6207615Z Unpacking libpmem1:amd64 (1.13.1-1.1ubuntu2) ...
+2026-10-08T04:55:38.6982567Z Selecting previously unselected package librdmacm1t64:amd64.
+2026-10-08T04:55:38.7108455Z Preparing to unpack .../07-librdmacm1t64_50.0-2ubuntu0.2_amd64.deb ...
+2026-10-08T04:55:38.7117268Z Unpacking librdmacm1t64:amd64 (50.0-2ubuntu0.2) ...
+2026-10-08T04:55:38.7355539Z Selecting previously unselected package liburing2:amd64.
+2026-10-08T04:55:38.7481574Z Preparing to unpack .../08-liburing2_2.5-1build1_amd64.deb ...
+2026-10-08T04:55:38.7490686Z Unpacking liburing2:amd64 (2.5-1build1) ...
+2026-10-08T04:55:38.7703088Z Selecting previously unselected package libusbredirparser1t64:amd64.
+2026-10-08T04:55:38.7829150Z Preparing to unpack .../09-libusbredirparser1t64_0.13.0-2.1build1_amd64.deb ...
+2026-10-08T04:55:38.7837642Z Unpacking libusbredirparser1t64:amd64 (0.13.0-2.1build1) ...
+2026-10-08T04:55:38.8058978Z Selecting previously unselected package qemu-system-common.
+2026-10-08T04:55:38.8184264Z Preparing to unpack .../10-qemu-system-common_1%3a8.2.2+ds-0ubuntu1.18_amd64.deb ...
+2026-10-08T04:55:38.8193476Z Unpacking qemu-system-common (1:8.2.2+ds-0ubuntu1.18) ...
+2026-10-08T04:55:38.9370394Z Selecting previously unselected package qemu-system-data.
+2026-10-08T04:55:38.9500100Z Preparing to unpack .../11-qemu-system-data_1%3a8.2.2+ds-0ubuntu1.18_all.deb ...
+2026-10-08T04:55:38.9508654Z Unpacking qemu-system-data (1:8.2.2+ds-0ubuntu1.18) ...
+2026-10-08T04:55:39.0162791Z Selecting previously unselected package libfdt1:amd64.
+2026-10-08T04:55:39.0288110Z Preparing to unpack .../12-libfdt1_1.7.0-2build1_amd64.deb ...
+2026-10-08T04:55:39.0295124Z Unpacking libfdt1:amd64 (1.7.0-2build1) ...
+2026-10-08T04:55:39.0477098Z Selecting previously unselected package seabios.
+2026-10-08T04:55:39.0606266Z Preparing to unpack .../13-seabios_1.16.3-2_all.deb ...
+2026-10-08T04:55:39.0613232Z Unpacking seabios (1.16.3-2) ...
+2026-10-08T04:55:39.0859558Z Selecting previously unselected package qemu-system-x86.
+2026-10-08T04:55:39.0986036Z Preparing to unpack .../14-qemu-system-x86_1%3a8.2.2+ds-0ubuntu1.18_amd64.deb ...
+2026-10-08T04:55:39.1053753Z Unpacking qemu-system-x86 (1:8.2.2+ds-0ubuntu1.18) ...
+2026-10-08T04:55:39.3088489Z Selecting previously unselected package qemu-utils.
+2026-10-08T04:55:39.3215739Z Preparing to unpack .../15-qemu-utils_1%3a8.2.2+ds-0ubuntu1.18_amd64.deb ...
+2026-10-08T04:55:39.3224367Z Unpacking qemu-utils (1:8.2.2+ds-0ubuntu1.18) ...
+2026-10-08T04:55:39.3866480Z Selecting previously unselected package ovmf.
+2026-10-08T04:55:39.3993791Z Preparing to unpack .../16-ovmf_2024.02-2ubuntu0.9_all.deb ...
+2026-10-08T04:55:39.3999519Z Unpacking ovmf (2024.02-2ubuntu0.9) ...
+2026-10-08T04:55:39.4814310Z Setting up libfdt1:amd64 (1.7.0-2build1) ...
+2026-10-08T04:55:39.4832536Z Setting up ovmf (2024.02-2ubuntu0.9) ...
+2026-10-08T04:55:39.4851901Z Setting up libpcsclite1:amd64 (2.0.3-1build1) ...
+2026-10-08T04:55:39.4869193Z Setting up libdaxctl1:amd64 (77-2ubuntu2) ...
+2026-10-08T04:55:39.4886759Z Setting up qemu-system-data (1:8.2.2+ds-0ubuntu1.18) ...
+2026-10-08T04:55:39.4904567Z Setting up seabios (1.16.3-2) ...
+2026-10-08T04:55:39.4923056Z Setting up libusbredirparser1t64:amd64 (0.13.0-2.1build1) ...
+2026-10-08T04:55:39.4940034Z Setting up ipxe-qemu (1.21.1+git-20220113.fbbdc3926-0ubuntu2) ...
+2026-10-08T04:55:39.4958617Z Setting up libndctl6:amd64 (77-2ubuntu2) ...
+2026-10-08T04:55:39.4976620Z Setting up librdmacm1t64:amd64 (50.0-2ubuntu0.2) ...
+2026-10-08T04:55:39.4993872Z Setting up libbrlapi0.8:amd64 (6.6-4ubuntu5) ...
+2026-10-08T04:55:39.5010264Z Setting up liburing2:amd64 (2.5-1build1) ...
+2026-10-08T04:55:39.5027007Z Setting up libpmem1:amd64 (1.13.1-1.1ubuntu2) ...
+2026-10-08T04:55:39.5046190Z Setting up libcacard0:amd64 (1:2.8.0-3build4) ...
+2026-10-08T04:55:39.5063407Z Setting up qemu-utils (1:8.2.2+ds-0ubuntu1.18) ...
+2026-10-08T04:55:39.5080655Z Setting up qemu-system-common (1:8.2.2+ds-0ubuntu1.18) ...
+2026-10-08T04:55:39.6954067Z Created symlink /etc/systemd/system/multi-user.target.wants/qemu-kvm.service → /usr/lib/systemd/system/qemu-kvm.service.
+2026-10-08T04:55:39.6954859Z 
+2026-10-08T04:55:40.0193095Z Setting up qemu-system-x86 (1:8.2.2+ds-0ubuntu1.18) ...
+2026-10-08T04:55:40.0255947Z Processing triggers for hicolor-icon-theme (0.17-2) ...
+2026-10-08T04:55:40.3421279Z Processing triggers for libc-bin (2.39-0ubuntu8.9) ...
+2026-10-08T04:55:40.3768902Z Processing triggers for man-db (2.12.0-4build2) ...
+2026-10-08T04:55:42.8905346Z [command]/usr/bin/sudo chmod 666 /dev/kvm
+2026-10-08T04:55:42.8998852Z ##[endgroup]
+2026-10-08T04:55:42.9001620Z ##[group]Cache
+2026-10-08T04:55:43.1278471Z Cache hit for: freebsd-15.0-2.2.8-amd64-v3
+2026-10-08T04:55:44.3898421Z Received 0 of 1025686846 (0.0%), 0.0 MBs/sec
+2026-10-08T04:55:45.3903293Z Received 130023424 of 1025686846 (12.7%), 62.0 MBs/sec
+2026-10-08T04:55:46.4199303Z Received 268435456 of 1025686846 (26.2%), 84.5 MBs/sec
+2026-10-08T04:55:47.4303014Z Received 402653184 of 1025686846 (39.3%), 95.1 MBs/sec
+2026-10-08T04:55:48.4379596Z Received 536870912 of 1025686846 (52.3%), 101.4 MBs/sec
+2026-10-08T04:55:49.4379359Z Received 671088640 of 1025686846 (65.4%), 105.8 MBs/sec
+2026-10-08T04:55:50.4377848Z Received 834666496 of 1025686846 (81.4%), 112.9 MBs/sec
+2026-10-08T04:55:51.4381522Z Received 956301312 of 1025686846 (93.2%), 113.3 MBs/sec
+2026-10-08T04:55:52.4390753Z Received 1021492542 of 1025686846 (99.6%), 107.7 MBs/sec
+2026-10-08T04:55:53.4308642Z Received 1025686846 of 1025686846 (100.0%), 97.4 MBs/sec
+2026-10-08T04:55:53.4309376Z Cache Size: ~978 MB (1025686846 B)
+2026-10-08T04:55:53.4375123Z [command]/usr/bin/tar -xf /home/runner/work/_temp/d0cdf443-747b-426f-995f-8e2da5522cba/cache.tzst -P -C /home/runner/work/niri/niri --use-compress-program unzstd
+2026-10-08T04:55:59.7056145Z Cache restored successfully
+2026-10-08T04:55:59.7500346Z cache.restoreCache() took 16849ms
+2026-10-08T04:55:59.7500973Z Cache restored: freebsd-15.0-2.2.8-amd64-v3
+2026-10-08T04:55:59.7502414Z ##[endgroup]
+2026-10-08T04:55:59.7506167Z ##[group]Permissions
+2026-10-08T04:55:59.7506646Z Setting permissions for /home/runner...
+2026-10-08T04:55:59.7507374Z ##[endgroup]
+2026-10-08T04:55:59.7508021Z ##[group]Starting VM with anyvm.org
+2026-10-08T04:55:59.7527246Z [command]/usr/bin/python3 /home/runner/work/_actions/vmactions/freebsd-vm/v1/anyvm.py --os freebsd --release 15.0 --data-dir /home/runner/work/_actions/vmactions/freebsd-vm/v1/output --cache-dir /home/runner/work/_actions/_vmcache/freebsd-15.0-2.2.8-amd64-v3 --builder 2.2.8 --mem 6144 -d --ssh-name freebsd --snapshot --vnc off
+2026-10-08T04:56:01.9873479Z [2026-10-08 04:56:01.986] Using release: 15.0
+2026-10-08T04:56:02.2416679Z [2026-10-08 04:56:02.241] Downloading https://github.com/anyvm-org/freebsd-builder/releases/download/v2.2.8/freebsd-15.0.profile.json
+2026-10-08T04:56:03.9273323Z [2026-10-08 04:56:03.926] Started QEMU (PID: 2753)
+2026-10-08T04:56:14.7954979Z [2026-10-08 04:56:14.795] ======================================
+2026-10-08T04:56:14.7955754Z [2026-10-08 04:56:14.795] The VM is still running in background.
+2026-10-08T04:56:14.7956446Z [2026-10-08 04:56:14.795] You can login the VM with:  ssh freebsd-15.0
+2026-10-08T04:56:14.7957048Z [2026-10-08 04:56:14.795] Or just:  ssh 10022
+2026-10-08T04:56:14.7957837Z [2026-10-08 04:56:14.795] Or just:  ssh freebsd
+2026-10-08T04:56:14.7958747Z [2026-10-08 04:56:14.795] ======================================
+2026-10-08T04:56:14.8112808Z ##[endgroup]
+2026-10-08T04:56:14.8113736Z Save Cache (Background)
+2026-10-08T04:56:14.8114308Z Skip cache save (cache was restored or directory missing)
+2026-10-08T04:56:14.8115329Z ##[group]SSH Config
+2026-10-08T04:56:14.8116150Z ##[endgroup]
+2026-10-08T04:56:14.8123234Z ##[group]Syncing source code to VM
+2026-10-08T04:56:14.8123752Z Installing rsync in VM...
+2026-10-08T04:56:14.8124227Z Exec SSH: rm -rf /home/runner/work
+2026-10-08T04:56:14.8946876Z Warning: Permanently added '[127.0.0.1]:10022' (ED25519) to the list of known hosts.
+2026-10-08T04:56:14.9917210Z Exec SSH: mkdir -p /home/runner/work
+2026-10-08T04:56:15.0737732Z Warning: Permanently added '[127.0.0.1]:10022' (ED25519) to the list of known hosts.
+2026-10-08T04:56:15.1700024Z Syncing via Rsync
+2026-10-08T04:56:15.1717156Z [command]/usr/bin/rsync -artopg --rsync-path=sh -c 'PATH=$PATH:/usr/local/bin:/usr/local/sbin:/usr/pkg/bin:/usr/pkg/sbin:/opt/local/bin:/opt/local/sbin exec rsync "$@"' rsync --exclude _actions --exclude _PipelineMapping --exclude cache.tzst -e ssh /home/runner/work/ freebsd:/home/runner/work/
+2026-10-08T04:56:15.3548184Z Warning: Permanently added '[127.0.0.1]:10022' (ED25519) to the list of known hosts.
+2026-10-08T04:56:15.8936713Z ##[endgroup]
+2026-10-08T04:56:15.8937489Z ##[group]Creating workdir symlink
+2026-10-08T04:56:15.8938273Z Exec SSH: [ -L "$HOME/work" ] || ln -s /home/runner/work $HOME/work
+2026-10-08T04:56:15.9746383Z Warning: Permanently added '[127.0.0.1]:10022' (ED25519) to the list of known hosts.
+2026-10-08T04:56:16.0690759Z ##[endgroup]
+2026-10-08T04:56:16.0691347Z ##[group]Run 'prepare' in VM
+2026-10-08T04:56:16.0691649Z Exec SSH: cd "$GITHUB_WORKSPACE"
+2026-10-08T04:56:16.0691932Z pkg update -f
+2026-10-08T04:56:16.0692966Z pkg install -y git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-08T04:56:16.1566108Z Warning: Permanently added '[127.0.0.1]:10022' (ED25519) to the list of known hosts.
+2026-10-08T04:56:16.2818947Z Updating FreeBSD-ports repository catalogue...
+2026-10-08T04:56:16.6323121Z Fetching meta.conf: . done
+2026-10-08T04:56:16.8039156Z Fetching data: .......... done
+2026-10-08T04:56:17.5328753Z pkg: repository FreeBSD-ports contains packages for wrong OS version: FreeBSD:15:amd64
+2026-10-08T04:56:17.5329571Z Processing entries: 
+2026-10-08T04:56:17.5329989Z Newer FreeBSD version for package zh-qe:
+2026-10-08T04:56:17.5330517Z To ignore this error set IGNORE_OSVERSION=yes
+2026-10-08T04:56:17.5331001Z - package: 1501000
+2026-10-08T04:56:17.5331524Z - running userland: 1500068
+2026-10-08T04:56:17.5394340Z Ignore the mismatch and continue? [y/N]: Processing entries...
+2026-10-08T04:56:17.5403836Z Unable to update repository FreeBSD-ports
+2026-10-08T04:56:17.5405192Z Updating FreeBSD-ports-kmods repository catalogue...
+2026-10-08T04:56:17.5468775Z Fetching meta.conf: . done
+2026-10-08T04:56:17.6589394Z Fetching data: ..... done
+2026-10-08T04:56:17.7183392Z Processing entries: .......... done
+2026-10-08T04:56:17.7184034Z FreeBSD-ports-kmods repository update completed. 240 packages processed.
+2026-10-08T04:56:17.8538590Z Updating FreeBSD-base repository catalogue...
+2026-10-08T04:56:17.9398302Z Fetching meta.conf: . done
+2026-10-08T04:56:17.9813533Z Fetching data: .......... done
+2026-10-08T04:56:18.0615730Z Processing entries: .......... done
+2026-10-08T04:56:18.0616353Z FreeBSD-base repository update completed. 496 packages processed.
+2026-10-08T04:56:19.2226120Z Error updating repositories!
+2026-10-08T04:56:19.2277973Z ##[endgroup]
+2026-10-08T04:56:19.2304191Z ##[error]ssh exited with code 1
+2026-10-08T04:56:19.2559974Z Post job cleanup.
+2026-10-08T04:56:19.3372493Z [command]/usr/bin/git version
+2026-10-08T04:56:19.3408243Z git version 2.55.0
+2026-10-08T04:56:19.3449424Z Temporarily overriding HOME='/home/runner/work/_temp/42ff2e79-1b10-44d3-bdb6-eb6fb68f9875' before making global git config changes
+2026-10-08T04:56:19.3450774Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-08T04:56:19.3455694Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/niri/niri
+2026-10-08T04:56:19.3486959Z Removing SSH command configuration
+2026-10-08T04:56:19.3493814Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-08T04:56:19.3527612Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-08T04:56:19.3749718Z Removing HTTP extra header
+2026-10-08T04:56:19.3754565Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-08T04:56:19.3786592Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-08T04:56:19.4006092Z Removing includeIf entries pointing to credentials config files
+2026-10-08T04:56:19.4012560Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-08T04:56:19.4037680Z includeif.gitdir:/home/runner/work/niri/niri/.git.path
+2026-10-08T04:56:19.4038555Z includeif.gitdir:/home/runner/work/niri/niri/.git/worktrees/*.path
+2026-10-08T04:56:19.4039344Z includeif.gitdir:/github/workspace/.git.path
+2026-10-08T04:56:19.4040042Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-08T04:56:19.4047411Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/niri/niri/.git.path
+2026-10-08T04:56:19.4069021Z /home/runner/work/_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:56:19.4079979Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/niri/niri/.git.path /home/runner/work/_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:56:19.4114979Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/niri/niri/.git/worktrees/*.path
+2026-10-08T04:56:19.4136276Z /home/runner/work/_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:56:19.4145786Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/niri/niri/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:56:19.4176289Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-08T04:56:19.4196348Z /github/runner_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:56:19.4205676Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:56:19.4236788Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-08T04:56:19.4256864Z /github/runner_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:56:19.4265163Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config
+2026-10-08T04:56:19.4332650Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-08T04:56:19.4576132Z Removing credentials config '/home/runner/work/_temp/git-credentials-d72a5151-957a-4b40-b380-259bc55569cc.config'
+2026-10-08T04:56:19.4736141Z Cleaning up orphan processes
+2026-10-08T04:56:19.5148335Z Terminate orphan process: pid (2753) (qemu-system-x86_64)

@@ -1,0 +1,431 @@
+﻿2026-10-12T17:42:20.3726729Z Current runner version: '2.337.0'
+2026-10-12T17:42:20.3752826Z ##[group]Runner Image Provisioner
+2026-10-12T17:42:20.3753647Z Hosted Compute Agent
+2026-10-12T17:42:20.3754329Z Version: 20261002.596
+2026-10-12T17:42:20.3754998Z Commit: c3d12f3313a95f25162a1503be624f3b0617f8c0
+2026-10-12T17:42:20.3756271Z Build Date: 2026-10-02T22:28:27Z
+2026-10-12T17:42:20.3757046Z Worker ID: {069bc766-10bb-4cc2-805b-1e330512cb42}
+2026-10-12T17:42:20.3757797Z Region: centralus
+2026-10-12T17:42:20.3758419Z Cloud: Azure
+2026-10-12T17:42:20.3758997Z ##[endgroup]
+2026-10-12T17:42:20.3760728Z ##[group]Operating System
+2026-10-12T17:42:20.3761382Z Ubuntu
+2026-10-12T17:42:20.3761906Z 24.04.5
+2026-10-12T17:42:20.3762471Z LTS
+2026-10-12T17:42:20.3763025Z ##[endgroup]
+2026-10-12T17:42:20.3763562Z ##[group]Runner Image
+2026-10-12T17:42:20.3764261Z Image: ubuntu-24.04
+2026-10-12T17:42:20.3764860Z Version: 20261004.327.1
+2026-10-12T17:42:20.3766538Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261004.327/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-12T17:42:20.3768148Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261004.327
+2026-10-12T17:42:20.3769227Z ##[endgroup]
+2026-10-12T17:42:20.3770370Z ##[group]GITHUB_TOKEN Permissions
+2026-10-12T17:42:20.3772673Z Contents: read
+2026-10-12T17:42:20.3773285Z Metadata: read
+2026-10-12T17:42:20.3773925Z Packages: read
+2026-10-12T17:42:20.3774472Z ##[endgroup]
+2026-10-12T17:42:20.3777375Z Secret source: None
+2026-10-12T17:42:20.3778446Z Cache mode: write
+2026-10-12T17:42:20.3779418Z Prepare workflow directory
+2026-10-12T17:42:20.4185226Z Prepare all required actions
+2026-10-12T17:42:20.4233782Z Getting action download info
+2026-10-12T17:42:20.6922133Z Download action repository 'actions/checkout@v6' (SHA:d23441a48e516b6c34aea4fa41551a30e30af803)
+2026-10-12T17:42:20.8105902Z Download action repository 'dtolnay/rust-toolchain@nightly' (SHA:f0d5300ba8908d942c808f4d31c08471d7798ba3)
+2026-10-12T17:42:21.1348211Z Complete job name: rustfmt
+2026-10-12T17:42:21.2142140Z ##[group]Run actions/checkout@v6
+2026-10-12T17:42:21.2143413Z with:
+2026-10-12T17:42:21.2143880Z   show-progress: false
+2026-10-12T17:42:21.2144380Z   repository: niri-wm/niri
+2026-10-12T17:42:21.2148362Z   token: ***
+2026-10-12T17:42:21.2148814Z   ssh-strict: true
+2026-10-12T17:42:21.2149247Z   ssh-user: git
+2026-10-12T17:42:21.2149698Z   persist-credentials: true
+2026-10-12T17:42:21.2150177Z   clean: true
+2026-10-12T17:42:21.2150622Z   sparse-checkout-cone-mode: true
+2026-10-12T17:42:21.2151145Z   fetch-depth: 1
+2026-10-12T17:42:21.2151571Z   fetch-tags: false
+2026-10-12T17:42:21.2152002Z   lfs: false
+2026-10-12T17:42:21.2152413Z   submodules: false
+2026-10-12T17:42:21.2152873Z   set-safe-directory: true
+2026-10-12T17:42:21.2153395Z   allow-unsafe-pr-checkout: false
+2026-10-12T17:42:21.2154844Z env:
+2026-10-12T17:42:21.2156630Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:21.2159220Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:21.2161417Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:21.2163329Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:21.2164608Z ##[endgroup]
+2026-10-12T17:42:21.3183449Z Syncing repository: niri-wm/niri
+2026-10-12T17:42:21.3185747Z ##[group]Getting Git version info
+2026-10-12T17:42:21.3186462Z Working directory is '/home/runner/work/niri/niri'
+2026-10-12T17:42:21.3187497Z [command]/usr/bin/git version
+2026-10-12T17:42:21.3276338Z git version 2.55.0
+2026-10-12T17:42:21.3300191Z ##[endgroup]
+2026-10-12T17:42:21.3317442Z Temporarily overriding HOME='/home/runner/work/_temp/c675d9a7-320b-4b18-b5cd-333ecb3e759f' before making global git config changes
+2026-10-12T17:42:21.3319902Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-12T17:42:21.3324364Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/niri/niri
+2026-10-12T17:42:21.3380343Z Deleting the contents of '/home/runner/work/niri/niri'
+2026-10-12T17:42:21.3384975Z ##[group]Determining repository object format
+2026-10-12T17:42:21.3387373Z ##[endgroup]
+2026-10-12T17:42:21.3388889Z ##[group]Initializing the repository
+2026-10-12T17:42:21.3392740Z [command]/usr/bin/git init /home/runner/work/niri/niri
+2026-10-12T17:42:21.3573420Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-12T17:42:21.3577084Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-12T17:42:21.3578841Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-12T17:42:21.3579738Z hint: call:
+2026-10-12T17:42:21.3580179Z hint:
+2026-10-12T17:42:21.3580878Z hint: 	git config --global init.defaultBranch <name>
+2026-10-12T17:42:21.3582095Z hint:
+2026-10-12T17:42:21.3582862Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-12T17:42:21.3584275Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-12T17:42:21.3585102Z hint:
+2026-10-12T17:42:21.3585846Z hint: 	git branch -m <name>
+2026-10-12T17:42:21.3586396Z hint:
+2026-10-12T17:42:21.3587090Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-12T17:42:21.3588557Z Initialized empty Git repository in /home/runner/work/niri/niri/.git/
+2026-10-12T17:42:21.3590897Z [command]/usr/bin/git remote add origin https://github.com/niri-wm/niri
+2026-10-12T17:42:21.3647008Z ##[endgroup]
+2026-10-12T17:42:21.3648200Z ##[group]Disabling automatic garbage collection
+2026-10-12T17:42:21.3650961Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-12T17:42:21.3681891Z ##[endgroup]
+2026-10-12T17:42:21.3682837Z ##[group]Setting up auth
+2026-10-12T17:42:21.3683726Z Removing SSH command configuration
+2026-10-12T17:42:21.3690444Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-12T17:42:21.3723390Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-12T17:42:21.4110467Z Removing HTTP extra header
+2026-10-12T17:42:21.4119808Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-12T17:42:21.4157070Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-12T17:42:21.4399211Z Removing includeIf entries pointing to credentials config files
+2026-10-12T17:42:21.4404361Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-12T17:42:21.4438036Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-12T17:42:21.4690295Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-12T17:42:21.4732147Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/niri/niri/.git.path /home/runner/work/_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:21.4766940Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/niri/niri/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:21.4806687Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:21.4850720Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:21.4879317Z ##[endgroup]
+2026-10-12T17:42:21.4880625Z ##[group]Fetching the repository
+2026-10-12T17:42:21.4890295Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +28074d14df6608139e0741f491dc1699a3eb0108:refs/remotes/pull/4682/merge
+2026-10-12T17:42:22.3265870Z From https://github.com/niri-wm/niri
+2026-10-12T17:42:22.3267811Z  * [new ref]         28074d14df6608139e0741f491dc1699a3eb0108 -> pull/4682/merge
+2026-10-12T17:42:22.3272509Z ##[endgroup]
+2026-10-12T17:42:22.3274008Z ##[group]Determining the checkout info
+2026-10-12T17:42:22.3280148Z ##[endgroup]
+2026-10-12T17:42:22.3288197Z [command]/usr/bin/git sparse-checkout disable
+2026-10-12T17:42:22.3348342Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-12T17:42:22.3403636Z ##[group]Checking out the ref
+2026-10-12T17:42:22.3407331Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/4682/merge
+2026-10-12T17:42:22.5534491Z Note: switching to 'refs/remotes/pull/4682/merge'.
+2026-10-12T17:42:22.5535796Z 
+2026-10-12T17:42:22.5536526Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-12T17:42:22.5538203Z changes and commit them, and you can discard any commits you make in this
+2026-10-12T17:42:22.5539802Z state without impacting any branches by switching back to a branch.
+2026-10-12T17:42:22.5540743Z 
+2026-10-12T17:42:22.5541388Z If you want to create a new branch to retain commits you create, you may
+2026-10-12T17:42:22.5543030Z do so (now or later) by using -c with the switch command. Example:
+2026-10-12T17:42:22.5544022Z 
+2026-10-12T17:42:22.5544719Z   git switch -c <new-branch-name>
+2026-10-12T17:42:22.5545596Z 
+2026-10-12T17:42:22.5545827Z Or undo this operation with:
+2026-10-12T17:42:22.5546225Z 
+2026-10-12T17:42:22.5546391Z   git switch -
+2026-10-12T17:42:22.5546684Z 
+2026-10-12T17:42:22.5547316Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-12T17:42:22.5548605Z 
+2026-10-12T17:42:22.5549702Z HEAD is now at 28074d1 Merge b4fc1133cefae08cb264b491364e5f23a27bd654 into 90af637e466687ebce85d5e037c83871a1c0376a
+2026-10-12T17:42:22.5552598Z ##[endgroup]
+2026-10-12T17:42:22.5604145Z [command]/usr/bin/git log -1 --format=%H
+2026-10-12T17:42:22.5629635Z 28074d14df6608139e0741f491dc1699a3eb0108
+2026-10-12T17:42:22.6316763Z ##[group]Run dtolnay/rust-toolchain@nightly
+2026-10-12T17:42:22.6317624Z with:
+2026-10-12T17:42:22.6318138Z   components: rustfmt
+2026-10-12T17:42:22.6318736Z   toolchain: nightly
+2026-10-12T17:42:22.6319276Z env:
+2026-10-12T17:42:22.6321658Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:22.6326590Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:22.6330374Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:22.6333712Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:22.6335934Z ##[endgroup]
+2026-10-12T17:42:22.6416071Z ##[start-action display=Parse toolchain version;id=__dtolnay_rust-toolchain.parse]
+2026-10-12T17:42:22.6493087Z ##[group]Run if [[ -z $toolchain ]]; then
+2026-10-12T17:42:22.6493974Z [36;1mif [[ -z $toolchain ]]; then[0m
+2026-10-12T17:42:22.6495905Z [36;1m  # GitHub does not enforce `required: true` inputs itself. https://github.com/actions/runner/issues/1070[0m
+2026-10-12T17:42:22.6497435Z [36;1m  echo "'toolchain' is a required input" >&2[0m
+2026-10-12T17:42:22.6498201Z [36;1m  exit 1[0m
+2026-10-12T17:42:22.6499046Z [36;1melif [[ $toolchain =~ ^stable' '[0-9]+' '(year|month|week|day)s?' 'ago$ ]]; then[0m
+2026-10-12T17:42:22.6500140Z [36;1m  if [[ Linux == macOS ]]; then[0m
+2026-10-12T17:42:22.6501558Z [36;1m    echo "toolchain=1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(.\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT[0m
+2026-10-12T17:42:22.6502970Z [36;1m  else[0m
+2026-10-12T17:42:22.6504029Z [36;1m    echo "toolchain=1.$((($(date --date "${toolchain#stable }" +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT[0m
+2026-10-12T17:42:22.6505413Z [36;1m  fi[0m
+2026-10-12T17:42:22.6506182Z [36;1melif [[ $toolchain =~ ^stable' 'minus' '[0-9]+' 'releases?$ ]]; then[0m
+2026-10-12T17:42:22.6507643Z [36;1m  echo "toolchain=1.$((($(date +%s)/60/60/24-16569)/7/6-${toolchain//[^0-9]/}))" >> $GITHUB_OUTPUT[0m
+2026-10-12T17:42:22.6508896Z [36;1melif [[ $toolchain =~ ^1\.[0-9]+$ ]]; then[0m
+2026-10-12T17:42:22.6510336Z [36;1m  echo "toolchain=1.$((i=${toolchain#1.}, c=($(date +%s)/60/60/24-16569)/7/6, i+9*i*(10*i<=c)+90*i*(100*i<=c)))" >> $GITHUB_OUTPUT[0m
+2026-10-12T17:42:22.6511682Z [36;1melse[0m
+2026-10-12T17:42:22.6512145Z [36;1m  delimiter=EOF[0m
+2026-10-12T17:42:22.6512939Z [36;1m  while [[ $toolchain == *$delimiter* ]]; do delimiter+=_; done[0m
+2026-10-12T17:42:22.6514340Z [36;1m  printf 'toolchain<<%s\n%s\n%s\n' "$delimiter" "$toolchain" "$delimiter" >> $GITHUB_OUTPUT[0m
+2026-10-12T17:42:22.6515600Z [36;1mfi[0m
+2026-10-12T17:42:22.6899439Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:22.6900573Z env:
+2026-10-12T17:42:22.6903416Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:22.6908787Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:22.6912389Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:22.6915907Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:22.6917940Z   toolchain: nightly
+2026-10-12T17:42:22.6918443Z ##[endgroup]
+2026-10-12T17:42:22.7077943Z ##[end-action id=__dtolnay_rust-toolchain.parse;outcome=success;conclusion=success;duration_ms=65]
+2026-10-12T17:42:22.7085878Z ##[start-action display=Set $CARGO_HOME;id=__dtolnay_rust-toolchain.__run]
+2026-10-12T17:42:22.7138216Z ##[group]Run echo CARGO_HOME=${CARGO_HOME:-"$HOME/.cargo"} >> $GITHUB_ENV
+2026-10-12T17:42:22.7139461Z [36;1mecho CARGO_HOME=${CARGO_HOME:-"$HOME/.cargo"} >> $GITHUB_ENV[0m
+2026-10-12T17:42:22.7206954Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:22.7207809Z env:
+2026-10-12T17:42:22.7210034Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:22.7214291Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:22.7218054Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:22.7221374Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:22.7223347Z ##[endgroup]
+2026-10-12T17:42:22.7323987Z ##[end-action id=__dtolnay_rust-toolchain.__run;outcome=success;conclusion=success;duration_ms=23]
+2026-10-12T17:42:22.7329108Z ##[start-action display=Install rustup if needed;id=__dtolnay_rust-toolchain.__run_2]
+2026-10-12T17:42:22.7378187Z ##[group]Run if ! command -v rustup &>/dev/null; then
+2026-10-12T17:42:22.7379122Z [36;1mif ! command -v rustup &>/dev/null; then[0m
+2026-10-12T17:42:22.7381180Z [36;1m  curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --default-toolchain none -y[0m
+2026-10-12T17:42:22.7383217Z [36;1m  echo "$CARGO_HOME/bin" >> $GITHUB_PATH[0m
+2026-10-12T17:42:22.7383946Z [36;1mfi[0m
+2026-10-12T17:42:22.7448305Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:22.7449211Z env:
+2026-10-12T17:42:22.7451416Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:22.7455970Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:22.7459638Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:22.7462802Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:22.7464832Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:22.7465761Z ##[endgroup]
+2026-10-12T17:42:22.7573645Z ##[end-action id=__dtolnay_rust-toolchain.__run_2;outcome=success;conclusion=success;duration_ms=24]
+2026-10-12T17:42:22.7579436Z ##[start-action display=Install rustup if needed on windows;id=__dtolnay_rust-toolchain.__run_3]
+2026-10-12T17:42:22.7592217Z ##[end-action id=__dtolnay_rust-toolchain.__run_3;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-12T17:42:22.7612147Z ##[start-action display=rustup toolchain install nightly;id=__dtolnay_rust-toolchain.__run_4]
+2026-10-12T17:42:22.7652146Z ##[group]Run set -f  # split targets and components on commas and whitespace, without glob expansion
+2026-10-12T17:42:22.7654074Z [36;1mset -f  # split targets and components on commas and whitespace, without glob expansion[0m
+2026-10-12T17:42:22.7655443Z [36;1mflags=()[0m
+2026-10-12T17:42:22.7656121Z [36;1mfor t in ${targets//,/ }; do flags+=(--target "$t"); done[0m
+2026-10-12T17:42:22.7657196Z [36;1mfor c in ${components//,/ }; do flags+=(--component "$c"); done[0m
+2026-10-12T17:42:22.7658522Z [36;1mif [[ $toolchain == nightly && -n $components ]]; then flags+=(--allow-downgrade); fi[0m
+2026-10-12T17:42:22.7659693Z [36;1mlog=$(mktemp)[0m
+2026-10-12T17:42:22.7660241Z [36;1mtrap 'rm -f "$log"' EXIT[0m
+2026-10-12T17:42:22.7660860Z [36;1mfor attempt in 1 2 3 4 5; do[0m
+2026-10-12T17:42:22.7662354Z [36;1m  if rustup toolchain install "$toolchain" "${flags[@]}" --profile minimal --no-self-update --force-non-host 2>&1 | tee "$log"; then[0m
+2026-10-12T17:42:22.7663870Z [36;1m    break[0m
+2026-10-12T17:42:22.7664329Z [36;1m  else[0m
+2026-10-12T17:42:22.7664792Z [36;1m    status=$?[0m
+2026-10-12T17:42:22.7665550Z [36;1m  fi[0m
+2026-10-12T17:42:22.7666277Z [36;1m  if [[ $attempt == 5 ]] || ! grep -Fq 'checksum failed for ' "$log" \[0m
+2026-10-12T17:42:22.7667736Z [36;1m      || ! grep -Fq 'this is likely due to an ongoing update of the official release server' "$log"; then[0m
+2026-10-12T17:42:22.7668985Z [36;1m    exit "$status"[0m
+2026-10-12T17:42:22.7669706Z [36;1m  fi[0m
+2026-10-12T17:42:22.7670594Z [36;1m  echo "Retrying rustup toolchain install in 30 seconds (retry $attempt of 4)" >&2[0m
+2026-10-12T17:42:22.7671693Z [36;1m  sleep 30[0m
+2026-10-12T17:42:22.7672162Z [36;1mdone[0m
+2026-10-12T17:42:22.7736024Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:22.7736873Z env:
+2026-10-12T17:42:22.7739012Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:22.7743116Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:22.7746815Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:22.7749878Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:22.7751851Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:22.7752463Z   toolchain: nightly
+2026-10-12T17:42:22.7752951Z   targets: 
+2026-10-12T17:42:22.7753382Z   components: rustfmt
+2026-10-12T17:42:22.7753915Z   RUSTUP_PERMIT_COPY_RENAME: 1
+2026-10-12T17:42:22.7754478Z ##[endgroup]
+2026-10-12T17:42:22.8969866Z info: syncing channel updates for nightly-x86_64-unknown-linux-gnu
+2026-10-12T17:42:23.2980501Z info: latest update on 2026-10-12 for version 1.101.0-nightly (080cc2714 2026-10-11)
+2026-10-12T17:42:23.2981409Z info: downloading 4 components
+2026-10-12T17:42:31.5568933Z 
+2026-10-12T17:42:31.5637784Z   nightly-x86_64-unknown-linux-gnu installed - rustc 1.101.0-nightly (080cc2714 2026-10-11)
+2026-10-12T17:42:31.5638571Z 
+2026-10-12T17:42:31.5718256Z ##[end-action id=__dtolnay_rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=8810]
+2026-10-12T17:42:31.5732272Z ##[start-action display=rustup default nightly;id=__dtolnay_rust-toolchain.__run_5]
+2026-10-12T17:42:31.5767469Z ##[group]Run rustup default "$toolchain" --force-non-host
+2026-10-12T17:42:31.5767953Z [36;1mrustup default "$toolchain" --force-non-host[0m
+2026-10-12T17:42:31.5834804Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:31.5835442Z env:
+2026-10-12T17:42:31.5836651Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:31.5838314Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:31.5839748Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:31.5841041Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:31.5841921Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:31.5842234Z   toolchain: nightly
+2026-10-12T17:42:31.5842501Z ##[endgroup]
+2026-10-12T17:42:31.5974740Z info: using existing install for nightly-x86_64-unknown-linux-gnu
+2026-10-12T17:42:31.5983902Z info: default toolchain set to nightly-x86_64-unknown-linux-gnu
+2026-10-12T17:42:31.5984394Z 
+2026-10-12T17:42:31.6052689Z   nightly-x86_64-unknown-linux-gnu unchanged - rustc 1.101.0-nightly (080cc2714 2026-10-11)
+2026-10-12T17:42:31.6053363Z 
+2026-10-12T17:42:31.6071437Z ##[end-action id=__dtolnay_rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=33]
+2026-10-12T17:42:31.6076477Z ##[start-action display=Create cachekey;id=__dtolnay_rust-toolchain.rustc-version]
+2026-10-12T17:42:31.6109480Z ##[group]Run DATE=$(rustc +"$toolchain" --version --verbose | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')
+2026-10-12T17:42:31.6110467Z [36;1mDATE=$(rustc +"$toolchain" --version --verbose | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')[0m
+2026-10-12T17:42:31.6111247Z [36;1mHASH=$(rustc +"$toolchain" --version --verbose | sed -ne 's/^commit-hash: //p')[0m
+2026-10-12T17:42:31.6111824Z [36;1mecho "cachekey=$(echo $DATE$HASH | head -c12)" >> $GITHUB_OUTPUT[0m
+2026-10-12T17:42:31.6179583Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:31.6180029Z env:
+2026-10-12T17:42:31.6180937Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:31.6182599Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:31.6184103Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:31.6185684Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:31.6186596Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:31.6186982Z   toolchain: nightly
+2026-10-12T17:42:31.6187270Z ##[endgroup]
+2026-10-12T17:42:31.6547817Z ##[end-action id=__dtolnay_rust-toolchain.rustc-version;outcome=success;conclusion=success;duration_ms=47]
+2026-10-12T17:42:31.6551168Z ##[start-action display=Disable incremental compilation;id=__dtolnay_rust-toolchain.__run_6]
+2026-10-12T17:42:31.6607492Z ##[group]Run if [ -z "${CARGO_INCREMENTAL+set}" ]; then
+2026-10-12T17:42:31.6607979Z [36;1mif [ -z "${CARGO_INCREMENTAL+set}" ]; then[0m
+2026-10-12T17:42:31.6608366Z [36;1m  echo CARGO_INCREMENTAL=0 >> $GITHUB_ENV[0m
+2026-10-12T17:42:31.6608698Z [36;1mfi[0m
+2026-10-12T17:42:31.6679989Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:31.6680406Z env:
+2026-10-12T17:42:31.6681283Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:31.6683048Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:31.6684420Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:31.6685872Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:31.6686726Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:31.6687039Z ##[endgroup]
+2026-10-12T17:42:31.6790732Z ##[end-action id=__dtolnay_rust-toolchain.__run_6;outcome=success;conclusion=success;duration_ms=23]
+2026-10-12T17:42:31.6793785Z ##[start-action display=Enable colors in Cargo output;id=__dtolnay_rust-toolchain.__run_7]
+2026-10-12T17:42:31.6825892Z ##[group]Run if [ -z "${CARGO_TERM_COLOR+set}" ]; then
+2026-10-12T17:42:31.6826348Z [36;1mif [ -z "${CARGO_TERM_COLOR+set}" ]; then[0m
+2026-10-12T17:42:31.6826739Z [36;1m  echo CARGO_TERM_COLOR=always >> $GITHUB_ENV[0m
+2026-10-12T17:42:31.6827090Z [36;1mfi[0m
+2026-10-12T17:42:31.6896853Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:31.6897299Z env:
+2026-10-12T17:42:31.6898198Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:31.6900065Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:31.6901465Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:31.6902711Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:31.6903556Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:31.6903888Z   CARGO_INCREMENTAL: 0
+2026-10-12T17:42:31.6904160Z ##[endgroup]
+2026-10-12T17:42:31.7006372Z ##[end-action id=__dtolnay_rust-toolchain.__run_7;outcome=success;conclusion=success;duration_ms=21]
+2026-10-12T17:42:31.7011401Z ##[start-action display=Enable Cargo sparse registry;id=__dtolnay_rust-toolchain.__run_8]
+2026-10-12T17:42:31.7044811Z ##[group]Run # implemented in 1.66, stabilized in 1.68, made default in 1.70
+2026-10-12T17:42:31.7045758Z [36;1m# implemented in 1.66, stabilized in 1.68, made default in 1.70[0m
+2026-10-12T17:42:31.7046563Z [36;1mif [ -z "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL+set}" -o -f "/home/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol ]; then[0m
+2026-10-12T17:42:31.7047416Z [36;1m  if rustc +"$toolchain" --version --verbose | grep -q '^release: 1\.6[89]\.'; then[0m
+2026-10-12T17:42:31.7048082Z [36;1m    touch "/home/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol || true[0m
+2026-10-12T17:42:31.7048702Z [36;1m    echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse >> $GITHUB_ENV[0m
+2026-10-12T17:42:31.7049281Z [36;1m  elif rustc +"$toolchain" --version --verbose | grep -q '^release: 1\.6[67]\.'; then[0m
+2026-10-12T17:42:31.7049940Z [36;1m    touch "/home/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol || true[0m
+2026-10-12T17:42:31.7050521Z [36;1m    echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git >> $GITHUB_ENV[0m
+2026-10-12T17:42:31.7050919Z [36;1m  fi[0m
+2026-10-12T17:42:31.7051160Z [36;1mfi[0m
+2026-10-12T17:42:31.7121224Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:31.7121630Z env:
+2026-10-12T17:42:31.7122748Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:31.7124270Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:31.7125853Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:31.7127037Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:31.7127808Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:31.7128115Z   CARGO_INCREMENTAL: 0
+2026-10-12T17:42:31.7128379Z   CARGO_TERM_COLOR: always
+2026-10-12T17:42:31.7128649Z   toolchain: nightly
+2026-10-12T17:42:31.7128899Z ##[endgroup]
+2026-10-12T17:42:31.7469637Z ##[end-action id=__dtolnay_rust-toolchain.__run_8;outcome=success;conclusion=success;duration_ms=45]
+2026-10-12T17:42:31.7474789Z ##[start-action display=Work around spurious network errors in curl 8.0;id=__dtolnay_rust-toolchain.__run_9]
+2026-10-12T17:42:31.7508054Z ##[group]Run # https://rust-lang.zulipchat.com/#narrow/stream/246057-t-cargo/topic/timeout.20investigation
+2026-10-12T17:42:31.7509063Z [36;1m# https://rust-lang.zulipchat.com/#narrow/stream/246057-t-cargo/topic/timeout.20investigation[0m
+2026-10-12T17:42:31.7509745Z [36;1mif rustc +"$toolchain" --version --verbose | grep -q '^release: 1\.7[01]\.'; then[0m
+2026-10-12T17:42:31.7510279Z [36;1m  echo CARGO_HTTP_MULTIPLEXING=false >> $GITHUB_ENV[0m
+2026-10-12T17:42:31.7510640Z [36;1mfi[0m
+2026-10-12T17:42:31.7581072Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:31.7581489Z env:
+2026-10-12T17:42:31.7582410Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:31.7584072Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:31.7585823Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:31.7587121Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:31.7587959Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:31.7588279Z   CARGO_INCREMENTAL: 0
+2026-10-12T17:42:31.7588567Z   CARGO_TERM_COLOR: always
+2026-10-12T17:42:31.7589077Z   toolchain: nightly
+2026-10-12T17:42:31.7589369Z ##[endgroup]
+2026-10-12T17:42:31.7806531Z ##[end-action id=__dtolnay_rust-toolchain.__run_9;outcome=success;conclusion=success;duration_ms=33]
+2026-10-12T17:42:31.7813043Z ##[start-action display=rustc +nightly --version --verbose;id=__dtolnay_rust-toolchain.__run_10]
+2026-10-12T17:42:31.7845760Z ##[group]Run rustc +"$toolchain" --version --verbose
+2026-10-12T17:42:31.7846217Z [36;1mrustc +"$toolchain" --version --verbose[0m
+2026-10-12T17:42:31.7915975Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-12T17:42:31.7916423Z env:
+2026-10-12T17:42:31.7917393Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:31.7919169Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:31.7920864Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:31.7922218Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:31.7923114Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:31.7923466Z   CARGO_INCREMENTAL: 0
+2026-10-12T17:42:31.7923773Z   CARGO_TERM_COLOR: always
+2026-10-12T17:42:31.7924079Z   toolchain: nightly
+2026-10-12T17:42:31.7924360Z ##[endgroup]
+2026-10-12T17:42:31.8122307Z rustc 1.101.0-nightly (080cc2714 2026-10-11)
+2026-10-12T17:42:31.8123299Z binary: rustc
+2026-10-12T17:42:31.8123781Z commit-hash: 080cc27146389dbb5c8772c476b1937be9c6110f
+2026-10-12T17:42:31.8124594Z commit-date: 2026-10-11
+2026-10-12T17:42:31.8125542Z host: x86_64-unknown-linux-gnu
+2026-10-12T17:42:31.8126313Z release: 1.101.0-nightly
+2026-10-12T17:42:31.8128608Z LLVM version: 23.1.3
+2026-10-12T17:42:31.8141727Z ##[end-action id=__dtolnay_rust-toolchain.__run_10;outcome=success;conclusion=success;duration_ms=32]
+2026-10-12T17:42:31.8218522Z ##[group]Run cargo fmt --all -- --check
+2026-10-12T17:42:31.8218940Z [36;1mcargo fmt --all -- --check[0m
+2026-10-12T17:42:31.8289948Z shell: /usr/bin/bash -e {0}
+2026-10-12T17:42:31.8290290Z env:
+2026-10-12T17:42:31.8291258Z   DEPS_APT: curl gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+2026-10-12T17:42:31.8293225Z   DEPS_DNF: cargo gcc clang libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel libdisplay-info-devel
+2026-10-12T17:42:31.8294724Z   DEPS_APK: cargo clang-libclang eudev-dev glib-dev libdisplay-info-dev libinput-dev libseat-dev libxkbcommon-dev mesa-dev pango-dev pipewire-dev tar
+2026-10-12T17:42:31.8296397Z   DEPS_PKG: git curl rust llvm pkgconf pixman libudev-devd libdisplay-info seatd libinput libxkbcommon pipewire mesa-libs cairo devel/glib20 gettext-runtime harfbuzz pango
+2026-10-12T17:42:31.8297313Z   CARGO_HOME: /home/runner/.cargo
+2026-10-12T17:42:31.8297650Z   CARGO_INCREMENTAL: 0
+2026-10-12T17:42:31.8297948Z   CARGO_TERM_COLOR: always
+2026-10-12T17:42:31.8298227Z ##[endgroup]
+2026-10-12T17:42:32.8141531Z Diff in /home/runner/work/niri/niri/src/utils/spawning.rs:220:
+2026-10-12T17:42:32.8150182Z          use libc::closefrom;
+2026-10-12T17:42:32.8150897Z  
+2026-10-12T17:42:32.8151483Z          #[cfg(not(target_env = "gnu"))] // musl
+2026-10-12T17:42:32.8152726Z -        pub fn close_range(first: libc::c_uint, last: libc::c_uint, flags: libc::c_uint) -> libc::c_int {
+2026-10-12T17:42:32.8153934Z +        pub fn close_range(
+2026-10-12T17:42:32.8154606Z +            first: libc::c_uint,
+2026-10-12T17:42:32.8155254Z +            last: libc::c_uint,
+2026-10-12T17:42:32.8156182Z +            flags: libc::c_uint,
+2026-10-12T17:42:32.8156766Z +        ) -> libc::c_int {
+2026-10-12T17:42:32.8157156Z              unsafe {
+2026-10-12T17:42:32.8157571Z                  libc::syscall(
+2026-10-12T17:42:32.8158039Z                      libc::SYS_close_range,
+2026-10-12T17:42:32.8515543Z ##[error]Process completed with exit code 1.
+2026-10-12T17:42:32.8657108Z Post job cleanup.
+2026-10-12T17:42:32.9539323Z [command]/usr/bin/git version
+2026-10-12T17:42:32.9577262Z git version 2.55.0
+2026-10-12T17:42:32.9619439Z Temporarily overriding HOME='/home/runner/work/_temp/24b1d86d-0e39-4828-9fab-7b93e73f9278' before making global git config changes
+2026-10-12T17:42:32.9620847Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-12T17:42:32.9625906Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/niri/niri
+2026-10-12T17:42:32.9660929Z Removing SSH command configuration
+2026-10-12T17:42:32.9668751Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-12T17:42:32.9709554Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-12T17:42:32.9953319Z Removing HTTP extra header
+2026-10-12T17:42:32.9959099Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-12T17:42:32.9997593Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-12T17:42:33.0235516Z Removing includeIf entries pointing to credentials config files
+2026-10-12T17:42:33.0245788Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-12T17:42:33.0641817Z includeif.gitdir:/home/runner/work/niri/niri/.git.path
+2026-10-12T17:42:33.0642500Z includeif.gitdir:/home/runner/work/niri/niri/.git/worktrees/*.path
+2026-10-12T17:42:33.0643085Z includeif.gitdir:/github/workspace/.git.path
+2026-10-12T17:42:33.0643599Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-12T17:42:33.0658132Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/niri/niri/.git.path
+2026-10-12T17:42:33.0688126Z /home/runner/work/_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:33.0702745Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/niri/niri/.git.path /home/runner/work/_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:33.0747286Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/niri/niri/.git/worktrees/*.path
+2026-10-12T17:42:33.0772915Z /home/runner/work/_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:33.0785209Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/niri/niri/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:33.0821285Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-12T17:42:33.0844438Z /github/runner_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:33.0863694Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:33.0890994Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-12T17:42:33.0913408Z /github/runner_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:33.0924567Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config
+2026-10-12T17:42:33.0967978Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-12T17:42:33.1234676Z Removing credentials config '/home/runner/work/_temp/git-credentials-dee6f5b7-cf0c-4a6a-bcac-6ac77a357e2c.config'
+2026-10-12T17:42:33.1394329Z Cleaning up orphan processes

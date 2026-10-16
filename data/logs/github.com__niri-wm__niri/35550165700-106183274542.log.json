@@ -1,0 +1,10 @@
+{
+  "repo": "github.com/niri-wm/niri",
+  "run_id": 35550165700,
+  "job_id": 106183274542,
+  "conclusion": "failure",
+  "workflow_name": "CI",
+  "fetched_at": "2026-10-16T04:39:47Z",
+  "attempt": 1,
+  "ci": "github-actions"
+}

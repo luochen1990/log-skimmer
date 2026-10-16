@@ -1,0 +1,16 @@
+2026-10-13T02:29:24.8167038Z Runner 1609124e-f0f4-4569-989c-90efd0a2c298 (version:v13.2.0) received task 19534 of job check, triggered by event: pull_request
+2026-10-13T02:29:24.8216384Z workflow prepared
+2026-10-13T02:29:24.8220358Z ⭐ Run Main set -euo pipefail\ncount=$(curl -sf --max-time 30 -H "Authorization: token $TOKEN" \\n  "$API/repos/$REPO/actions/runs?status=success&workflow_id=ci.yml&limit=50" \\n  | jq --arg sha "$SHA" '[.workflow_runs[]? | select(.commit_sha == $sha)] | length')\nif [ "$count" -gt 0 ]; then\n  echo "should_skip=true" >> "$GITHUB_OUTPUT"\n  echo "✓ 跳过: commit ${SHA:0:8} 已有成功的 ci.yml run × ${count}"\nelse\n  echo "should_skip=false" >> "$GITHUB_OUTPUT"\n  echo "→ 不跳过: commit ${SHA:0:8} 无成功的 ci.yml run 记录"\nfi
+2026-10-13T02:29:30.7596063Z → 不跳过: commit 6fc7cb44 无成功的 ci.yml run 记录
+2026-10-13T02:29:30.7643145Z → 触发 check (POST http://10.233.77.1:9123/trigger/6fc7cb440a8696b6d21898cba988a894a1d5426e)
+2026-10-13T02:29:30.8217476Z ← HTTP 202 {"status": "triggered", "unit": "forgejo-ci-check"}
+2026-10-13T02:29:30.8217789Z ✓ 已触发, 开始轮询 check 结果 (每 15s 一次, 最长 130 分钟)
+2026-10-13T02:29:30.9869870Z   … [0m00s] Starting Forgejo CI check for commit @6fc7cb440a8696b6d21898cba988a894a1d5426e...
+2026-10-13T02:29:30.9870187Z   … [0m00s] [check] 获取槽位 #0 (并发上限 3), 开始处理 6fc7cb44
+2026-10-13T02:29:30.9870405Z   … [0m00s] [check] oss-cache clone-rw git.lambda.lc/lc-studio/nixos @ 6fc7cb44
+2026-10-13T02:29:45.9964405Z curl: (7) Failed to connect to 10.233.77.1:9123 after 0 ms: Could not connect to server
+2026-10-13T02:29:45.9985252Z ✗ 轮询失败 (HTTP 000000): 
+2026-10-13T02:29:45.9985381Z   receiver 可能故障, 或 check 服务被清理. 详见宿主 journalctl.
+2026-10-13T02:29:45.9999621Z ⚙️ [runner]: RUN exit status 1
+2026-10-13T02:29:45.9999945Z 🏁  Job failed
+2026-10-13T02:29:46.0004241Z Job 'check' failed

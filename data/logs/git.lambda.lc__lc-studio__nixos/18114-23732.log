@@ -1,0 +1,310 @@
+2026-10-12T11:07:32.4919913Z Runner 1609124e-f0f4-4569-989c-90efd0a2c298 (version:v13.2.0) received task 19408 of job check, triggered by event: push
+2026-10-12T11:07:32.4996335Z workflow prepared
+2026-10-12T11:07:32.5010056Z ⭐ Run Main set -euo pipefail\ncount=$(curl -sf --max-time 30 -H "Authorization: token $TOKEN" \\n  "$API/repos/$REPO/actions/runs?status=success&workflow_id=ci-full.yml&limit=50" \\n  | jq --arg sha "$SHA" '[.workflow_runs[]? | select(.commit_sha == $sha)] | length')\nif [ "$count" -gt 0 ]; then\n  echo "should_skip=true" >> "$GITHUB_OUTPUT"\n  echo "✓ 跳过: commit ${SHA:0:8} 已有成功的 ci-full.yml run × ${count}"\nelse\n  echo "should_skip=false" >> "$GITHUB_OUTPUT"\n  echo "→ 不跳过: commit ${SHA:0:8} 无成功的 ci-full.yml run 记录"\nfi
+2026-10-12T11:07:33.8075430Z → 不跳过: commit 1b10ca6e 无成功的 ci-full.yml run 记录
+2026-10-12T11:07:33.8126487Z → 触发 P1 check (POST http://10.233.77.1:9123/trigger/1b10ca6e701d74880d797e1f0b764c7aa120f20b?level=p1)
+2026-10-12T11:07:33.8712117Z ← HTTP 202 {"status": "triggered", "unit": "forgejo-ci-p1"}
+2026-10-12T11:07:33.8733557Z ✓ 已触发 (unit=forgejo-ci-p1), 开始轮询 P1 结果 (每 30s 一次, 最长 160 分钟)
+2026-10-12T11:07:33.9886950Z   … [0m00s] Starting Forgejo CI P1 check (deploy gate, tier=p1) for commit @1b10ca6e701d74880d797e1f0b764c7aa120f20b...
+2026-10-12T11:07:33.9887242Z   … [0m00s] [p1] 获取 P1 槽位, 开始处理 1b10ca6e (TIER=p1)
+2026-10-12T11:07:33.9887382Z   … [0m00s] [p1] oss-cache clone-rw git.lambda.lc/lc-studio/nixos @ 1b10ca6e (tier=p1)
+2026-10-12T11:08:04.1071173Z   … [0m31s] [p1]   {
+2026-10-12T11:08:04.1071748Z   … [0m31s] [p1]     "base_commit": "1b10ca6e701d74880d797e1f0b764c7aa120f20b",
+2026-10-12T11:08:04.1071847Z   … [0m31s] [p1]     "clone_path": "/home/lc/.cache/forgejo-ci-worktrees/wt-p1-1b10ca6e701d74880d797e1f0b764c7aa120f20b",
+2026-10-12T11:08:04.1071914Z   … [0m31s] [p1]     "codegraph_ready": false
+2026-10-12T11:08:04.1071971Z   … [0m31s] [p1]   }
+2026-10-12T11:08:04.1072434Z   … [0m31s] [p1] 🛰 观测副本构建已触发: https://build.luo.xyz/#/b/20261012-190735-219a
+2026-10-12T11:08:04.1072934Z   … [0m31s] [p1] just check --full (P1: P0 + units 构建 + flake check + build 全部 host, 这可能需要 20-60min)...
+2026-10-12T11:08:04.1073091Z   … [0m31s] [p1] === 尝试 1/3 ===
+2026-10-12T11:08:04.1073260Z   … [0m31s] just _neve_w check --full
+2026-10-12T11:08:04.1073475Z   … [0m31s] nix develop .#tools -c neve check --full
+2026-10-12T11:08:04.1093787Z   … [0m31s] … (更多日志下次显示)
+2026-10-12T11:08:34.2263967Z   … [1m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:08:34.2264377Z   … [1m01s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:08:34.2264440Z   … [1m01s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:08:34.2264782Z   … [1m01s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:08:34.2265473Z   … [1m01s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:08:34.2265840Z   … [1m01s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:08:34.2266224Z   … [1m01s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:08:34.2266597Z   … [1m01s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:08:34.2266938Z   … [1m01s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:08:34.2267295Z   … [1m01s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:08:34.2289635Z   … [1m01s] … (更多日志下次显示)
+2026-10-12T11:09:04.3454794Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3455126Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3455370Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3455764Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3456095Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3456457Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3456820Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3457183Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3457543Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3457901Z   … [1m31s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:09:04.3477975Z   … [1m31s] … (更多日志下次显示)
+2026-10-12T11:09:34.4649766Z   … [2m01s] noctalia verify: 4 target: home-pc:lc, home-router:lc, mini-pc:lc, pssd-nixos:lc
+2026-10-12T11:09:34.4650213Z   … [2m01s] ✓ home-pc:lc  0 fatal / 1 noise
+2026-10-12T11:09:34.4650298Z   … [2m01s] ✓ home-router:lc  0 fatal / 1 noise
+2026-10-12T11:09:34.4650362Z   … [2m01s] ✓ mini-pc:lc  0 fatal / 1 noise
+2026-10-12T11:09:34.4650411Z   … [2m01s] ✓ pssd-nixos:lc  0 fatal / 1 noise
+2026-10-12T11:09:34.4650483Z   … [2m01s] ✓ noctalia verify 全部通过
+2026-10-12T11:09:34.4650536Z   … [2m01s] nginx verify (conf 渲染 + nginx -t):
+2026-10-12T11:09:34.4650897Z   … [2m01s] nginx verify (conf 渲染 + nginx -t): 4 host (bootstrap, ssh-installer 无 nginx 跳过)
+2026-10-12T11:09:34.4651134Z   … [2m01s] ⚡ home-pc          指纹命中跳过 (conf=0jh8s2hh)
+2026-10-12T11:09:34.4651418Z   … [2m01s] ⚡ home-router      指纹命中跳过 (conf=gnim4hz2)
+2026-10-12T11:09:34.4671747Z   … [2m01s] … (更多日志下次显示)
+2026-10-12T11:10:05.0140166Z   … [2m32s] warning: stdenv.isDarwin is deprecated, use stdenv.hostPlatform.isDarwin instead
+2026-10-12T11:10:05.0168696Z   … [2m32s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:10:05.0168815Z   … [2m32s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:10:05.0168861Z   … [2m32s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:10:35.5472165Z   … [3m02s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:10:35.5472721Z   … [3m02s] warning: stdenv.isLinux is deprecated, use stdenv.hostPlatform.isLinux instead
+2026-10-12T11:11:06.1984469Z   … [3m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:11:06.1985069Z   … [3m33s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:11:06.1985157Z   … [3m33s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:11:06.1988072Z   … [3m33s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:11:06.1988651Z   … [3m33s] warning: stdenv.is32bit is deprecated, use stdenv.hostPlatform.is32bit instead
+2026-10-12T11:11:06.1989235Z   … [3m33s] warning: stdenv.is64bit is deprecated, use stdenv.hostPlatform.is64bit instead
+2026-10-12T11:11:06.1989805Z   … [3m33s] warning: stdenv.isAarch32 is deprecated, use stdenv.hostPlatform.isAarch32 instead
+2026-10-12T11:11:06.1990384Z   … [3m33s] warning: stdenv.isAarch64 is deprecated, use stdenv.hostPlatform.isAarch64 instead
+2026-10-12T11:11:06.1990905Z   … [3m33s] warning: stdenv.isBSD is deprecated, use stdenv.hostPlatform.isBSD instead
+2026-10-12T11:11:06.1991533Z   … [3m33s] warning: stdenv.isBigEndian is deprecated, use stdenv.hostPlatform.isBigEndian instead
+2026-10-12T11:11:06.2015906Z   … [3m33s] … (更多日志下次显示)
+2026-10-12T11:11:36.8588772Z   … [4m03s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:11:36.8590039Z   … [4m03s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:11:36.8590491Z   … [4m03s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9785030Z   … [4m33s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:12:06.9785684Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9785838Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9785888Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9785928Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9785964Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9786013Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9786233Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9786588Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9786970Z   … [4m33s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:06.9811945Z   … [4m33s] … (更多日志下次显示)
+2026-10-12T11:12:37.0988601Z   … [5m04s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:12:37.0990929Z   … [5m04s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:12:37.0991289Z   … [5m04s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:13:07.2164805Z   … [5m34s] <静默中…>
+2026-10-12T11:13:37.3337781Z   … [6m04s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:13:37.3338144Z   … [6m04s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:14:07.4533357Z   … [6m34s] <静默中…>
+2026-10-12T11:14:37.5685894Z   … [7m04s] <静默中…>
+2026-10-12T11:15:07.6848240Z   … [7m34s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:15:07.6848629Z   … [7m34s] fetching path input 'path:/nix/store/k6rgs24y863h2a2pw1912wz2i97m0nvr-source'
+2026-10-12T11:15:37.8106997Z   … [8m04s] warning: error: unable to download 'http://127.0.0.1:5496/3dzrxzrnbnk04jjgz9220z6k9zmwzsjv.narinfo': HTTP error 502 (Bad Gateway)
+2026-10-12T11:15:37.8108257Z   … [8m04s] response body:
+2026-10-12T11:15:37.8108390Z   … [8m04s] 502 BAD GATEWAY - infrastructure error; retrying in 380 ms (attempt 1/2)
+2026-10-12T11:15:37.8108460Z   … [8m04s] warning: error: unable to download 'http://127.0.0.1:5496/0pm7yjlzvnm2ysrqghm2bdsrn3p4gf2n.narinfo': HTTP error 502 (Bad Gateway)
+2026-10-12T11:15:37.8108547Z   … [8m04s] response body:
+2026-10-12T11:15:37.8108613Z   … [8m04s] 502 BAD GATEWAY - infrastructure error; retrying in 552 ms (attempt 1/2)
+2026-10-12T11:15:37.8108685Z   … [8m04s] these 279 derivations will be built:
+2026-10-12T11:15:37.8109187Z   … [8m04s] /nix/store/b88rqy38v1czc6k8xa9r7vl0c56y5k8w-init-db.drv
+2026-10-12T11:15:37.8110306Z   … [8m04s] /nix/store/xiwk3y3djkkvjix6g9izamslmgbw6d69-unit-init-db-new-api.service.drv
+2026-10-12T11:15:37.8110390Z   … [8m04s] /nix/store/p1ka0q7d70km5vh90f2r3x13sid4kc6c-system-units.drv
+2026-10-12T11:15:37.8139856Z   … [8m04s] … (更多日志下次显示)
+2026-10-12T11:16:12.8880805Z   … [8m39s] <静默中…>
+2026-10-12T11:16:43.0052451Z   … [9m09s] system-path> install-info: warning: no info dir entry in `/nix/store/4xw8330mfadqjwjqvrrjjnalaq2nsi8n-system-path/share/info/gawknotes.info'
+2026-10-12T11:16:43.0052995Z   … [9m09s] building '/nix/store/ymfc7ydf0ad4pyfm78ds6z24qap097mh-X-Restart-Triggers-dbus-broker.drv'...
+2026-10-12T11:16:43.0053066Z   … [9m09s] X-Restart-Triggers-dbus-broker> structuredAttrs is enabled
+2026-10-12T11:16:43.0053424Z   … [9m09s] building '/nix/store/0ys03jyg8wan7d1kabl5pm1wzxj66gjf-X-Restart-Triggers-polkit.drv'...
+2026-10-12T11:16:43.0053664Z   … [9m09s] X-Restart-Triggers-polkit> structuredAttrs is enabled
+2026-10-12T11:17:13.1237618Z   … [9m40s] building '/nix/store/0379mylq0hgs3xkzzklxhzb3dm5xnpq9-unit-accounts-daemon.service.drv'...
+2026-10-12T11:17:13.1237924Z   … [9m40s] unit-accounts-daemon.service> structuredAttrs is enabled
+2026-10-12T11:17:13.1238005Z   … [9m40s] building '/nix/store/sgb4iswjzry9hh86cvq6b5601dwiclcs-man-paths.drv'...
+2026-10-12T11:17:13.1238355Z   … [9m40s] man-paths> structuredAttrs is enabled
+2026-10-12T11:17:13.1238508Z   … [9m40s] man-paths> created 13405 symlinks in user environment
+2026-10-12T11:17:13.1238847Z   … [9m40s] building '/nix/store/2b0an4ysqqwcfwkqcx9862g2j4rawil5-system-path.drv'...
+2026-10-12T11:17:13.1239129Z   … [9m40s] system-path> structuredAttrs is enabled
+2026-10-12T11:17:13.1240129Z   … [9m40s] system-path> pkgs.buildEnv warning: colliding subpath (ignored): `/nix/store/bdksmzazh334khqd3wrbwqh3p67azx63-cameractrls-0.6.10/bin/cameractrls' and `/nix/store/vl0d6f9nasvs733liwr9l7j5zr8saqrk-cameractrls-0.6.10/bin/cameractrls'
+2026-10-12T11:17:13.1241109Z   … [9m40s] system-path> pkgs.buildEnv warning: colliding subpath (ignored): `/nix/store/bdksmzazh334khqd3wrbwqh3p67azx63-cameractrls-0.6.10/bin/cameractrlsd' and `/nix/store/vl0d6f9nasvs733liwr9l7j5zr8saqrk-cameractrls-0.6.10/bin/cameractrlsd'
+2026-10-12T11:17:13.1242096Z   … [9m40s] system-path> pkgs.buildEnv warning: colliding subpath (ignored): `/nix/store/bdksmzazh334khqd3wrbwqh3p67azx63-cameractrls-0.6.10/bin/cameraptzgame' and `/nix/store/vl0d6f9nasvs733liwr9l7j5zr8saqrk-cameractrls-0.6.10/bin/cameraptzgame'
+2026-10-12T11:17:13.1263133Z   … [9m40s] … (更多日志下次显示)
+2026-10-12T11:17:43.2441308Z   … [10m10s] ✓ units 合并构建  467.9s
+2026-10-12T11:17:43.2441838Z   … [10m10s] units verify (systemd-analyze):
+2026-10-12T11:17:43.2442770Z   … [10m10s] units verify: 19 host: bootstrap, home-pc, home-pc#coding-agent-vm, home-pc#frunner-nix, home-pc#frunner-vm, home-pc#frunner-vm2, home-pc#hermes-agent-vm, home-router, home-router#new-api-vm, mini-pc, mini-pc#coding-agent-vm, pssd-nixos, pssd-nixos#coding-agent-vm, pssd-nixos#heyuan, pssd-nixos#hidpi, pssd-nixos#initrd, pssd-nixos#installer, pssd-nixos#minimal, ssh-installer
+2026-10-12T11:17:43.2443078Z   … [10m10s] ✓ bootstrap        0 fatal / 271 warn
+2026-10-12T11:17:43.2443217Z   … [10m10s] ✓ home-pc          0 fatal / 5 warn
+2026-10-12T11:17:43.2443468Z   … [10m10s] ✓ home-pc#coding-agent-vm 0 fatal / 4 warn
+2026-10-12T11:17:43.2443708Z   … [10m10s] ✓ home-pc#frunner-nix 0 fatal / 5 warn
+2026-10-12T11:17:43.2443900Z   … [10m10s] ✓ home-pc#frunner-vm 0 fatal / 4 warn
+2026-10-12T11:17:43.2444119Z   … [10m10s] ✓ home-pc#frunner-vm2 0 fatal / 4 warn
+2026-10-12T11:17:43.2444354Z   … [10m10s] ✓ home-pc#hermes-agent-vm 0 fatal / 4 warn
+2026-10-12T11:17:43.2468922Z   … [10m10s] … (更多日志下次显示)
+2026-10-12T11:18:13.3622223Z   … [10m40s] <静默中…>
+2026-10-12T11:18:43.4774938Z   … [11m10s] <静默中…>
+2026-10-12T11:19:13.5933954Z   … [11m40s] <静默中…>
+2026-10-12T11:19:43.7099867Z   … [12m10s] NixOS user units verify: 6 host: bootstrap, home-pc, home-router, mini-pc, pssd-nixos, ssh-installer
+2026-10-12T11:19:43.7100343Z   … [12m10s] ✓ bootstrap        0 fatal / 2 warn
+2026-10-12T11:19:43.7100397Z   … [12m10s] ✓ home-pc          0 fatal / 2 warn
+2026-10-12T11:19:43.7100444Z   … [12m10s] ✓ home-router      0 fatal / 2 warn
+2026-10-12T11:19:43.7100519Z   … [12m10s] ✓ mini-pc          0 fatal / 2 warn
+2026-10-12T11:19:43.7100763Z   … [12m10s] ✓ pssd-nixos       0 fatal / 2 warn
+2026-10-12T11:19:43.7100949Z   … [12m10s] ✓ ssh-installer    0 fatal / 3 warn
+2026-10-12T11:19:43.7101152Z   … [12m10s] ✓ NixOS user units verify 通过
+2026-10-12T11:20:13.8298828Z   … [12m40s] HM user units verify: 4 target: home-pc:lc, home-router:lc, mini-pc:lc, pssd-nixos:lc
+2026-10-12T11:20:43.9495131Z   … [13m10s] ✓ user units      0 fatal / 3 warn (20 文件去重后)
+2026-10-12T11:20:43.9495532Z   … [13m10s] 图形链自燃守卫: 早期 target 拉起的 user unit 不得点燃图形链 (linger 无会话自燃 → greeter 登录死锁)
+2026-10-12T11:20:43.9495667Z   … [13m10s] ✓ bootstrap        0 违规
+2026-10-12T11:20:43.9495887Z   … [13m10s] ✓ home-pc          0 违规
+2026-10-12T11:20:43.9496064Z   … [13m10s] ✓ home-router      0 违规
+2026-10-12T11:20:43.9496252Z   … [13m10s] ✓ mini-pc          0 违规
+2026-10-12T11:20:43.9496418Z   … [13m10s] ✓ pssd-nixos       0 违规
+2026-10-12T11:20:43.9496626Z   … [13m10s] ✓ ssh-installer    0 违规
+2026-10-12T11:20:43.9496928Z   … [13m10s] ✓ units verify 全部通过 (system + NixOS user + HM user)
+2026-10-12T11:20:43.9497181Z   … [13m10s] hardening 覆盖率审计 (--gate 阻塞):
+2026-10-12T11:20:43.9517805Z   … [13m10s] … (更多日志下次显示)
+2026-10-12T11:21:14.0668644Z   … [13m41s] <静默中…>
+2026-10-12T11:21:44.1832522Z   … [14m11s] <静默中…>
+2026-10-12T11:22:14.3033856Z   … [14m41s] <静默中…>
+2026-10-12T11:22:44.4212251Z   … [15m11s] Suppressed 336 messages from forgejo-ci-p1@1b10ca6e701d74880d797e1f0b764c7aa120f20b.service
+2026-10-12T11:22:44.4212580Z   … [15m11s] checking NixOS configuration 'nixosConfigurations.mini-pc'...
+2026-10-12T11:22:44.4214677Z   … [15m11s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:23:14.5414761Z   … [15m41s] checking NixOS configuration 'nixosConfigurations.home-router'...
+2026-10-12T11:23:14.5417933Z   … [15m41s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:23:14.5418442Z   … [15m41s] warning: stdenv.is32bit is deprecated, use stdenv.hostPlatform.is32bit instead
+2026-10-12T11:23:14.5419198Z   … [15m41s] warning: stdenv.is64bit is deprecated, use stdenv.hostPlatform.is64bit instead
+2026-10-12T11:23:14.5419852Z   … [15m41s] warning: stdenv.isAarch32 is deprecated, use stdenv.hostPlatform.isAarch32 instead
+2026-10-12T11:23:14.5420244Z   … [15m41s] warning: stdenv.isAarch64 is deprecated, use stdenv.hostPlatform.isAarch64 instead
+2026-10-12T11:23:14.5420593Z   … [15m41s] warning: stdenv.isBSD is deprecated, use stdenv.hostPlatform.isBSD instead
+2026-10-12T11:23:14.5421016Z   … [15m41s] warning: stdenv.isBigEndian is deprecated, use stdenv.hostPlatform.isBigEndian instead
+2026-10-12T11:23:14.5421373Z   … [15m41s] warning: stdenv.isCygwin is deprecated, use stdenv.hostPlatform.isCygwin instead
+2026-10-12T11:23:14.5421745Z   … [15m41s] warning: stdenv.isDarwin is deprecated, use stdenv.hostPlatform.isDarwin instead
+2026-10-12T11:23:14.5445720Z   … [15m41s] … (更多日志下次显示)
+2026-10-12T11:23:45.1162539Z   … [16m12s] checking flake output 'devShells'...
+2026-10-12T11:23:45.1163104Z   … [16m12s] checking derivation devShells.x86_64-linux.default...
+2026-10-12T11:23:45.1163161Z   … [16m12s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:23:45.1163312Z   … [16m12s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:23:45.1163627Z   … [16m12s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:23:45.1163938Z   … [16m12s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:23:45.1164234Z   … [16m12s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:23:45.1164540Z   … [16m12s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:23:45.1164939Z   … [16m12s] derivation evaluated to /nix/store/g2mc2s85d1xs8np9gwyx0114x98gp0ig-nix-shell.drv
+2026-10-12T11:23:45.1165222Z   … [16m12s] checking derivation devShells.x86_64-linux.tools...
+2026-10-12T11:23:45.1186073Z   … [16m12s] … (更多日志下次显示)
+2026-10-12T11:24:15.2356367Z   … [16m42s] [p1] === 尝试 2/3 ===
+2026-10-12T11:24:15.2356702Z   … [16m42s] just _neve_w check --full
+2026-10-12T11:24:15.2356760Z   … [16m42s] nix develop .#tools -c neve check --full
+2026-10-12T11:24:15.2356873Z   … [16m42s] fetching git input 'git+file:///home/lc/.cache/forgejo-ci-worktrees/wt-p1-1b10ca6e701d74880d797e1f0b764c7aa120f20b'
+2026-10-12T11:24:15.2357298Z   … [16m42s] fetching github input 'github:NixOS/nixpkgs/151fa4e8ddfdd8dd25d945ad94ed54a13de9f6e4'
+2026-10-12T11:24:15.2357712Z   … [16m42s] == lint: 检查 832 个 .nix 文件 + 30 个 shell 脚本 + 14 个 Python 文件 ==
+2026-10-12T11:24:15.2357925Z   … [16m42s] -- deadnix (死代码) 检查 --
+2026-10-12T11:24:15.2358081Z   … [16m42s] ✓ 无死代码
+2026-10-12T11:24:15.2358260Z   … [16m42s] -- statix (反模式) 检查 --
+2026-10-12T11:24:15.2358395Z   … [16m42s] ✓ 无反模式
+2026-10-12T11:24:15.2379918Z   … [16m42s] … (更多日志下次显示)
+2026-10-12T11:24:45.3556322Z   … [17m12s] nginx verify (conf 渲染 + nginx -t): 4 host (bootstrap, ssh-installer 无 nginx 跳过)
+2026-10-12T11:24:45.3556734Z   … [17m12s] ⚡ home-pc          指纹命中跳过 (conf=0jh8s2hh)
+2026-10-12T11:24:45.3557193Z   … [17m12s] ⚡ home-router      指纹命中跳过 (conf=gnim4hz2)
+2026-10-12T11:24:45.3557446Z   … [17m12s] ⚡ mini-pc          指纹命中跳过 (conf=95ajzy85)
+2026-10-12T11:24:45.3557855Z   … [17m12s] ⚡ pssd-nixos       指纹命中跳过 (conf=zj8zk5rb)
+2026-10-12T11:24:45.3558109Z   … [17m12s] 合计: 全部通过 ✓
+2026-10-12T11:24:45.3558339Z   … [17m12s] neve-secret selftest:
+2026-10-12T11:24:45.3558554Z   … [17m12s] == TestScanSopsRefs
+2026-10-12T11:24:45.3558802Z   … [17m12s] == TestTextRefsFallback
+2026-10-12T11:24:45.3559027Z   … [17m12s] == TestComputeOrphans
+2026-10-12T11:24:45.3582263Z   … [17m12s] … (更多日志下次显示)
+2026-10-12T11:25:15.4803626Z   … [17m42s] NixOS user units verify: 6 host: bootstrap, home-pc, home-router, mini-pc, pssd-nixos, ssh-installer
+2026-10-12T11:25:15.4803947Z   … [17m42s] ✓ bootstrap        0 fatal / 2 warn
+2026-10-12T11:25:15.4804045Z   … [17m42s] ✓ home-pc          0 fatal / 2 warn
+2026-10-12T11:25:15.4804098Z   … [17m42s] ✓ home-router      0 fatal / 2 warn
+2026-10-12T11:25:15.4804301Z   … [17m42s] ✓ mini-pc          0 fatal / 2 warn
+2026-10-12T11:25:15.4804517Z   … [17m42s] ✓ pssd-nixos       0 fatal / 2 warn
+2026-10-12T11:25:15.4804709Z   … [17m42s] ✓ ssh-installer    0 fatal / 3 warn
+2026-10-12T11:25:15.4804910Z   … [17m42s] ✓ NixOS user units verify 通过
+2026-10-12T11:25:45.6004750Z   … [18m12s] HM user units verify: 4 target: home-pc:lc, home-router:lc, mini-pc:lc, pssd-nixos:lc
+2026-10-12T11:25:45.6005336Z   … [18m12s] ✓ user units      0 fatal / 3 warn (20 文件去重后)
+2026-10-12T11:25:45.6005439Z   … [18m12s] 图形链自燃守卫: 早期 target 拉起的 user unit 不得点燃图形链 (linger 无会话自燃 → greeter 登录死锁)
+2026-10-12T11:25:45.6005533Z   … [18m12s] ✓ bootstrap        0 违规
+2026-10-12T11:25:45.6005612Z   … [18m12s] ✓ home-pc          0 违规
+2026-10-12T11:25:45.6005821Z   … [18m12s] ✓ home-router      0 违规
+2026-10-12T11:25:45.6005999Z   … [18m12s] ✓ mini-pc          0 违规
+2026-10-12T11:25:45.6006183Z   … [18m12s] ✓ pssd-nixos       0 违规
+2026-10-12T11:25:45.6006360Z   … [18m12s] ✓ ssh-installer    0 违规
+2026-10-12T11:25:45.6006674Z   … [18m12s] ✓ units verify 全部通过 (system + NixOS user + HM user)
+2026-10-12T11:25:45.6031852Z   … [18m12s] … (更多日志下次显示)
+2026-10-12T11:26:15.7198936Z   … [18m42s] warning: 'system' has been renamed to/replaced by 'stdenv.hostPlatform.system'
+2026-10-12T11:26:15.7199228Z   … [18m42s] derivation evaluated to /nix/store/f3183x5h9fmy698h7ici6a2djal72c49-eternal-terminal.drv
+2026-10-12T11:26:15.7199514Z   … [18m42s] checking derivation checks.x86_64-linux.calibre-web...
+2026-10-12T11:26:15.7200254Z   … [18m42s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:26:15.7200660Z   … [18m42s] derivation evaluated to /nix/store/1lpvfpz54d5n8286sca4g7xzvbhvvzhq-calibre-web-eval.drv
+2026-10-12T11:26:15.7200914Z   … [18m42s] checking derivation checks.x86_64-linux.tools...
+2026-10-12T11:26:15.7201377Z   … [18m42s] derivation evaluated to /nix/store/k9r9aw07g2bc4clhmpcj13m98mx72bwa-tools-mksystemdretry-tests.drv
+2026-10-12T11:26:15.7201604Z   … [18m42s] checking derivation checks.x86_64-linux.build...
+2026-10-12T11:26:15.7202028Z   … [18m42s] derivation evaluated to /nix/store/xrlp4bk6jvgk6xbv6nyx8yrcvgil9gnp-build-user-host-tests.drv
+2026-10-12T11:26:15.7202306Z   … [18m42s] checking derivation checks.x86_64-linux.web-entry...
+2026-10-12T11:26:15.7229422Z   … [18m42s] … (更多日志下次显示)
+2026-10-12T11:26:45.8407382Z   … [19m12s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:26:45.8407750Z   … [19m12s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:26:45.8408499Z   … [19m12s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:26:45.8409227Z   … [19m12s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:26:45.8409902Z   … [19m12s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:26:45.8410313Z   … [19m12s] derivation evaluated to /nix/store/hlij2zfy2ilmiv7ijs5is9m7i06gw8di-dae-thin-eval.drv
+2026-10-12T11:26:45.8410798Z   … [19m12s] checking derivation checks.x86_64-linux.dns-canary...
+2026-10-12T11:26:45.8410962Z   … [19m12s] derivation evaluated to /nix/store/zqafnbsa7hygw3v7sha3pm8r46w5gyhx-dns-canary-eval.drv
+2026-10-12T11:26:45.8411287Z   … [19m12s] checking derivation checks.x86_64-linux.roaming-dns...
+2026-10-12T11:26:45.8412188Z   … [19m12s] warning: system.stateVersion is not set, defaulting to 26.11. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+2026-10-12T11:26:45.8434032Z   … [19m12s] … (更多日志下次显示)
+2026-10-12T11:27:15.9693866Z   … [19m42s] warning: stdenv.isDarwin is deprecated, use stdenv.hostPlatform.isDarwin instead
+2026-10-12T11:27:15.9694483Z   … [19m42s] checking NixOS configuration 'nixosConfigurations.pssd-nixos'...
+2026-10-12T11:27:15.9696350Z   … [19m42s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:27:15.9696701Z   … [19m42s] checking NixOS configuration 'nixosConfigurations.home-pc'...
+2026-10-12T11:27:46.0914492Z   … [20m13s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:27:46.0915061Z   … [20m13s] warning: stdenv.isLinux is deprecated, use stdenv.hostPlatform.isLinux instead
+2026-10-12T11:28:16.2104638Z   … [20m43s] checking NixOS configuration 'nixosConfigurations.mini-pc'...
+2026-10-12T11:28:16.2106064Z   … [20m43s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:28:16.2106222Z   … [20m43s] checking NixOS configuration 'nixosConfigurations.home-router'...
+2026-10-12T11:28:16.2108435Z   … [20m43s] warning: getExe: Package niri-wait-session does not have the meta.mainProgram attribute. We'll assume that the main program has the same name for now, but this behavior is deprecated, because it leads to surprising errors when the assumption does not hold. If the package has a main program, please set `meta.mainProgram` in its definition to make this warning go away. Otherwise, if the package does not have a main program, or if you don't control its definition, use getExe' to specify the name to the program, such as lib.getExe' foo "bar".
+2026-10-12T11:28:16.2108795Z   … [20m43s] warning: stdenv.is32bit is deprecated, use stdenv.hostPlatform.is32bit instead
+2026-10-12T11:28:16.2109261Z   … [20m43s] warning: stdenv.is64bit is deprecated, use stdenv.hostPlatform.is64bit instead
+2026-10-12T11:28:16.2109653Z   … [20m43s] warning: stdenv.isAarch32 is deprecated, use stdenv.hostPlatform.isAarch32 instead
+2026-10-12T11:28:16.2110022Z   … [20m43s] warning: stdenv.isAarch64 is deprecated, use stdenv.hostPlatform.isAarch64 instead
+2026-10-12T11:28:16.2110371Z   … [20m43s] warning: stdenv.isBSD is deprecated, use stdenv.hostPlatform.isBSD instead
+2026-10-12T11:28:16.2110787Z   … [20m43s] warning: stdenv.isBigEndian is deprecated, use stdenv.hostPlatform.isBigEndian instead
+2026-10-12T11:28:16.2137189Z   … [20m43s] … (更多日志下次显示)
+2026-10-12T11:28:46.3376524Z   … [21m13s] checking NixOS configuration 'nixosConfigurations.ssh-installer'...
+2026-10-12T11:28:46.3376872Z   … [21m13s] checking flake output 'devShells'...
+2026-10-12T11:28:46.3377025Z   … [21m13s] checking derivation devShells.x86_64-linux.default...
+2026-10-12T11:28:46.3377499Z   … [21m13s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:28:46.3377950Z   … [21m13s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:28:46.3378420Z   … [21m13s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:28:46.3378902Z   … [21m13s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:28:46.3379466Z   … [21m13s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:28:46.3379929Z   … [21m13s] fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:29:16.4604004Z ✗ P1 check 失败 (exit 139) — deploy 停在旧位, 生产不受影响
+2026-10-12T11:29:16.4622491Z   … fetching git input 'git+https://github.com/Smithay/smithay.git'
+2026-10-12T11:29:16.4622735Z   … derivation evaluated to /nix/store/g2mc2s85d1xs8np9gwyx0114x98gp0ig-nix-shell.drv
+2026-10-12T11:29:16.4622833Z   … checking derivation devShells.x86_64-linux.tools...
+2026-10-12T11:29:16.4623252Z   … derivation evaluated to /nix/store/s88zxad8rxjag7jf19jf1h5qdiy3z9ff-nix-shell.drv
+2026-10-12T11:29:16.4623495Z   … checking derivation devShells.x86_64-linux.android...
+2026-10-12T11:29:16.4623873Z   … derivation evaluated to /nix/store/8jlk1620cj101zl70s2li65wqfrb2n49-nix-shell.drv
+2026-10-12T11:29:16.4624173Z   … checking derivation devShells.x86_64-linux.secret-generators...
+2026-10-12T11:29:16.4624527Z   … derivation evaluated to /nix/store/95x1njarr4p10pg79a24midxwqwnfk6j-nix-shell.drv
+2026-10-12T11:29:16.4624724Z   … checking flake output 'formatter'...
+2026-10-12T11:29:16.4624903Z   … checking flake output 'templates'...
+2026-10-12T11:29:16.4625101Z   … checking flake output 'colmenaHive'...
+2026-10-12T11:29:16.4625320Z   … warning: unknown flake output 'colmenaHive'
+2026-10-12T11:29:16.4625494Z   … checking flake output 'apps'...
+2026-10-12T11:29:16.4625665Z   … running 73 flake checks...
+2026-10-12T11:29:16.4625964Z   … warning: The check omitted these incompatible systems: aarch64-linux
+2026-10-12T11:29:16.4626144Z   … Use '--all-systems' to check all.
+2026-10-12T11:29:16.4626264Z   … 合计: 198.9s
+2026-10-12T11:29:16.4626480Z   … ✓ 域名表已是最新 (85 域名)
+2026-10-12T11:29:16.4626661Z   … 构建: 4 host / 1 组 (单进程)
+2026-10-12T11:29:16.4626936Z   … ⚡ home-pc           cache (已构建 · 10-12 19:12)
+2026-10-12T11:29:16.4627204Z   … ⚡ home-router       cache (已构建 · 10-12 19:22)
+2026-10-12T11:29:16.4627488Z   … SIGSEGV: Illegal storage access. (Attempt to read from nil?)
+2026-10-12T11:29:16.4627778Z   … error: recipe `_neve_w` was terminated on line 53 by signal 11
+2026-10-12T11:29:16.4628063Z   … error: recipe `check` failed on line 93 with exit code 139
+2026-10-12T11:29:16.4628249Z   … [p1] ✗ P1 check 失败 (exit 139)
+2026-10-12T11:29:16.4628618Z   … [p1] 🛰 构建观测: https://build.luo.xyz/#/b/20261012-190735-219a
+2026-10-12T11:29:16.4639751Z   … forgejo-ci-p1@1b10ca6e701d74880d797e1f0b764c7aa120f20b.service: Main process exited, code=exited, status=139/n/a
+2026-10-12T11:29:16.4639821Z   … forgejo-ci-p1@1b10ca6e701d74880d797e1f0b764c7aa120f20b.service: Failed with result 'exit-code'.
+2026-10-12T11:29:16.4639866Z   … Failed to start Forgejo CI P1 check (deploy gate, tier=p1) for commit @1b10ca6e701d74880d797e1f0b764c7aa120f20b.
+2026-10-12T11:29:16.4639915Z   … forgejo-ci-p1@1b10ca6e701d74880d797e1f0b764c7aa120f20b.service: Consumed 24min 9.861s CPU time over 21min 17.709s wall clock time, 24.5G memory peak, 19.4G memory swap peak, 20.9G read from disk, 26.9G written to disk, 394B incoming IP traffic, 622B outgoing IP traffic.
+2026-10-12T11:29:16.4639971Z   详见宿主: journalctl -u 'forgejo-ci-p1@1b10ca6e701d74880d797e1f0b764c7aa120f20b' --since '160 min ago'
+2026-10-12T11:29:16.4676109Z ⚙️ [runner]: RUN exit status 139
+2026-10-12T11:29:16.4676556Z 🏁  Job failed
+2026-10-12T11:29:16.4686104Z Job 'check' failed
+2026-10-12T11:29:16.4716688Z ::warning::This Forgejo instance does not support job summaries. This job summary will be discarded.

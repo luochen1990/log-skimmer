@@ -1,0 +1,10 @@
+{
+  "repo": "git.lambda.lc/lc-studio/nixos",
+  "run_id": 18720,
+  "job_id": 24338,
+  "conclusion": "failure",
+  "workflow_name": "ci-full.yml",
+  "attempt": 1,
+  "fetched_at": "2026-10-16T06:11:58Z",
+  "ci": "forgejo"
+}

@@ -1,0 +1,10 @@
+{
+  "repo": "github.com/niri-wm/niri",
+  "run_id": 38707552842,
+  "job_id": 116330622870,
+  "conclusion": "success",
+  "workflow_name": "cargo in / for clap_complete, libc, zbus - Update #1629143328",
+  "fetched_at": "2026-10-16T04:30:08Z",
+  "attempt": 1,
+  "ci": "github-actions"
+}

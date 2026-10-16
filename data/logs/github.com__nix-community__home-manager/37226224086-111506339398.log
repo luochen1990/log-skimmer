@@ -1,0 +1,797 @@
+﻿2026-10-04T18:54:50.8834490Z Current runner version: '2.337.0'
+2026-10-04T18:54:50.8853260Z ##[group]Runner Image Provisioner
+2026-10-04T18:54:50.8853870Z Hosted Compute Agent
+2026-10-04T18:54:50.8854380Z Version: 20260828.587
+2026-10-04T18:54:50.8854870Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-10-04T18:54:50.8855390Z Build Date: 2026-08-28T16:44:25Z
+2026-10-04T18:54:50.8856980Z Worker ID: {d85e262c-2e42-4e99-9e27-f500a92df90f}
+2026-10-04T18:54:50.8857700Z Azure Region: westus
+2026-10-04T18:54:50.8858230Z ##[endgroup]
+2026-10-04T18:54:50.8859460Z ##[group]Operating System
+2026-10-04T18:54:50.8869920Z macOS
+2026-10-04T18:54:50.8870300Z 26.6.2
+2026-10-04T18:54:50.8870690Z 25G83
+2026-10-04T18:54:50.8871160Z ##[endgroup]
+2026-10-04T18:54:50.8871730Z ##[group]Runner Image
+2026-10-04T18:54:50.8872250Z Image: macos-26-arm64
+2026-10-04T18:54:50.8872880Z Version: 20260907.0351.1
+2026-10-04T18:54:50.8874230Z Included Software: https://github.com/actions/runner-images/blob/macos-26-arm64/20260907.0351/images/macos/macos-26-arm64-Readme.md
+2026-10-04T18:54:50.8875680Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-26-arm64%2F20260907.0351
+2026-10-04T18:54:50.8876670Z ##[endgroup]
+2026-10-04T18:54:50.8877590Z ##[group]GITHUB_TOKEN Permissions
+2026-10-04T18:54:50.8880390Z Metadata: read
+2026-10-04T18:54:50.8881530Z ##[endgroup]
+2026-10-04T18:54:50.8886060Z Secret source: None
+2026-10-04T18:54:50.8888380Z Cache mode: write
+2026-10-04T18:54:50.8889800Z Prepare workflow directory
+2026-10-04T18:54:50.9243340Z Prepare all required actions
+2026-10-04T18:54:50.9357030Z Getting action download info
+2026-10-04T18:54:51.4125700Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-04T18:54:51.9050500Z Download action repository 'cachix/install-nix-action@v31' (SHA:13d8dd58da0234aa297dedd986986ccb8e7f3e24)
+2026-10-04T18:54:52.4238780Z Complete job name: tests (macos-latest)
+2026-10-04T18:54:52.5419090Z ##[group]Run actions/checkout@v7
+2026-10-04T18:54:52.5420830Z with:
+2026-10-04T18:54:52.5421470Z   repository: nix-community/home-manager
+2026-10-04T18:54:52.5427360Z   token: ***
+2026-10-04T18:54:52.5427840Z   ssh-strict: true
+2026-10-04T18:54:52.5428360Z   ssh-user: git
+2026-10-04T18:54:52.5428800Z   persist-credentials: true
+2026-10-04T18:54:52.5429240Z   clean: true
+2026-10-04T18:54:52.5429710Z   sparse-checkout-cone-mode: true
+2026-10-04T18:54:52.5430280Z   fetch-depth: 1
+2026-10-04T18:54:52.5430730Z   fetch-tags: false
+2026-10-04T18:54:52.5431150Z   show-progress: true
+2026-10-04T18:54:52.5431650Z   lfs: false
+2026-10-04T18:54:52.5432220Z   submodules: false
+2026-10-04T18:54:52.5432710Z   set-safe-directory: true
+2026-10-04T18:54:52.5433380Z   allow-unsafe-pr-checkout: false
+2026-10-04T18:54:52.5434810Z ##[endgroup]
+2026-10-04T18:54:53.3584960Z Syncing repository: nix-community/home-manager
+2026-10-04T18:54:53.3671550Z ##[group]Getting Git version info
+2026-10-04T18:54:53.3672940Z Working directory is '/Users/runner/work/home-manager/home-manager'
+2026-10-04T18:54:53.3674590Z [command]/opt/homebrew/bin/git version
+2026-10-04T18:54:53.4166020Z git version 2.55.0
+2026-10-04T18:54:53.4341190Z ##[endgroup]
+2026-10-04T18:54:53.4349000Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/b615e70b-9be4-4e31-925d-0e10ed00567b/.gitconfig'
+2026-10-04T18:54:53.4351560Z Temporarily overriding HOME='/Users/runner/work/_temp/b615e70b-9be4-4e31-925d-0e10ed00567b' before making global git config changes
+2026-10-04T18:54:53.4353110Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-04T18:54:53.4356370Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/home-manager/home-manager
+2026-10-04T18:54:53.4457650Z Deleting the contents of '/Users/runner/work/home-manager/home-manager'
+2026-10-04T18:54:53.4459420Z ##[group]Determining repository object format
+2026-10-04T18:54:53.4460480Z ##[endgroup]
+2026-10-04T18:54:53.4461380Z ##[group]Initializing the repository
+2026-10-04T18:54:53.4462280Z [command]/opt/homebrew/bin/git init /Users/runner/work/home-manager/home-manager
+2026-10-04T18:54:53.4764110Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-04T18:54:53.4828720Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-04T18:54:53.4844520Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-04T18:54:53.4845650Z hint: call:
+2026-10-04T18:54:53.4846260Z hint:
+2026-10-04T18:54:53.4846850Z hint: 	git config --global init.defaultBranch <name>
+2026-10-04T18:54:53.4847510Z hint:
+2026-10-04T18:54:53.4848100Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-04T18:54:53.4849090Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-04T18:54:53.4849960Z hint:
+2026-10-04T18:54:53.4850420Z hint: 	git branch -m <name>
+2026-10-04T18:54:53.4851050Z hint:
+2026-10-04T18:54:53.4851870Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-04T18:54:53.4853370Z Initialized empty Git repository in /Users/runner/work/home-manager/home-manager/.git/
+2026-10-04T18:54:53.4855690Z [command]/opt/homebrew/bin/git remote add origin https://github.com/nix-community/home-manager
+2026-10-04T18:54:53.4947330Z ##[endgroup]
+2026-10-04T18:54:53.4950330Z ##[group]Disabling automatic garbage collection
+2026-10-04T18:54:53.4951930Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-04T18:54:53.5028370Z ##[endgroup]
+2026-10-04T18:54:53.5037140Z ##[group]Setting up auth
+2026-10-04T18:54:53.5038450Z Removing SSH command configuration
+2026-10-04T18:54:53.5043480Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-04T18:54:53.5159590Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-04T18:54:53.6646060Z Removing HTTP extra header
+2026-10-04T18:54:53.6647210Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-04T18:54:53.6730700Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-04T18:54:53.8302300Z Removing includeIf entries pointing to credentials config files
+2026-10-04T18:54:53.8305160Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-04T18:54:53.8366990Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-04T18:54:54.0110440Z [command]/opt/homebrew/bin/git config --file /Users/runner/work/_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-04T18:54:54.0202730Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/home-manager/home-manager/.git.path /Users/runner/work/_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config
+2026-10-04T18:54:54.0321220Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/home-manager/home-manager/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config
+2026-10-04T18:54:54.0431250Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config
+2026-10-04T18:54:54.0548290Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config
+2026-10-04T18:54:54.0647330Z ##[endgroup]
+2026-10-04T18:54:54.0650510Z ##[group]Fetching the repository
+2026-10-04T18:54:54.0664840Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +47a594b74be10ea3d1124a36de43507f11fab9a1:refs/remotes/pull/10038/merge
+2026-10-04T18:54:55.0039230Z From https://github.com/nix-community/home-manager
+2026-10-04T18:54:55.0041610Z  * [new ref]         47a594b74be10ea3d1124a36de43507f11fab9a1 -> pull/10038/merge
+2026-10-04T18:54:55.0045390Z ##[endgroup]
+2026-10-04T18:54:55.0046710Z ##[group]Determining the checkout info
+2026-10-04T18:54:55.0048310Z ##[endgroup]
+2026-10-04T18:54:55.0049270Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-04T18:54:55.0229400Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-04T18:54:55.0344080Z ##[group]Checking out the ref
+2026-10-04T18:54:55.0348330Z [command]/opt/homebrew/bin/git checkout --progress --force refs/remotes/pull/10038/merge
+2026-10-04T18:54:56.0412700Z HEAD is now at 47a594b Merge 9ca912c775d86f63d6432e748c05ba877feecd56 into 8cfa9c9514e86f3b88856958b4692e7312b96598
+2026-10-04T18:54:56.0422750Z ##[endgroup]
+2026-10-04T18:54:56.0634060Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-04T18:54:56.0751670Z 47a594b74be10ea3d1124a36de43507f11fab9a1
+2026-10-04T18:54:56.1330430Z ##[group]Run echo "rev=$(jq -r '.nodes.nixpkgs.locked.rev' flake.lock)" >> "$GITHUB_OUTPUT"
+2026-10-04T18:54:56.1332730Z [36;1mecho "rev=$(jq -r '.nodes.nixpkgs.locked.rev' flake.lock)" >> "$GITHUB_OUTPUT"[0m
+2026-10-04T18:54:56.1449540Z shell: /bin/bash -e {0}
+2026-10-04T18:54:56.1451670Z ##[endgroup]
+2026-10-04T18:54:56.3327300Z ##[group]Run cachix/install-nix-action@v31
+2026-10-04T18:54:56.3329620Z with:
+2026-10-04T18:54:56.3332500Z   nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/7d5589bbf421c7b6f4185371abe3c465b1b557e9.tar.gz
+2026-10-04T18:54:56.3336280Z   extra_nix_config: sandbox = true
+
+2026-10-04T18:54:56.3338270Z   enable_kvm: true
+2026-10-04T18:54:56.3339860Z   set_as_trusted_user: true
+2026-10-04T18:54:56.3341710Z ##[endgroup]
+2026-10-04T18:54:56.3467320Z ##[start-action display=Run ${GITHUB_ACTION_PATH}/install-nix.sh;id=__cachix_install-nix-action.__run]
+2026-10-04T18:54:56.3543820Z ##[group]Run ${GITHUB_ACTION_PATH}/install-nix.sh
+2026-10-04T18:54:56.3544880Z [36;1m${GITHUB_ACTION_PATH}/install-nix.sh[0m
+2026-10-04T18:54:56.3636690Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-04T18:54:56.3637750Z env:
+2026-10-04T18:54:56.3638480Z   INPUT_EXTRA_NIX_CONFIG: sandbox = true
+
+2026-10-04T18:54:56.3639450Z   INPUT_GITHUB_ACCESS_TOKEN: 
+2026-10-04T18:54:56.3640280Z   INPUT_INSTALL_OPTIONS: 
+2026-10-04T18:54:56.3640990Z   INPUT_INSTALL_URL: 
+2026-10-04T18:54:56.3642490Z   INPUT_NIX_PATH: nixpkgs=https://github.com/NixOS/nixpkgs/archive/7d5589bbf421c7b6f4185371abe3c465b1b557e9.tar.gz
+2026-10-04T18:54:56.3644190Z   INPUT_ENABLE_KVM: true
+2026-10-04T18:54:56.3644890Z   INPUT_SET_AS_TRUSTED_USER: true
+2026-10-04T18:54:56.3652320Z   GITHUB_TOKEN: ***
+2026-10-04T18:54:56.3653110Z ##[endgroup]
+2026-10-04T18:54:56.4486100Z ##[group]Installing Nix
+2026-10-04T18:54:56.6571330Z installer options: --no-channel-add --nix-extra-conf-file /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmp.ZvWt3dKis9/nix.conf --daemon --daemon-user-count 6
+2026-10-04T18:54:56.7099390Z * Host releases.nixos.org:443 was resolved.
+2026-10-04T18:54:56.7100890Z * IPv6: (none)
+2026-10-04T18:54:56.7101900Z * IPv4: 167.82.49.91
+2026-10-04T18:54:56.7103940Z *   Trying 167.82.49.91:443...
+2026-10-04T18:54:56.7296210Z * Connected to releases.nixos.org (167.82.49.91) port 443
+2026-10-04T18:54:56.7330730Z * ALPN: curl offers h2,http/1.1
+2026-10-04T18:54:56.7332350Z * (304) (OUT), TLS handshake, Client hello (1):
+2026-10-04T18:54:56.7355930Z } [323 bytes data]
+2026-10-04T18:54:56.7369450Z *  CAfile: /etc/ssl/cert.pem
+2026-10-04T18:54:56.7370400Z *  CApath: none
+2026-10-04T18:54:56.7547000Z * (304) (IN), TLS handshake, Server hello (2):
+2026-10-04T18:54:56.7558070Z { [122 bytes data]
+2026-10-04T18:54:56.7575720Z * (304) (IN), TLS handshake, Unknown (8):
+2026-10-04T18:54:56.7578780Z { [19 bytes data]
+2026-10-04T18:54:56.7582970Z * (304) (IN), TLS handshake, Certificate (11):
+2026-10-04T18:54:56.7585250Z { [4081 bytes data]
+2026-10-04T18:54:56.7587120Z * (304) (IN), TLS handshake, CERT verify (15):
+2026-10-04T18:54:56.7589490Z { [264 bytes data]
+2026-10-04T18:54:56.7591180Z * (304) (IN), TLS handshake, Finished (20):
+2026-10-04T18:54:56.7593520Z { [36 bytes data]
+2026-10-04T18:54:56.7595460Z * (304) (OUT), TLS handshake, Finished (20):
+2026-10-04T18:54:56.7597540Z } [36 bytes data]
+2026-10-04T18:54:56.7600290Z * SSL connection using TLSv1.3 / AEAD-CHACHA20-POLY1305-SHA256 / [blank] / UNDEF
+2026-10-04T18:54:56.7603280Z * ALPN: server accepted h2
+2026-10-04T18:54:56.7605210Z * Server certificate:
+2026-10-04T18:54:56.7607150Z *  subject: CN=releases.nixos.org
+2026-10-04T18:54:56.7609270Z *  start date: Sep  9 22:18:06 2026 GMT
+2026-10-04T18:54:56.7611410Z *  expire date: Dec  8 22:18:05 2026 GMT
+2026-10-04T18:54:56.7613970Z *  subjectAltName: host "releases.nixos.org" matched cert's "releases.nixos.org"
+2026-10-04T18:54:56.7615310Z *  issuer: C=US; O=Let's Encrypt; CN=YR1
+2026-10-04T18:54:56.7616250Z *  SSL certificate verify ok.
+2026-10-04T18:54:56.7617050Z * using HTTP/2
+2026-10-04T18:54:56.7618050Z * [HTTP/2] [1] OPENED stream for https://releases.nixos.org/nix/nix-2.35.2/install
+2026-10-04T18:54:56.7619250Z * [HTTP/2] [1] [:method: GET]
+2026-10-04T18:54:56.7620170Z * [HTTP/2] [1] [:scheme: https]
+2026-10-04T18:54:56.7621040Z * [HTTP/2] [1] [:authority: releases.nixos.org]
+2026-10-04T18:54:56.7622870Z * [HTTP/2] [1] [:path: /nix/nix-2.35.2/install]
+2026-10-04T18:54:56.7624000Z * [HTTP/2] [1] [user-agent: curl/8.7.1]
+2026-10-04T18:54:56.7624900Z * [HTTP/2] [1] [accept: */*]
+2026-10-04T18:54:56.7625780Z > GET /nix/nix-2.35.2/install HTTP/2
+2026-10-04T18:54:56.7626640Z > Host: releases.nixos.org
+2026-10-04T18:54:56.7627540Z > User-Agent: curl/8.7.1
+2026-10-04T18:54:56.7628530Z > Accept: */*
+2026-10-04T18:54:56.7629230Z > 
+2026-10-04T18:54:56.7629900Z * Request completely sent off
+2026-10-04T18:54:56.7782030Z < HTTP/2 200 
+2026-10-04T18:54:56.7791260Z < last-modified: Wed, 12 Aug 2026 22:06:45 GMT
+2026-10-04T18:54:56.7794050Z < etag: "9f08ad80caddcb58f53e8551ff155b13"
+2026-10-04T18:54:56.7796410Z < x-amz-server-side-encryption: AES256
+2026-10-04T18:54:56.7798530Z < content-type: text/plain
+2026-10-04T18:54:56.7801110Z < server: AmazonS3
+2026-10-04T18:54:56.7805930Z < via: 1.1 varnish, 1.1 varnish
+2026-10-04T18:54:56.7815280Z < access-control-allow-origin: *
+2026-10-04T18:54:56.7817760Z < accept-ranges: bytes
+2026-10-04T18:54:56.7821810Z < date: Sun, 04 Oct 2026 18:54:57 GMT
+2026-10-04T18:54:56.7825340Z < age: 51936
+2026-10-04T18:54:56.7827700Z < x-served-by: cache-dub4323-DUB, cache-bfi-krnt7300066-BFI
+2026-10-04T18:54:56.7831080Z < x-cache: HIT, HIT
+2026-10-04T18:54:56.7833070Z < x-cache-hits: 7, 50
+2026-10-04T18:54:56.7835830Z < content-length: 4499
+2026-10-04T18:54:56.7839120Z < 
+2026-10-04T18:54:56.7840630Z { [1120 bytes data]
+2026-10-04T18:54:56.7842650Z * Connection #0 to host releases.nixos.org left intact
+2026-10-04T18:54:56.8105600Z downloading Nix 2.35.2 binary tarball for aarch64-darwin from 'https://releases.nixos.org/nix/nix-2.35.2/nix-2.35.2-aarch64-darwin.tar.xz' to '/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/nix-binary-tarball-unpack.XXXXXXXXXX.LZuU0idD7N'...
+2026-10-04T18:54:56.8240140Z   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2026-10-04T18:54:56.8242750Z                                  Dload  Upload   Total   Spent    Left  Speed
+2026-10-04T18:54:56.8243630Z 
+2026-10-04T18:54:57.0174600Z   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2026-10-04T18:54:57.0277040Z 100 17.6M  100 17.6M    0     0  91.3M      0 --:--:-- --:--:-- --:--:-- 91.5M
+2026-10-04T18:54:59.5008550Z [1;31mSwitching to the Multi-user Installer[0m
+2026-10-04T18:54:59.6524080Z [32mWelcome to the Multi-User Nix Installation
+2026-10-04T18:54:59.6583090Z [0m
+2026-10-04T18:54:59.6584030Z This installation tool will set up your computer with the Nix package
+2026-10-04T18:54:59.6585730Z manager. This will happen in a few stages:
+2026-10-04T18:54:59.6608050Z 
+2026-10-04T18:54:59.6608550Z 1. Make sure your computer doesn't already have Nix. If it does, I
+2026-10-04T18:54:59.6609510Z    will show you instructions on how to clean up your old install.
+2026-10-04T18:54:59.6610130Z 
+2026-10-04T18:54:59.6610500Z 2. Show you what I am going to install and where. Then I will ask
+2026-10-04T18:54:59.6611250Z    if you are ready to continue.
+2026-10-04T18:54:59.6611710Z 
+2026-10-04T18:54:59.6612590Z 3. Create the system users [34m(uids [351..356])[0m and groups [34m(gid 350)[0m
+2026-10-04T18:54:59.6614210Z    that the Nix daemon uses to run builds. To create system users
+2026-10-04T18:54:59.6615170Z    in a different range, exit and run this tool again with
+2026-10-04T18:54:59.6615900Z    NIX_FIRST_BUILD_UID set.
+2026-10-04T18:54:59.6616330Z 
+2026-10-04T18:54:59.6616680Z 4. Perform the basic installation of the Nix files daemon.
+2026-10-04T18:54:59.6617210Z 
+2026-10-04T18:54:59.6617620Z 5. Configure your shell to import special Nix Profile files, so you
+2026-10-04T18:54:59.6618410Z    can use Nix.
+2026-10-04T18:54:59.6618670Z 
+2026-10-04T18:54:59.6618950Z 6. Start the Nix daemon.
+2026-10-04T18:54:59.6619410Z 
+2026-10-04T18:54:59.6620020Z [32m[4;32mWould you like to see a more detailed list of what I will do?
+2026-10-04T18:54:59.6620940Z [0mNo TTY, assuming you would say yes :)
+2026-10-04T18:54:59.6651800Z 
+2026-10-04T18:54:59.6652890Z I will:
+2026-10-04T18:54:59.6653340Z 
+2026-10-04T18:54:59.6655220Z  - make sure your computer doesn't already have Nix files
+2026-10-04T18:54:59.6660550Z    (if it does, I will tell you how to clean them up.)
+2026-10-04T18:54:59.6661120Z  - create local users (see the list above for the users I'll make)
+2026-10-04T18:54:59.6661440Z  - create a local group (nixbld)
+2026-10-04T18:54:59.6661670Z  - install Nix in /nix
+2026-10-04T18:54:59.6661980Z  - create a configuration file in /etc/nix
+2026-10-04T18:54:59.6662410Z  - set up the "default profile" by creating some Nix-related files in
+2026-10-04T18:54:59.6662990Z    /var/root
+2026-10-04T18:54:59.6733560Z  - back up /etc/bashrc to /etc/bashrc.backup-before-nix
+2026-10-04T18:54:59.6740410Z  - update /etc/bashrc to include some Nix configuration
+2026-10-04T18:54:59.6830460Z  - back up /etc/zshrc to /etc/zshrc.backup-before-nix
+2026-10-04T18:54:59.6831600Z  - update /etc/zshrc to include some Nix configuration
+2026-10-04T18:54:59.6837200Z  - create a Nix volume and a LaunchDaemon to mount it
+2026-10-04T18:54:59.6838440Z  - create a LaunchDaemon (at /Library/LaunchDaemons/org.nixos.nix-daemon.plist) for nix-daemon
+2026-10-04T18:54:59.6839310Z 
+2026-10-04T18:54:59.6839930Z [32m[4;32mReady to continue?
+2026-10-04T18:54:59.6840590Z [0mNo TTY, assuming you would say yes :)
+2026-10-04T18:54:59.6928920Z 
+2026-10-04T18:54:59.6932260Z [34m---- let's talk about sudo -----------------------------------------------------
+2026-10-04T18:54:59.6990530Z [0mThis script is going to call sudo a lot. Normally, it would show you
+2026-10-04T18:54:59.6992840Z exactly what commands it is running and why. However, the script is
+2026-10-04T18:54:59.6993730Z run in a headless fashion, like this:
+2026-10-04T18:54:59.6994150Z 
+2026-10-04T18:54:59.6995530Z   $ curl -L https://nixos.org/nix/install | sh
+2026-10-04T18:54:59.6996000Z 
+2026-10-04T18:54:59.6996410Z or maybe in a CI pipeline. Because of that, I'm going to skip the
+2026-10-04T18:54:59.6997260Z verbose output in the interest of brevity.
+2026-10-04T18:54:59.6997700Z 
+2026-10-04T18:54:59.6997930Z If you would like to
+2026-10-04T18:54:59.6998440Z see the output, try like this:
+2026-10-04T18:54:59.6998820Z 
+2026-10-04T18:54:59.6999150Z   $ curl -L -o install-nix https://nixos.org/nix/install
+2026-10-04T18:54:59.6999890Z   $ sh ./install-nix
+2026-10-04T18:54:59.7000300Z 
+2026-10-04T18:54:59.7000330Z 
+2026-10-04T18:54:59.7000850Z [32m~~> Fixing any leftover Nix volume state
+2026-10-04T18:54:59.7106750Z [0mBefore I try to install, I'll check for any existing Nix volume config
+2026-10-04T18:54:59.7109020Z and ask for your permission to remove it (so that the installer can
+2026-10-04T18:54:59.7110570Z start fresh). I'll also ask for permission to fix any issues I spot.
+2026-10-04T18:54:59.7743750Z 
+2026-10-04T18:54:59.7745370Z [32m~~> Checking for artifacts of previous installs
+2026-10-04T18:54:59.7816000Z [0mBefore I try to install, I'll check for signs Nix already is or has
+2026-10-04T18:54:59.7817960Z been installed on this system.
+2026-10-04T18:54:59.8035700Z 
+2026-10-04T18:54:59.8037290Z [34m---- Nix config report ---------------------------------------------------------
+2026-10-04T18:54:59.8038880Z [0m[1m        Temp Dir[0m:	/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmp.SsLqgPtU8D
+2026-10-04T18:54:59.8040140Z [1m        Nix Root[0m:	/nix
+2026-10-04T18:54:59.8044210Z [1m     Build Users[0m:	6
+2026-10-04T18:54:59.8052470Z [1m  Build Group ID[0m:	350
+2026-10-04T18:54:59.8052960Z [1mBuild Group Name[0m:	nixbld
+2026-10-04T18:54:59.8053140Z 
+2026-10-04T18:54:59.8053380Z [4;34mbuild users:
+2026-10-04T18:54:59.8053840Z [0m[1m    Username[0m:	UID
+2026-10-04T18:54:59.8131650Z [1m     _nixbld1[0m:	351
+2026-10-04T18:54:59.8156360Z [1m     _nixbld2[0m:	352
+2026-10-04T18:54:59.8180960Z [1m     _nixbld3[0m:	353
+2026-10-04T18:54:59.8200580Z [1m     _nixbld4[0m:	354
+2026-10-04T18:54:59.8227600Z [1m     _nixbld5[0m:	355
+2026-10-04T18:54:59.8265130Z [1m     _nixbld6[0m:	356
+2026-10-04T18:54:59.8266510Z 
+2026-10-04T18:54:59.8267030Z [32m[4;32mReady to continue?
+2026-10-04T18:54:59.8269200Z [0mNo TTY, assuming you would say yes :)
+2026-10-04T18:54:59.8368130Z 
+2026-10-04T18:54:59.8370060Z [34m---- Preparing a Nix volume ----------------------------------------------------
+2026-10-04T18:54:59.8418790Z [0m    Nix traditionally stores its data in the root directory /nix, but
+2026-10-04T18:54:59.8419590Z     macOS now (starting in 10.15 Catalina) has a read-only root directory.
+2026-10-04T18:54:59.8420160Z     To support Nix, I will create a volume and configure macOS to mount it
+2026-10-04T18:54:59.8420610Z     at /nix.
+2026-10-04T18:54:59.8461310Z 
+2026-10-04T18:54:59.8462600Z [32m~~> Configuring /etc/synthetic.conf to make a mount-point at /nix
+2026-10-04T18:55:00.0338300Z [0m
+2026-10-04T18:55:00.0370930Z [32m~~> Creating a Nix volume
+2026-10-04T18:55:01.9721420Z [0mdisk2s7 was already unmounted
+2026-10-04T18:55:01.9985900Z 
+2026-10-04T18:55:01.9986600Z [32m~~> Configuring /etc/fstab to specify volume mount options
+2026-10-04T18:55:02.1418770Z [0m
+2026-10-04T18:55:02.1422180Z [32m~~> Configuring LaunchDaemon to mount 'Nix Store'
+2026-10-04T18:55:12.7637170Z 
+2026-10-04T18:55:12.7741540Z [32m~~> Setting up the build group nixbld
+2026-10-04T18:55:12.8460370Z [0m[1m            Created[0m:	Yes
+2026-10-04T18:55:12.8563330Z 
+2026-10-04T18:55:12.8588580Z [32m~~> Setting up the build user _nixbld1
+2026-10-04T18:55:12.9663080Z [0m[1m           Created[0m:	Yes
+2026-10-04T18:55:13.0504980Z [1m            Hidden[0m:	Yes
+2026-10-04T18:55:13.1059030Z [1m    Home Directory[0m:	/var/empty
+2026-10-04T18:55:13.1906460Z [1m              Note[0m:	Nix build user 1
+2026-10-04T18:55:13.2529600Z [1m   Logins Disabled[0m:	Yes
+2026-10-04T18:55:13.3032480Z [1m  Member of nixbld[0m:	Yes
+2026-10-04T18:55:13.3876570Z [1m    PrimaryGroupID[0m:	350
+2026-10-04T18:55:13.3901420Z 
+2026-10-04T18:55:13.3901990Z [32m~~> Setting up the build user _nixbld2
+2026-10-04T18:55:13.4600790Z [0m[1m           Created[0m:	Yes
+2026-10-04T18:55:13.5351780Z [1m            Hidden[0m:	Yes
+2026-10-04T18:55:13.6186200Z [1m    Home Directory[0m:	/var/empty
+2026-10-04T18:55:13.6948080Z [1m              Note[0m:	Nix build user 2
+2026-10-04T18:55:13.7870470Z [1m   Logins Disabled[0m:	Yes
+2026-10-04T18:55:13.8691580Z [1m  Member of nixbld[0m:	Yes
+2026-10-04T18:55:13.9461660Z [1m    PrimaryGroupID[0m:	350
+2026-10-04T18:55:13.9474480Z 
+2026-10-04T18:55:13.9476710Z [32m~~> Setting up the build user _nixbld3
+2026-10-04T18:55:14.0240770Z [0m[1m           Created[0m:	Yes
+2026-10-04T18:55:14.1113990Z [1m            Hidden[0m:	Yes
+2026-10-04T18:55:14.1931300Z [1m    Home Directory[0m:	/var/empty
+2026-10-04T18:55:14.2801410Z [1m              Note[0m:	Nix build user 3
+2026-10-04T18:55:14.3511540Z [1m   Logins Disabled[0m:	Yes
+2026-10-04T18:55:14.4109060Z [1m  Member of nixbld[0m:	Yes
+2026-10-04T18:55:14.4957070Z [1m    PrimaryGroupID[0m:	350
+2026-10-04T18:55:14.4980390Z 
+2026-10-04T18:55:14.4982300Z [32m~~> Setting up the build user _nixbld4
+2026-10-04T18:55:14.5714840Z [0m[1m           Created[0m:	Yes
+2026-10-04T18:55:14.6458920Z [1m            Hidden[0m:	Yes
+2026-10-04T18:55:14.7070640Z [1m    Home Directory[0m:	/var/empty
+2026-10-04T18:55:14.7961220Z [1m              Note[0m:	Nix build user 4
+2026-10-04T18:55:14.8578360Z [1m   Logins Disabled[0m:	Yes
+2026-10-04T18:55:14.9097240Z [1m  Member of nixbld[0m:	Yes
+2026-10-04T18:55:14.9738950Z [1m    PrimaryGroupID[0m:	350
+2026-10-04T18:55:14.9754380Z 
+2026-10-04T18:55:14.9754960Z [32m~~> Setting up the build user _nixbld5
+2026-10-04T18:55:15.0364110Z [0m[1m           Created[0m:	Yes
+2026-10-04T18:55:15.1185500Z [1m            Hidden[0m:	Yes
+2026-10-04T18:55:15.1773640Z [1m    Home Directory[0m:	/var/empty
+2026-10-04T18:55:15.2534720Z [1m              Note[0m:	Nix build user 5
+2026-10-04T18:55:15.3109770Z [1m   Logins Disabled[0m:	Yes
+2026-10-04T18:55:15.3609230Z [1m  Member of nixbld[0m:	Yes
+2026-10-04T18:55:15.4374890Z [1m    PrimaryGroupID[0m:	350
+2026-10-04T18:55:15.4398620Z 
+2026-10-04T18:55:15.4414700Z [32m~~> Setting up the build user _nixbld6
+2026-10-04T18:55:15.5148710Z [0m[1m           Created[0m:	Yes
+2026-10-04T18:55:15.6062610Z [1m            Hidden[0m:	Yes
+2026-10-04T18:55:15.7004770Z [1m    Home Directory[0m:	/var/empty
+2026-10-04T18:55:15.7849580Z [1m              Note[0m:	Nix build user 6
+2026-10-04T18:55:15.8701470Z [1m   Logins Disabled[0m:	Yes
+2026-10-04T18:55:15.9245700Z [1m  Member of nixbld[0m:	Yes
+2026-10-04T18:55:15.9929330Z [1m    PrimaryGroupID[0m:	350
+2026-10-04T18:55:15.9934380Z 
+2026-10-04T18:55:15.9939580Z [32m~~> Setting up the basic directory structure
+2026-10-04T18:55:16.0505250Z [0minstall: mkdir /nix/var
+2026-10-04T18:55:16.0506460Z install: mkdir /nix/var/log
+2026-10-04T18:55:16.0506860Z install: mkdir /nix/var/log/nix
+2026-10-04T18:55:16.0507160Z install: mkdir /nix/var/log/nix/drvs
+2026-10-04T18:55:16.0507530Z install: mkdir /nix/var/nix
+2026-10-04T18:55:16.0537390Z install: mkdir /nix/var/nix/db
+2026-10-04T18:55:16.0539180Z install: mkdir /nix/var/nix/gcroots
+2026-10-04T18:55:16.0540130Z install: mkdir /nix/var/nix/profiles
+2026-10-04T18:55:16.0541130Z install: mkdir /nix/var/nix/temproots
+2026-10-04T18:55:16.0542030Z install: mkdir /nix/var/nix/userpool
+2026-10-04T18:55:16.0542870Z install: mkdir /nix/var/nix/daemon-socket
+2026-10-04T18:55:16.0543880Z install: mkdir /nix/var/nix/gcroots/per-user
+2026-10-04T18:55:16.0544830Z install: mkdir /nix/var/nix/profiles/per-user
+2026-10-04T18:55:16.0725050Z install: mkdir /nix/store
+2026-10-04T18:55:16.0914550Z install: mkdir /etc/nix
+2026-10-04T18:55:16.0933480Z 
+2026-10-04T18:55:16.0935520Z [32m~~> Installing Nix
+2026-10-04T18:55:17.8862180Z [0m      Alright! We have our first nix at /nix/store/xbb13wrh7lv306phbapc006hfsscjd97-nix-2.35.2
+2026-10-04T18:55:19.7231700Z       Just finished getting the nix database ready.
+2026-10-04T18:55:19.7237230Z 
+2026-10-04T18:55:19.7238070Z [32m~~> Setting up shell profiles: /etc/bashrc /etc/profile.d/nix.sh /etc/zshrc /etc/bash.bashrc /etc/zsh/zshrc
+2026-10-04T18:55:19.7761010Z [0m
+2026-10-04T18:55:19.7761440Z # Nix
+2026-10-04T18:55:19.7764640Z if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+2026-10-04T18:55:19.7765390Z   . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+2026-10-04T18:55:19.7766070Z fi
+2026-10-04T18:55:19.7768110Z # End Nix
+2026-10-04T18:55:19.7768390Z 
+2026-10-04T18:55:19.7768590Z # System-wide .bashrc file for interactive bash(1) shells.
+2026-10-04T18:55:19.7769100Z if [ -z "$PS1" ]; then
+2026-10-04T18:55:19.7770610Z    return
+2026-10-04T18:55:19.7771560Z fi
+2026-10-04T18:55:19.7772050Z 
+2026-10-04T18:55:19.7772280Z PS1='\h:\W \u\$ '
+2026-10-04T18:55:19.7772710Z # Make bash check its window size after a process completes
+2026-10-04T18:55:19.7773150Z shopt -s checkwinsize
+2026-10-04T18:55:19.7773410Z 
+2026-10-04T18:55:19.7773610Z [ -r "/etc/bashrc_$TERM_PROGRAM" ] && . "/etc/bashrc_$TERM_PROGRAM"
+2026-10-04T18:55:19.8433950Z 
+2026-10-04T18:55:19.8434370Z # Nix
+2026-10-04T18:55:19.8435190Z if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+2026-10-04T18:55:19.8436810Z   . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+2026-10-04T18:55:19.8437850Z fi
+2026-10-04T18:55:19.8438330Z # End Nix
+2026-10-04T18:55:19.8438640Z 
+2026-10-04T18:55:19.8439000Z # System-wide profile for interactive zsh(1) shells.
+2026-10-04T18:55:19.8439520Z 
+2026-10-04T18:55:19.8440110Z # Setup user specific overrides for this in ~/.zshrc. See zshbuiltins(1)
+2026-10-04T18:55:19.8441030Z # and zshoptions(1) for more details.
+2026-10-04T18:55:19.8441480Z 
+2026-10-04T18:55:19.8444090Z # Correctly display UTF-8 with combining characters.  We'll assume UTF-8 if the
+2026-10-04T18:55:19.8445680Z # locale(1) binary is missing entirely.
+2026-10-04T18:55:19.8446140Z if [[ ! -x /usr/bin/locale ]] || [[ "$(locale LC_CTYPE)" == "UTF-8" ]]; then
+2026-10-04T18:55:19.8447190Z     setopt COMBINING_CHARS
+2026-10-04T18:55:19.8448800Z fi
+2026-10-04T18:55:19.8449090Z 
+2026-10-04T18:55:19.8449880Z # Disable the log builtin, so we don't conflict with /usr/bin/log
+2026-10-04T18:55:19.8451350Z disable log
+2026-10-04T18:55:19.8451650Z 
+2026-10-04T18:55:19.8451790Z # Save command history
+2026-10-04T18:55:19.8452100Z HISTFILE=${ZDOTDIR:-$HOME}/.zsh_history
+2026-10-04T18:55:19.8452370Z HISTSIZE=2000
+2026-10-04T18:55:19.8452560Z SAVEHIST=1000
+2026-10-04T18:55:19.8452720Z 
+2026-10-04T18:55:19.8452850Z # Beep on error
+2026-10-04T18:55:19.8453100Z setopt BEEP
+2026-10-04T18:55:19.8453260Z 
+2026-10-04T18:55:19.8453500Z # Use keycodes (generated via zkbd) if present, otherwise fallback on
+2026-10-04T18:55:19.8453920Z # values from terminfo
+2026-10-04T18:55:19.8454300Z if [[ -r ${ZDOTDIR:-$HOME}/.zkbd/${TERM}-${VENDOR} ]] ; then
+2026-10-04T18:55:19.8454640Z     source ${ZDOTDIR:-$HOME}/.zkbd/${TERM}-${VENDOR}
+2026-10-04T18:55:19.8454900Z else
+2026-10-04T18:55:19.8455150Z     typeset -g -A key
+2026-10-04T18:55:19.8455280Z 
+2026-10-04T18:55:19.8455460Z     [[ -n "$terminfo[kf1]" ]] && key[F1]=$terminfo[kf1]
+2026-10-04T18:55:19.8455850Z     [[ -n "$terminfo[kf2]" ]] && key[F2]=$terminfo[kf2]
+2026-10-04T18:55:19.8456230Z     [[ -n "$terminfo[kf3]" ]] && key[F3]=$terminfo[kf3]
+2026-10-04T18:55:19.8456540Z     [[ -n "$terminfo[kf4]" ]] && key[F4]=$terminfo[kf4]
+2026-10-04T18:55:19.8456800Z     [[ -n "$terminfo[kf5]" ]] && key[F5]=$terminfo[kf5]
+2026-10-04T18:55:19.8457050Z     [[ -n "$terminfo[kf6]" ]] && key[F6]=$terminfo[kf6]
+2026-10-04T18:55:19.8457390Z     [[ -n "$terminfo[kf7]" ]] && key[F7]=$terminfo[kf7]
+2026-10-04T18:55:19.8457760Z     [[ -n "$terminfo[kf8]" ]] && key[F8]=$terminfo[kf8]
+2026-10-04T18:55:19.8458200Z     [[ -n "$terminfo[kf9]" ]] && key[F9]=$terminfo[kf9]
+2026-10-04T18:55:19.8458520Z     [[ -n "$terminfo[kf10]" ]] && key[F10]=$terminfo[kf10]
+2026-10-04T18:55:19.8458830Z     [[ -n "$terminfo[kf11]" ]] && key[F11]=$terminfo[kf11]
+2026-10-04T18:55:19.8459220Z     [[ -n "$terminfo[kf12]" ]] && key[F12]=$terminfo[kf12]
+2026-10-04T18:55:19.8459520Z     [[ -n "$terminfo[kf13]" ]] && key[F13]=$terminfo[kf13]
+2026-10-04T18:55:19.8459840Z     [[ -n "$terminfo[kf14]" ]] && key[F14]=$terminfo[kf14]
+2026-10-04T18:55:19.8460160Z     [[ -n "$terminfo[kf15]" ]] && key[F15]=$terminfo[kf15]
+2026-10-04T18:55:19.8460590Z     [[ -n "$terminfo[kf16]" ]] && key[F16]=$terminfo[kf16]
+2026-10-04T18:55:19.8460880Z     [[ -n "$terminfo[kf17]" ]] && key[F17]=$terminfo[kf17]
+2026-10-04T18:55:19.8461310Z     [[ -n "$terminfo[kf18]" ]] && key[F18]=$terminfo[kf18]
+2026-10-04T18:55:19.8461710Z     [[ -n "$terminfo[kf19]" ]] && key[F19]=$terminfo[kf19]
+2026-10-04T18:55:19.8462260Z     [[ -n "$terminfo[kf20]" ]] && key[F20]=$terminfo[kf20]
+2026-10-04T18:55:19.8464380Z     [[ -n "$terminfo[kbs]" ]] && key[Backspace]=$terminfo[kbs]
+2026-10-04T18:55:19.8465260Z     [[ -n "$terminfo[kich1]" ]] && key[Insert]=$terminfo[kich1]
+2026-10-04T18:55:19.8466130Z     [[ -n "$terminfo[kdch1]" ]] && key[Delete]=$terminfo[kdch1]
+2026-10-04T18:55:19.8467140Z     [[ -n "$terminfo[khome]" ]] && key[Home]=$terminfo[khome]
+2026-10-04T18:55:19.8467950Z     [[ -n "$terminfo[kend]" ]] && key[End]=$terminfo[kend]
+2026-10-04T18:55:19.8468700Z     [[ -n "$terminfo[kpp]" ]] && key[PageUp]=$terminfo[kpp]
+2026-10-04T18:55:19.8469620Z     [[ -n "$terminfo[knp]" ]] && key[PageDown]=$terminfo[knp]
+2026-10-04T18:55:19.8470460Z     [[ -n "$terminfo[kcuu1]" ]] && key[Up]=$terminfo[kcuu1]
+2026-10-04T18:55:19.8471390Z     [[ -n "$terminfo[kcub1]" ]] && key[Left]=$terminfo[kcub1]
+2026-10-04T18:55:19.8472250Z     [[ -n "$terminfo[kcud1]" ]] && key[Down]=$terminfo[kcud1]
+2026-10-04T18:55:19.8473270Z     [[ -n "$terminfo[kcuf1]" ]] && key[Right]=$terminfo[kcuf1]
+2026-10-04T18:55:19.8474080Z fi
+2026-10-04T18:55:19.8474390Z 
+2026-10-04T18:55:19.8474650Z # Default key bindings
+2026-10-04T18:55:19.8475420Z [[ -n ${key[Delete]} ]] && bindkey "${key[Delete]}" delete-char
+2026-10-04T18:55:19.8476510Z [[ -n ${key[Home]} ]] && bindkey "${key[Home]}" beginning-of-line
+2026-10-04T18:55:19.8477460Z [[ -n ${key[End]} ]] && bindkey "${key[End]}" end-of-line
+2026-10-04T18:55:19.8478260Z [[ -n ${key[Up]} ]] && bindkey "${key[Up]}" up-line-or-search
+2026-10-04T18:55:19.8480230Z [[ -n ${key[Down]} ]] && bindkey "${key[Down]}" down-line-or-search
+2026-10-04T18:55:19.8480980Z 
+2026-10-04T18:55:19.8481150Z # Default prompt
+2026-10-04T18:55:19.8481770Z PS1="%n@%m %1~ %# "
+2026-10-04T18:55:19.8482100Z 
+2026-10-04T18:55:19.8482640Z # Useful support for interacting with Terminal.app or other terminal programs
+2026-10-04T18:55:19.8483930Z [ -r "/etc/zshrc_$TERM_PROGRAM" ] && . "/etc/zshrc_$TERM_PROGRAM"
+2026-10-04T18:55:19.8928220Z 
+2026-10-04T18:55:19.8928640Z # Nix
+2026-10-04T18:55:19.8929410Z if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+2026-10-04T18:55:19.8930120Z   . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+2026-10-04T18:55:19.8930700Z fi
+2026-10-04T18:55:19.8930990Z # End Nix
+2026-10-04T18:55:19.8931070Z 
+2026-10-04T18:55:19.8999630Z 
+2026-10-04T18:55:19.9000970Z [32m~~> Setting up shell profiles for Fish with conf.d/nix.fish inside /etc/fish /usr/local/etc/fish /opt/homebrew/etc/fish /opt/local/etc/fish
+2026-10-04T18:55:19.9317260Z [0m
+2026-10-04T18:55:19.9317850Z [32m~~> Setting up the default profile
+2026-10-04T18:55:20.0518990Z [0minstalling 'nix-2.35.2'
+2026-10-04T18:55:20.1144770Z building '/nix/store/51lhlqx1rkrfnjihip1vli2rr2f3lpcz-user-environment.drv'...
+2026-10-04T18:55:20.2537530Z installing 'nix-manual-2.35.2-man'
+2026-10-04T18:55:20.2712200Z building '/nix/store/3wfmyfai9vggqs03z01g848kqkfh3nkp-user-environment.drv'...
+2026-10-04T18:55:20.3808610Z installing 'nss-cacert-3.123'
+2026-10-04T18:55:20.3993040Z building '/nix/store/c8s3b1bajazxzq110zpmdydfn5p57smf-user-environment.drv'...
+2026-10-04T18:55:20.4523730Z [0m
+2026-10-04T18:55:20.4524610Z [32m~~> Setting up the nix-daemon LaunchDaemon
+2026-10-04T18:55:30.5542280Z [0m[32mAlright! We're done!
+2026-10-04T18:55:30.5871750Z [0mTry it! Open a new terminal, and type:
+2026-10-04T18:55:30.5885620Z 
+2026-10-04T18:55:30.6214010Z   $ nix-shell -p nix-info --run "nix-info -m"
+2026-10-04T18:55:30.6311200Z 
+2026-10-04T18:55:30.6412460Z Thank you for using this installer. If you have any feedback or need
+2026-10-04T18:55:30.6515290Z help, don't hesitate:
+2026-10-04T18:55:30.6565860Z 
+2026-10-04T18:55:30.6572170Z You can open an issue at
+2026-10-04T18:55:30.6573880Z https://github.com/NixOS/nix/issues/new?labels=installer&template=installer.md
+2026-10-04T18:55:30.6574590Z 
+2026-10-04T18:55:30.6574790Z Or get in touch with the community: https://nixos.org/community
+2026-10-04T18:55:30.6575120Z 
+2026-10-04T18:55:30.6575440Z [34m---- Reminders -----------------------------------------------------------------
+2026-10-04T18:55:30.6577170Z [0m[34m[ 1 ][0m
+2026-10-04T18:55:30.6577490Z Nix won't work in active shell sessions until you restart them.
+2026-10-04T18:55:30.6577810Z 
+2026-10-04T18:55:30.8418620Z ##[endgroup]
+2026-10-04T18:55:30.8564760Z ##[end-action id=__cachix_install-nix-action.__run;outcome=success;conclusion=success;duration_ms=34492]
+2026-10-04T18:55:30.8675940Z ##[group]Run nix build --show-trace .#docs-jsonModuleMaintainers
+2026-10-04T18:55:30.8676390Z [36;1mnix build --show-trace .#docs-jsonModuleMaintainers[0m
+2026-10-04T18:55:30.8892590Z shell: /bin/bash -e {0}
+2026-10-04T18:55:30.8892830Z env:
+2026-10-04T18:55:30.8893440Z   NIX_PATH: nixpkgs=https://github.com/NixOS/nixpkgs/archive/7d5589bbf421c7b6f4185371abe3c465b1b557e9.tar.gz
+2026-10-04T18:55:30.8893980Z   NIX_PROFILES: /nix/var/nix/profiles/default /Users/runner/.nix-profile
+2026-10-04T18:55:30.8894370Z   NIX_SSL_CERT_FILE: /etc/ssl/cert.pem
+2026-10-04T18:55:30.8894610Z ##[endgroup]
+2026-10-04T18:55:32.1078360Z unpacking 'https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst' into the Git cache...
+2026-10-04T18:55:49.3105900Z copying path '/nix/store/fm1dwqb08lxr1gk02niyvb1j7v4181c0-source' from 'https://cache.nixos.org'...
+2026-10-04T18:55:49.6820080Z error:
+2026-10-04T18:55:49.6824270Z        … while evaluating the attribute 'jsonModuleMaintainers'
+2026-10-04T18:55:49.6825100Z          at /Users/runner/work/home-manager/home-manager/docs/default.nix:297:3:
+2026-10-04T18:55:49.6833410Z           296|   # Unstable, mainly for CI.
+2026-10-04T18:55:49.6835120Z           297|   jsonModuleMaintainers = pkgs.writeText "hm-module-maintainers.json" (
+2026-10-04T18:55:49.6835750Z              |   ^
+2026-10-04T18:55:49.6835980Z           298|     let
+2026-10-04T18:55:49.6836960Z 
+2026-10-04T18:55:49.6837570Z        … from call site
+2026-10-04T18:55:49.6838110Z          at /Users/runner/work/home-manager/home-manager/docs/default.nix:297:27:
+2026-10-04T18:55:49.6838740Z           296|   # Unstable, mainly for CI.
+2026-10-04T18:55:49.6839510Z           297|   jsonModuleMaintainers = pkgs.writeText "hm-module-maintainers.json" (
+2026-10-04T18:55:49.6840030Z              |                           ^
+2026-10-04T18:55:49.6840350Z           298|     let
+2026-10-04T18:55:49.6840530Z 
+2026-10-04T18:55:49.6840760Z        … while calling 'writeText'
+2026-10-04T18:55:49.6843050Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/pkgs/build-support/trivial-builders/default.nix:193:11:
+2026-10-04T18:55:49.6844350Z           192|   writeText =
+2026-10-04T18:55:49.6844660Z           193|     name: text:
+2026-10-04T18:55:49.6845090Z              |           ^
+2026-10-04T18:55:49.6845570Z           194|     # TODO: To fully deprecate, replace the assertion with `lib.isString` and remove the warning
+2026-10-04T18:55:49.6847440Z 
+2026-10-04T18:55:49.6847760Z        … in the condition of the assert statement
+2026-10-04T18:55:49.6850030Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/pkgs/build-support/trivial-builders/default.nix:195:5:
+2026-10-04T18:55:49.6851600Z           194|     # TODO: To fully deprecate, replace the assertion with `lib.isString` and remove the warning
+2026-10-04T18:55:49.6852100Z           195|     assert
+2026-10-04T18:55:49.6852340Z              |     ^
+2026-10-04T18:55:49.6852750Z           196|       lib.strings.isConvertibleWithToString text
+2026-10-04T18:55:49.6853020Z 
+2026-10-04T18:55:49.6853200Z        … in the left operand of the OR (||) operator
+2026-10-04T18:55:49.6854240Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/pkgs/build-support/trivial-builders/default.nix:197:7:
+2026-10-04T18:55:49.6855730Z           196|       lib.strings.isConvertibleWithToString text
+2026-10-04T18:55:49.6860470Z           197|       || throw "pkgs.writeText ${lib.strings.escapeNixString name}: The second argument should be a string, but it's a ${builtins.typeOf text} instead.";
+2026-10-04T18:55:49.6862490Z              |       ^
+2026-10-04T18:55:49.6873360Z           198|     lib.warnIf (!lib.isString text)
+2026-10-04T18:55:49.6874370Z 
+2026-10-04T18:55:49.6874670Z        … from call site
+2026-10-04T18:55:49.6875870Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/pkgs/build-support/trivial-builders/default.nix:196:7:
+2026-10-04T18:55:49.6877200Z           195|     assert
+2026-10-04T18:55:49.6877650Z           196|       lib.strings.isConvertibleWithToString text
+2026-10-04T18:55:49.6878050Z              |       ^
+2026-10-04T18:55:49.6878730Z           197|       || throw "pkgs.writeText ${lib.strings.escapeNixString name}: The second argument should be a string, but it's a ${builtins.typeOf text} instead.";
+2026-10-04T18:55:49.6879300Z 
+2026-10-04T18:55:49.6879470Z        … while calling anonymous lambda
+2026-10-04T18:55:49.6880850Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2643:5:
+2026-10-04T18:55:49.6891460Z          2642|     in
+2026-10-04T18:55:49.6893030Z          2643|     x: isStringLike x || elem (typeOf x) types || (isList x && lib.all isConvertibleWithToString x);
+2026-10-04T18:55:49.6893680Z              |     ^
+2026-10-04T18:55:49.6893970Z          2644|
+2026-10-04T18:55:49.6894140Z 
+2026-10-04T18:55:49.6894350Z        … in the left operand of the OR (||) operator
+2026-10-04T18:55:49.6895460Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2643:48:
+2026-10-04T18:55:49.6897540Z          2642|     in
+2026-10-04T18:55:49.6898390Z          2643|     x: isStringLike x || elem (typeOf x) types || (isList x && lib.all isConvertibleWithToString x);
+2026-10-04T18:55:49.6899530Z              |                                                ^
+2026-10-04T18:55:49.6899830Z          2644|
+2026-10-04T18:55:49.6899970Z 
+2026-10-04T18:55:49.6900230Z        … in the left operand of the OR (||) operator
+2026-10-04T18:55:49.6901080Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2643:23:
+2026-10-04T18:55:49.6901880Z          2642|     in
+2026-10-04T18:55:49.6902290Z          2643|     x: isStringLike x || elem (typeOf x) types || (isList x && lib.all isConvertibleWithToString x);
+2026-10-04T18:55:49.6902850Z              |                       ^
+2026-10-04T18:55:49.6903230Z          2644|
+2026-10-04T18:55:49.6903330Z 
+2026-10-04T18:55:49.6903540Z        … from call site
+2026-10-04T18:55:49.6904460Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2643:8:
+2026-10-04T18:55:49.6905270Z          2642|     in
+2026-10-04T18:55:49.6905800Z          2643|     x: isStringLike x || elem (typeOf x) types || (isList x && lib.all isConvertibleWithToString x);
+2026-10-04T18:55:49.6906330Z              |        ^
+2026-10-04T18:55:49.6906690Z          2644|
+2026-10-04T18:55:49.6906860Z 
+2026-10-04T18:55:49.6907080Z        … while calling 'isStringLike'
+2026-10-04T18:55:49.6908000Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2663:18:
+2026-10-04T18:55:49.6908920Z          2662|   */
+2026-10-04T18:55:49.6909290Z          2663|   isStringLike = x: isString x || isPath x || x ? outPath || x ? __toString;
+2026-10-04T18:55:49.6910290Z              |                  ^
+2026-10-04T18:55:49.6910570Z          2664|
+2026-10-04T18:55:49.6910780Z 
+2026-10-04T18:55:49.6911050Z        … in the left operand of the OR (||) operator
+2026-10-04T18:55:49.6912200Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2663:59:
+2026-10-04T18:55:49.6913000Z          2662|   */
+2026-10-04T18:55:49.6913880Z          2663|   isStringLike = x: isString x || isPath x || x ? outPath || x ? __toString;
+2026-10-04T18:55:49.6914440Z              |                                                           ^
+2026-10-04T18:55:49.6914810Z          2664|
+2026-10-04T18:55:49.6914900Z 
+2026-10-04T18:55:49.6915100Z        … in the left operand of the OR (||) operator
+2026-10-04T18:55:49.6915990Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2663:44:
+2026-10-04T18:55:49.6916710Z          2662|   */
+2026-10-04T18:55:49.6917350Z          2663|   isStringLike = x: isString x || isPath x || x ? outPath || x ? __toString;
+2026-10-04T18:55:49.6917850Z              |                                            ^
+2026-10-04T18:55:49.6918140Z          2664|
+2026-10-04T18:55:49.6918320Z 
+2026-10-04T18:55:49.6918530Z        … in the left operand of the OR (||) operator
+2026-10-04T18:55:49.6919310Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2663:32:
+2026-10-04T18:55:49.6920140Z          2662|   */
+2026-10-04T18:55:49.6920470Z          2663|   isStringLike = x: isString x || isPath x || x ? outPath || x ? __toString;
+2026-10-04T18:55:49.6920940Z              |                                ^
+2026-10-04T18:55:49.6921220Z          2664|
+2026-10-04T18:55:49.6921380Z 
+2026-10-04T18:55:49.6921600Z        … while calling the 'isString' builtin
+2026-10-04T18:55:49.6922560Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/strings.nix:2663:21:
+2026-10-04T18:55:49.6923440Z          2662|   */
+2026-10-04T18:55:49.6923860Z          2663|   isStringLike = x: isString x || isPath x || x ? outPath || x ? __toString;
+2026-10-04T18:55:49.6924970Z              |                     ^
+2026-10-04T18:55:49.6925430Z          2664|
+2026-10-04T18:55:49.6925610Z 
+2026-10-04T18:55:49.6925780Z        … while calling the 'toJSON' builtin
+2026-10-04T18:55:49.6926300Z          at /Users/runner/work/home-manager/home-manager/docs/default.nix:309:5:
+2026-10-04T18:55:49.6926830Z           308|     in
+2026-10-04T18:55:49.6927160Z           309|     builtins.toJSON result.config.meta.maintainers
+2026-10-04T18:55:49.6928130Z              |     ^
+2026-10-04T18:55:49.6928400Z           310|   );
+2026-10-04T18:55:49.6928610Z 
+2026-10-04T18:55:49.6929300Z        … from call site
+2026-10-04T18:55:49.6930380Z          at /Users/runner/work/home-manager/home-manager/docs/default.nix:309:21:
+2026-10-04T18:55:49.6931770Z           308|     in
+2026-10-04T18:55:49.6932200Z           309|     builtins.toJSON result.config.meta.maintainers
+2026-10-04T18:55:49.6932980Z              |                     ^
+2026-10-04T18:55:49.6933320Z           310|   );
+2026-10-04T18:55:49.6934030Z 
+2026-10-04T18:55:49.6934260Z        … while calling anonymous lambda
+2026-10-04T18:55:49.6935720Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules.nix:283:38:
+2026-10-04T18:55:49.6936520Z           282|             let
+2026-10-04T18:55:49.6937390Z           283|               recurse = mapAttrs (n: v: if isOption v then v.value else recurse v);
+2026-10-04T18:55:49.6937890Z              |                                      ^
+2026-10-04T18:55:49.6940720Z           284|             in
+2026-10-04T18:55:49.6941500Z 
+2026-10-04T18:55:49.6941760Z        … while evaluating the attribute 'value'
+2026-10-04T18:55:49.6945680Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules.nix:1181:7:
+2026-10-04T18:55:49.6946970Z          1180|     // {
+2026-10-04T18:55:49.6947510Z          1181|       value = addErrorContext "while evaluating the option `${showOption loc}':" (
+2026-10-04T18:55:49.6948480Z              |       ^
+2026-10-04T18:55:49.6949230Z          1182|         # Apply the 'apply' function to the merged value. This allows options to
+2026-10-04T18:55:49.6949680Z 
+2026-10-04T18:55:49.6950010Z        … while evaluating the option `meta.maintainers':
+2026-10-04T18:55:49.6950590Z 
+2026-10-04T18:55:49.6950760Z        … while evaluating the attribute 'mergedValue'
+2026-10-04T18:55:49.6951820Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules.nix:1276:5:
+2026-10-04T18:55:49.6952990Z          1275|     # Type-check the remaining definitions, and merge them. Or throw if no definitions.
+2026-10-04T18:55:49.6953840Z          1276|     mergedValue =
+2026-10-04T18:55:49.6954570Z              |     ^
+2026-10-04T18:55:49.6954920Z          1277|       if isDefined then
+2026-10-04T18:55:49.6955320Z 
+2026-10-04T18:55:49.6955750Z        … while evaluating a branch condition
+2026-10-04T18:55:49.6956980Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules.nix:1285:14:
+2026-10-04T18:55:49.6959400Z          1284|             checkedAndMerged.value
+2026-10-04T18:55:49.6960070Z          1285|         else if all (def: type.check def.value) defsFinal then
+2026-10-04T18:55:49.6960810Z              |              ^
+2026-10-04T18:55:49.6961260Z          1286|           type.merge loc defsFinal
+2026-10-04T18:55:49.6962250Z 
+2026-10-04T18:55:49.6962530Z        … while calling the 'all' builtin
+2026-10-04T18:55:49.6964030Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules.nix:1285:17:
+2026-10-04T18:55:49.6965090Z          1284|             checkedAndMerged.value
+2026-10-04T18:55:49.6965700Z          1285|         else if all (def: type.check def.value) defsFinal then
+2026-10-04T18:55:49.6966430Z              |                 ^
+2026-10-04T18:55:49.6967100Z          1286|           type.merge loc defsFinal
+2026-10-04T18:55:49.6967420Z 
+2026-10-04T18:55:49.6967580Z        … while calling anonymous lambda
+2026-10-04T18:55:49.6969600Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules.nix:1285:22:
+2026-10-04T18:55:49.6970800Z          1284|             checkedAndMerged.value
+2026-10-04T18:55:49.6971330Z          1285|         else if all (def: type.check def.value) defsFinal then
+2026-10-04T18:55:49.6972430Z              |                      ^
+2026-10-04T18:55:49.6972990Z          1286|           type.merge loc defsFinal
+2026-10-04T18:55:49.6973510Z 
+2026-10-04T18:55:49.6973720Z        … from call site
+2026-10-04T18:55:49.6974750Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules.nix:1285:27:
+2026-10-04T18:55:49.6976270Z          1284|             checkedAndMerged.value
+2026-10-04T18:55:49.6976810Z          1285|         else if all (def: type.check def.value) defsFinal then
+2026-10-04T18:55:49.6977800Z              |                           ^
+2026-10-04T18:55:49.6980480Z          1286|           type.merge loc defsFinal
+2026-10-04T18:55:49.6983670Z 
+2026-10-04T18:55:49.6984130Z        … while calling 'check'
+2026-10-04T18:55:49.6985730Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/types.nix:1885:17:
+2026-10-04T18:55:49.6986630Z          1884|       // {
+2026-10-04T18:55:49.6988080Z          1885|         check = x: elemType.check x && check x;
+2026-10-04T18:55:49.6988560Z              |                 ^
+2026-10-04T18:55:49.6989450Z          1886|       };
+2026-10-04T18:55:49.6989870Z 
+2026-10-04T18:55:49.6990100Z        … in the right operand of the AND (&&) operator
+2026-10-04T18:55:49.6991330Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/types.nix:1885:37:
+2026-10-04T18:55:49.6992420Z          1884|       // {
+2026-10-04T18:55:49.6992910Z          1885|         check = x: elemType.check x && check x;
+2026-10-04T18:55:49.6993740Z              |                                     ^
+2026-10-04T18:55:49.6994230Z          1886|       };
+2026-10-04T18:55:49.6994560Z 
+2026-10-04T18:55:49.6994890Z        … while calling the 'all' builtin
+2026-10-04T18:55:49.6995930Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/types.nix:1885:40:
+2026-10-04T18:55:49.6997050Z          1884|       // {
+2026-10-04T18:55:49.6997800Z          1885|         check = x: elemType.check x && check x;
+2026-10-04T18:55:49.6998280Z              |                                        ^
+2026-10-04T18:55:49.6999160Z          1886|       };
+2026-10-04T18:55:49.6999320Z 
+2026-10-04T18:55:49.6999560Z        … while calling anonymous lambda
+2026-10-04T18:55:49.7000900Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules/generic/meta-maintainers.nix:24:51:
+2026-10-04T18:55:49.7001910Z            23|           in
+2026-10-04T18:55:49.7002540Z            24|           lib.types.addCheck sourceList (lib.all (v: lib.elem v allMaintainers))
+2026-10-04T18:55:49.7003200Z              |                                                   ^
+2026-10-04T18:55:49.7003720Z            25|           // {
+2026-10-04T18:55:49.7004260Z 
+2026-10-04T18:55:49.7004600Z        … while calling the 'elem' builtin
+2026-10-04T18:55:49.7005820Z          at «https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1079252.7d5589bbf421/nixexprs.tar.zst?narHash=sha256-iK8TZqVFap2LJEfmSr4VcV5jZ1DWqEyJEh0QerRX6JE%3D»/lib/modules/generic/meta-maintainers.nix:24:54:
+2026-10-04T18:55:49.7007120Z            23|           in
+2026-10-04T18:55:49.7007790Z            24|           lib.types.addCheck sourceList (lib.all (v: lib.elem v allMaintainers))
+2026-10-04T18:55:49.7008840Z              |                                                      ^
+2026-10-04T18:55:49.7009250Z            25|           // {
+2026-10-04T18:55:49.7009730Z 
+2026-10-04T18:55:49.7010140Z        … while evaluating the attribute 'maintainers.lukeaurio'
+2026-10-04T18:55:49.7010970Z          at /Users/runner/work/home-manager/home-manager/modules/lib/stdlib-extended.nix:20:5:
+2026-10-04T18:55:49.7011570Z            19|     # references continue to satisfy the upstream type check.
+2026-10-04T18:55:49.7012590Z            20|     maintainers = super.maintainers // hmLib.maintainers;
+2026-10-04T18:55:49.7013280Z              |     ^
+2026-10-04T18:55:49.7014090Z            21|   }
+2026-10-04T18:55:49.7014450Z 
+2026-10-04T18:55:49.7014530Z        error: attribute 'lukeaurio' missing
+2026-10-04T18:55:49.7015400Z        at /Users/runner/work/home-manager/home-manager/modules/programs/ptyxis.nix:17:5:
+2026-10-04T18:55:49.7016080Z            16|     lib.maintainers.da157
+2026-10-04T18:55:49.7016560Z            17|     lib.maintainers.lukeaurio
+2026-10-04T18:55:49.7020240Z              |     ^
+2026-10-04T18:55:49.7021200Z            18|   ];
+2026-10-04T18:55:49.7110330Z ##[error]Process completed with exit code 1.
+2026-10-04T18:55:49.7450930Z Post job cleanup.
+2026-10-04T18:55:50.1907540Z [command]/opt/homebrew/bin/git version
+2026-10-04T18:55:50.2251030Z git version 2.55.0
+2026-10-04T18:55:50.2820460Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/ca389b46-309a-40ae-962a-735fd8ef4235/.gitconfig'
+2026-10-04T18:55:50.2925240Z Temporarily overriding HOME='/Users/runner/work/_temp/ca389b46-309a-40ae-962a-735fd8ef4235' before making global git config changes
+2026-10-04T18:55:50.3029450Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-04T18:55:50.3114820Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/home-manager/home-manager
+2026-10-04T18:55:50.3351980Z Removing SSH command configuration
+2026-10-04T18:55:50.3371560Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-04T18:55:50.3406840Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-04T18:55:50.4883280Z Removing HTTP extra header
+2026-10-04T18:55:50.4991810Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-04T18:55:50.5296650Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-04T18:55:50.6689750Z Removing includeIf entries pointing to credentials config files
+2026-10-04T18:55:50.6790360Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-04T18:55:50.6890760Z includeif.gitdir:/Users/runner/work/home-manager/home-manager/.git.path
+2026-10-04T18:55:50.6943450Z includeif.gitdir:/Users/runner/work/home-manager/home-manager/.git/worktrees/*.path
+2026-10-04T18:55:50.6998370Z includeif.gitdir:/github/workspace/.git.path
+2026-10-04T18:55:50.7021500Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-04T18:55:50.7051460Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/home-manager/home-manager/.git.path
+2026-10-04T18:55:50.7075120Z /Users/runner/work/_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config
+2026-10-04T18:55:50.7105100Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/home-manager/home-manager/.git.path \/Users\/runner\/work\/_temp\/git\-credentials\-dfd2e1ca\-2973\-4b07\-b4af\-1f6974df907a\.config
+2026-10-04T18:55:50.7130560Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/home-manager/home-manager/.git/worktrees/*.path
+2026-10-04T18:55:50.7151320Z /Users/runner/work/_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config
+2026-10-04T18:55:50.7177270Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/home-manager/home-manager/.git/worktrees/*.path \/Users\/runner\/work\/_temp\/git\-credentials\-dfd2e1ca\-2973\-4b07\-b4af\-1f6974df907a\.config
+2026-10-04T18:55:50.7193030Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-04T18:55:50.7226830Z /github/runner_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config
+2026-10-04T18:55:50.7258680Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-dfd2e1ca\-2973\-4b07\-b4af\-1f6974df907a\.config
+2026-10-04T18:55:50.7291180Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-04T18:55:50.7355960Z /github/runner_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config
+2026-10-04T18:55:50.7364610Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-dfd2e1ca\-2973\-4b07\-b4af\-1f6974df907a\.config
+2026-10-04T18:55:50.7398670Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-04T18:55:50.8427250Z Removing credentials config '/Users/runner/work/_temp/git-credentials-dfd2e1ca-2973-4b07-b4af-1f6974df907a.config'
+2026-10-04T18:55:50.8560530Z Cleaning up orphan processes

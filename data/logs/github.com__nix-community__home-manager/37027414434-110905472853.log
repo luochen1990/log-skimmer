@@ -1,0 +1,144 @@
+﻿2026-10-02T15:30:15.1385736Z Current runner version: '2.337.0'
+2026-10-02T15:30:15.1412211Z ##[group]Runner Image Provisioner
+2026-10-02T15:30:15.1413219Z Hosted Compute Agent
+2026-10-02T15:30:15.1413847Z Version: 20260901.588
+2026-10-02T15:30:15.1414565Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-02T15:30:15.1415386Z Build Date: 2026-09-01T19:56:44Z
+2026-10-02T15:30:15.1416145Z Worker ID: {e1368fa8-639c-47f6-9a58-c98a225a9871}
+2026-10-02T15:30:15.1416967Z Azure Region: westus
+2026-10-02T15:30:15.1417559Z ##[endgroup]
+2026-10-02T15:30:15.1419521Z ##[group]Operating System
+2026-10-02T15:30:15.1420271Z Ubuntu
+2026-10-02T15:30:15.1420826Z 24.04.5
+2026-10-02T15:30:15.1421428Z LTS
+2026-10-02T15:30:15.1421977Z ##[endgroup]
+2026-10-02T15:30:15.1422553Z ##[group]Runner Image
+2026-10-02T15:30:15.1423340Z Image: ubuntu-24.04
+2026-10-02T15:30:15.1423931Z Version: 20260927.320.1
+2026-10-02T15:30:15.1425673Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-02T15:30:15.1427234Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260927.320
+2026-10-02T15:30:15.1428372Z ##[endgroup]
+2026-10-02T15:30:15.1431783Z ##[group]GITHUB_TOKEN Permissions
+2026-10-02T15:30:15.1434377Z Actions: write
+2026-10-02T15:30:15.1435071Z ArtifactMetadata: write
+2026-10-02T15:30:15.1435869Z Attestations: write
+2026-10-02T15:30:15.1436481Z Checks: write
+2026-10-02T15:30:15.1437140Z CodeQuality: write
+2026-10-02T15:30:15.1437760Z Contents: write
+2026-10-02T15:30:15.1438388Z CopilotRequests: write
+2026-10-02T15:30:15.1439249Z Deployments: write
+2026-10-02T15:30:15.1439884Z Discussions: write
+2026-10-02T15:30:15.1440455Z Drives: write
+2026-10-02T15:30:15.1441097Z Issues: write
+2026-10-02T15:30:15.1441717Z Metadata: read
+2026-10-02T15:30:15.1442484Z Models: read
+2026-10-02T15:30:15.1443068Z Packages: write
+2026-10-02T15:30:15.1443637Z Pages: write
+2026-10-02T15:30:15.1444290Z PullRequests: write
+2026-10-02T15:30:15.1444974Z RepositoryProjects: write
+2026-10-02T15:30:15.1445671Z SecurityEvents: write
+2026-10-02T15:30:15.1446304Z Statuses: write
+2026-10-02T15:30:15.1446893Z VulnerabilityAlerts: read
+2026-10-02T15:30:15.1447583Z ##[endgroup]
+2026-10-02T15:30:15.1450082Z Secret source: Actions
+2026-10-02T15:30:15.1451196Z Cache mode: write
+2026-10-02T15:30:15.1452173Z Prepare workflow directory
+2026-10-02T15:30:15.1792112Z Prepare all required actions
+2026-10-02T15:30:15.1842905Z Getting action download info
+2026-10-02T15:30:15.5768621Z Download action repository 'mschilde/auto-label-merge-conflicts@master' (SHA:3fdaf1c8b3f8e5b0f88753d9cb3c9c779370b3ef)
+2026-10-02T15:30:15.9878999Z Complete job name: triage
+2026-10-02T15:30:16.0430730Z ##[group]Build container for action use: '/home/runner/work/_actions/mschilde/auto-label-merge-conflicts/master/Dockerfile'.
+2026-10-02T15:30:16.0539750Z ##[command]/usr/bin/docker build -t c86624:f7ea70ced7fc426e9d5e1ff59b265770 -f "/home/runner/work/_actions/mschilde/auto-label-merge-conflicts/master/Dockerfile" "/home/runner/work/_actions/mschilde/auto-label-merge-conflicts/master"
+2026-10-02T15:30:16.5461007Z #0 building with "default" instance using docker driver
+2026-10-02T15:30:16.5461619Z 
+2026-10-02T15:30:16.5461950Z #1 [internal] load build definition from Dockerfile
+2026-10-02T15:30:16.5462675Z #1 transferring dockerfile: 214B done
+2026-10-02T15:30:16.5463305Z #1 DONE 0.0s
+2026-10-02T15:30:16.5463577Z 
+2026-10-02T15:30:16.5463961Z #2 [internal] load metadata for docker.io/library/node:22-alpine
+2026-10-02T15:30:16.7669284Z #2 ...
+2026-10-02T15:30:16.7669712Z 
+2026-10-02T15:30:16.7670437Z #3 [auth] library/node:pull token for registry-1.docker.io
+2026-10-02T15:30:16.7671427Z #3 DONE 0.0s
+2026-10-02T15:30:16.9161810Z 
+2026-10-02T15:30:16.9163082Z #2 [internal] load metadata for docker.io/library/node:22-alpine
+2026-10-02T15:30:17.2205054Z #2 DONE 0.8s
+2026-10-02T15:30:17.3403224Z 
+2026-10-02T15:30:17.3403886Z #4 [internal] load .dockerignore
+2026-10-02T15:30:17.3404790Z #4 transferring context: 2B done
+2026-10-02T15:30:17.3405418Z #4 DONE 0.0s
+2026-10-02T15:30:17.3406100Z 
+2026-10-02T15:30:17.3406360Z #5 [internal] load build context
+2026-10-02T15:30:17.3407068Z #5 transferring context: 229.98kB 0.0s done
+2026-10-02T15:30:17.3407760Z #5 DONE 0.0s
+2026-10-02T15:30:17.3408024Z 
+2026-10-02T15:30:17.3408579Z #6 [1/5] FROM docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+2026-10-02T15:30:17.3409868Z #6 resolve docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 done
+2026-10-02T15:30:17.3410819Z #6 sha256:d39db1cf9caa4f49c5a2e67111fbe6e0d5eea8ede550cb82f3dc2b79712688d6 0B / 447B 0.1s
+2026-10-02T15:30:17.3411630Z #6 sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 6.41kB / 6.41kB done
+2026-10-02T15:30:17.3412424Z #6 sha256:2c752226d477b4a886378baa95b9af252be59301b725fdb0b7e15208131505a8 1.72kB / 1.72kB done
+2026-10-02T15:30:17.3413200Z #6 sha256:7c3b093add7c43400ee83b815ab2cda98794a10045bcf76ce9bb2f89b97cbc5c 6.48kB / 6.48kB done
+2026-10-02T15:30:17.3414031Z #6 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 4.19MB / 55.59MB 0.1s
+2026-10-02T15:30:17.3414793Z #6 sha256:e554276b05e6306c5ad33cd85bfa7f0693083e21f6114db5abf60a20fb413039 0B / 1.26MB 0.1s
+2026-10-02T15:30:17.5409917Z #6 sha256:d39db1cf9caa4f49c5a2e67111fbe6e0d5eea8ede550cb82f3dc2b79712688d6 447B / 447B 0.2s done
+2026-10-02T15:30:17.5414243Z #6 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 51.38MB / 55.59MB 0.3s
+2026-10-02T15:30:17.5418030Z #6 sha256:e554276b05e6306c5ad33cd85bfa7f0693083e21f6114db5abf60a20fb413039 1.26MB / 1.26MB 0.2s done
+2026-10-02T15:30:17.7036689Z #6 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 55.59MB / 55.59MB 0.3s done
+2026-10-02T15:30:17.7038651Z #6 extracting sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 0.1s
+2026-10-02T15:30:19.0384997Z #6 extracting sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 1.3s done
+2026-10-02T15:30:21.5513835Z #6 extracting sha256:e554276b05e6306c5ad33cd85bfa7f0693083e21f6114db5abf60a20fb413039
+2026-10-02T15:30:21.6544236Z #6 extracting sha256:e554276b05e6306c5ad33cd85bfa7f0693083e21f6114db5abf60a20fb413039 0.0s done
+2026-10-02T15:30:21.6545397Z #6 extracting sha256:d39db1cf9caa4f49c5a2e67111fbe6e0d5eea8ede550cb82f3dc2b79712688d6 done
+2026-10-02T15:30:21.6546440Z #6 DONE 4.4s
+2026-10-02T15:30:21.6547154Z 
+2026-10-02T15:30:21.6547615Z #7 [2/5] WORKDIR /home/autolabel
+2026-10-02T15:30:21.6548334Z #7 DONE 0.0s
+2026-10-02T15:30:21.6548592Z 
+2026-10-02T15:30:21.6548811Z #8 [3/5] COPY package.json yarn.lock ./
+2026-10-02T15:30:21.6550231Z #8 DONE 0.0s
+2026-10-02T15:30:21.8055368Z 
+2026-10-02T15:30:21.8055885Z #9 [4/5] RUN yarn install --frozen-lockfile
+2026-10-02T15:30:22.0565084Z #9 0.401 yarn install v1.22.22
+2026-10-02T15:30:22.2772989Z #9 0.471 [1/4] Resolving packages...
+2026-10-02T15:30:22.3601176Z #9 0.701 [2/4] Fetching packages...
+2026-10-02T15:30:28.9793657Z #9 7.324 [3/4] Linking dependencies...
+2026-10-02T15:30:29.1307139Z #9 7.325 warning " > @typescript-eslint/eslint-plugin@1.13.0" has unmet peer dependency "@typescript-eslint/parser@^1.9.0".
+2026-10-02T15:30:31.7889432Z #9 10.13 [4/4] Building fresh packages...
+2026-10-02T15:30:32.0000085Z #9 10.15 Done in 9.76s.
+2026-10-02T15:30:32.0000828Z #9 DONE 10.2s
+2026-10-02T15:30:32.0001222Z 
+2026-10-02T15:30:32.0001602Z #10 [5/5] COPY . .
+2026-10-02T15:30:32.2181070Z #10 DONE 0.4s
+2026-10-02T15:30:32.3720352Z 
+2026-10-02T15:30:32.3721325Z #11 exporting to image
+2026-10-02T15:30:32.3722243Z #11 exporting layers
+2026-10-02T15:30:36.9275202Z #11 exporting layers 4.7s done
+2026-10-02T15:30:36.9444516Z #11 writing image sha256:674561a88ace73da8c8d470b4ce3a3d15223cb4e3d25e30d3aa598d9c028c2e3 done
+2026-10-02T15:30:36.9447391Z #11 naming to docker.io/library/c86624:f7ea70ced7fc426e9d5e1ff59b265770 done
+2026-10-02T15:30:36.9450079Z #11 DONE 4.7s
+2026-10-02T15:30:36.9508175Z ##[endgroup]
+2026-10-02T15:30:36.9765233Z ##[group]Run mschilde/auto-label-merge-conflicts@master
+2026-10-02T15:30:36.9766143Z with:
+2026-10-02T15:30:36.9766382Z   CONFLICT_LABEL_NAME: merge conflict
+2026-10-02T15:30:36.9769515Z   GITHUB_TOKEN: ***
+2026-10-02T15:30:36.9769834Z   MAX_RETRIES: 5
+2026-10-02T15:30:36.9770030Z   WAIT_MS: 10000
+2026-10-02T15:30:36.9770507Z ##[endgroup]
+2026-10-02T15:30:36.9913567Z ##[command]/usr/bin/docker run --name c86624f7ea70ced7fc426e9d5e1ff59b265770_3a98fd --label c86624 --workdir /github/workspace --rm -e "INPUT_CONFLICT_LABEL_NAME" -e "INPUT_GITHUB_TOKEN" -e "INPUT_MAX_RETRIES" -e "INPUT_WAIT_MS" -e "HOME" -e "GITHUB_JOB" -e "GITHUB_REF" -e "GITHUB_SHA" -e "GITHUB_REPOSITORY" -e "GITHUB_REPOSITORY_OWNER" -e "GITHUB_REPOSITORY_OWNER_ID" -e "GITHUB_RUN_ID" -e "GITHUB_RUN_NUMBER" -e "GITHUB_RETENTION_DAYS" -e "GITHUB_RUN_ATTEMPT" -e "GITHUB_ACTOR_ID" -e "GITHUB_ACTOR" -e "GITHUB_WORKFLOW" -e "GITHUB_HEAD_REF" -e "GITHUB_BASE_REF" -e "GITHUB_EVENT_NAME" -e "GITHUB_SERVER_URL" -e "GITHUB_API_URL" -e "GITHUB_GRAPHQL_URL" -e "GITHUB_REF_NAME" -e "GITHUB_REF_PROTECTED" -e "GITHUB_REF_TYPE" -e "GITHUB_WORKFLOW_REF" -e "GITHUB_WORKFLOW_SHA" -e "GITHUB_REPOSITORY_ID" -e "GITHUB_TRIGGERING_ACTOR" -e "GITHUB_WORKSPACE" -e "GITHUB_ACTION" -e "GITHUB_EVENT_PATH" -e "GITHUB_ACTION_REPOSITORY" -e "GITHUB_ACTION_REF" -e "GITHUB_PATH" -e "GITHUB_ENV" -e "GITHUB_STEP_SUMMARY" -e "GITHUB_STATE" -e "GITHUB_OUTPUT" -e "GITHUB_ARTIFACTS" -e "GITHUB_ARTIFACTS_LIST" -e "RUNNER_OS" -e "RUNNER_ARCH" -e "RUNNER_NAME" -e "RUNNER_ENVIRONMENT" -e "RUNNER_TOOL_CACHE" -e "RUNNER_TEMP" -e "RUNNER_WORKSPACE" -e "ACTIONS_RUNTIME_URL" -e "ACTIONS_RUNTIME_TOKEN" -e "ACTIONS_CACHE_URL" -e "ACTIONS_RESULTS_URL" -e "ACTIONS_CACHE_MODE" -e "ACTIONS_ORCHESTRATION_ID" -e GITHUB_ACTIONS=true -e CI=true -v "/var/run/docker.sock":"/var/run/docker.sock" -v "/home/runner/work/_temp":"/github/runner_temp" -v "/home/runner/work/_temp/_github_home":"/github/home" -v "/home/runner/work/_temp/_github_workflow":"/github/workflow" -v "/home/runner/work/_temp/_runner_file_commands":"/github/file_commands" -v "/home/runner/work/home-manager/home-manager":"/github/workspace" c86624:f7ea70ced7fc426e9d5e1ff59b265770  "merge conflict" "***" "5" "10000"
+2026-10-02T15:30:37.3212464Z maxRetries=5 ; waitMs=10000
+2026-10-02T15:30:38.3047732Z ##[error]"merge conflict" label not found in your repository!
+2026-10-02T15:31:00.3964005Z /home/autolabel/dist/lib/main.js:71
+2026-10-02T15:31:00.3964630Z                 return label.node.id === conflictLabel.node.id;
+2026-10-02T15:31:00.3965338Z                                                        ^
+2026-10-02T15:31:00.3965696Z 
+2026-10-02T15:31:00.3966065Z TypeError: Cannot read properties of undefined (reading 'node')
+2026-10-02T15:31:00.3966783Z     at /home/autolabel/dist/lib/main.js:71:56
+2026-10-02T15:31:00.3967194Z     at Array.find (<anonymous>)
+2026-10-02T15:31:00.3967474Z     at /home/autolabel/dist/lib/main.js:70:68
+2026-10-02T15:31:00.3967796Z     at Array.forEach (<anonymous>)
+2026-10-02T15:31:00.3968186Z     at Object.run (/home/autolabel/dist/lib/main.js:69:35)
+2026-10-02T15:31:00.3968692Z     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-10-02T15:31:00.3969509Z     at async /home/autolabel/dist/index.js:5:5
+2026-10-02T15:31:00.3969860Z 
+2026-10-02T15:31:00.3970001Z Node.js v22.23.3
+2026-10-02T15:31:00.5569570Z Cleaning up orphan processes

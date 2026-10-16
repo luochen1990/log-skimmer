@@ -1,0 +1,78 @@
+2026-10-16T05:10:18.3284479Z Runner 1609124e-f0f4-4569-989c-90efd0a2c298 (version:v13.2.0) received task 20471 of job check, triggered by event: pull_request
+2026-10-16T05:10:18.3301693Z workflow prepared
+2026-10-16T05:10:18.3306049Z ⭐ Run Main set -euo pipefail\ncount=$(curl -sf --max-time 30 -H "Authorization: token $TOKEN" \\n  "$API/repos/$REPO/actions/runs?status=success&workflow_id=ci.yml&limit=50" \\n  | jq --arg sha "$SHA" '[.workflow_runs[]? | select(.commit_sha == $sha)] | length')\nif [ "$count" -gt 0 ]; then\n  echo "should_skip=true" >> "$GITHUB_OUTPUT"\n  echo "✓ 跳过: commit ${SHA:0:8} 已有成功的 ci.yml run × ${count}"\nelse\n  echo "should_skip=false" >> "$GITHUB_OUTPUT"\n  echo "→ 不跳过: commit ${SHA:0:8} 无成功的 ci.yml run 记录"\nfi
+2026-10-16T05:10:37.8514267Z → 不跳过: commit 94226b28 无成功的 ci.yml run 记录
+2026-10-16T05:10:37.8569464Z → 触发 check (POST http://10.233.77.1:9123/trigger/94226b28534361a12afd22eaf0f4f7e0dd6c7bbf)
+2026-10-16T05:10:37.9152025Z ← HTTP 202 {"status": "triggered", "unit": "forgejo-ci-check"}
+2026-10-16T05:10:37.9152325Z ✓ 已触发, 开始轮询 check 结果 (每 15s 一次, 最长 130 分钟)
+2026-10-16T05:10:38.0325439Z   … [0m01s] Starting Forgejo CI check for commit @94226b28534361a12afd22eaf0f4f7e0dd6c7bbf...
+2026-10-16T05:10:38.0325809Z   … [0m01s] [check] 获取槽位 #1 (并发上限 3), 开始处理 94226b28
+2026-10-16T05:10:38.0326164Z   … [0m01s] [check] oss-cache clone-rw git.lambda.lc/lc-studio/nixos @ 94226b28
+2026-10-16T05:10:53.1594507Z   … [0m16s] [check]   {
+2026-10-16T05:10:53.1594983Z   … [0m16s] [check]     "base_commit": "94226b28534361a12afd22eaf0f4f7e0dd6c7bbf",
+2026-10-16T05:10:53.1595510Z   … [0m16s] [check]     "clone_path": "/home/lc/.cache/forgejo-ci-worktrees/wt-check-94226b28534361a12afd22eaf0f4f7e0dd6c7bbf",
+2026-10-16T05:10:53.1595686Z   … [0m16s] [check]     "codegraph_ready": false
+2026-10-16T05:10:53.1595757Z   … [0m16s] [check]   }
+2026-10-16T05:10:53.1596367Z   … [0m16s] [check] just check (P0: lint + eval + 单测构建 + 触及包定向构建, 这可能需要几分钟)...
+2026-10-16T05:10:53.1596531Z   … [0m16s] [check] === 尝试 1/3 ===
+2026-10-16T05:10:53.1596684Z   … [0m16s] just _neve_w check
+2026-10-16T05:10:53.1596893Z   … [0m16s] nix develop .#tools -c neve check
+2026-10-16T05:10:53.1597501Z   … [0m16s] fetching git input 'git+file:///home/lc/.cache/forgejo-ci-worktrees/wt-check-94226b28534361a12afd22eaf0f4f7e0dd6c7bbf'
+2026-10-16T05:10:53.1629132Z   … [0m16s] … (更多日志下次显示)
+2026-10-16T05:11:08.3183712Z   … [0m31s] <静默中…>
+2026-10-16T05:11:23.4360918Z   … [0m46s] ✓ 191 文件编译冒烟通过 (31.6s)
+2026-10-16T05:11:23.4361553Z   … [0m46s] ✓ 全部通过
+2026-10-16T05:11:23.4361631Z   … [0m46s] flake inputs 漂移检查 (neve-flake-doctor: 同源重复节点 + 同名 rev 漂移):
+2026-10-16T05:11:23.4361688Z   … [0m46s] All ok!
+2026-10-16T05:11:23.4361726Z   … [0m46s] neve-os selftest:
+2026-10-16T05:11:38.5548377Z   … [1m01s] == TestGenLanHosts
+2026-10-16T05:11:38.5548742Z   … [1m01s] ⚠ 网络类失败: git 服务器不可达或 flake input 不在本地缓存。
+2026-10-16T05:11:38.5548863Z   … [1m01s] 若当前离网: 联网后重跑即自动预取该 input (此后本机离线也可用, ~/.cache/nix 常驻);
+2026-10-16T05:11:38.5549393Z   … [1m01s] 若网络正常仍失败: 检查该 rev 是否仍在远端 (force-push?) 或凭据是否有效。
+2026-10-16T05:11:38.5549478Z   … [1m01s] == TestRepoGuard
+2026-10-16T05:11:38.5549726Z   … [1m01s] == TestFlakeInstallablePrefix
+2026-10-16T05:11:38.5549831Z   … [1m01s] == TestPinHostToplevels
+2026-10-16T05:11:38.5550010Z   … [1m01s] == TestPrecheckStcUnit
+2026-10-16T05:11:38.5550180Z   … [1m01s] == TestBuildModeKeyConsistency
+2026-10-16T05:11:38.5550402Z   … [1m01s] == TestResolveSudo
+2026-10-16T05:11:38.5572194Z   … [1m01s] … (更多日志下次显示)
+2026-10-16T05:11:53.6810354Z   … [1m16s] ✓ 域名表已是最新 (85 域名)
+2026-10-16T05:11:53.6810757Z   … [1m16s] 快速验证 (eval --read-only): 7 个 host (并行)
+2026-10-16T05:12:08.8075708Z   … [1m31s] <静默中…>
+2026-10-16T05:12:23.9218786Z   … [1m46s] <静默中…>
+2026-10-16T05:12:39.0380640Z   … [2m02s] <静默中…>
+2026-10-16T05:12:54.1514594Z ✗ check 失败 (exit 1)
+2026-10-16T05:12:54.1536290Z   … == TestResolveSudo
+2026-10-16T05:12:54.1536578Z   … ----------------------------------------
+2026-10-16T05:12:54.1536666Z   … 86 断言, 0 失败
+2026-10-16T05:12:54.1536791Z   … == TestGetCacheKey
+2026-10-16T05:12:54.1537019Z   … == TestLoadCache
+2026-10-16T05:12:54.1537236Z   … == TestUpdateCacheSemantics
+2026-10-16T05:12:54.1537397Z   … == TestCacheLock
+2026-10-16T05:12:54.1537867Z   … == TestAtomicWriteText
+2026-10-16T05:12:54.1537931Z   … == TestBuiltAtSuffix
+2026-10-16T05:12:54.1537993Z   … == TestDefaultCacheFile
+2026-10-16T05:12:54.1538307Z   … ----------------------------------------
+2026-10-16T05:12:54.1538498Z   … 51 断言, 0 失败
+2026-10-16T05:12:54.1538749Z   … ✓ neve-os selftest 通过
+2026-10-16T05:12:54.1539042Z   … ✓ 域名表已是最新 (85 域名)
+2026-10-16T05:12:54.1539440Z   … 快速验证 (eval --read-only): 7 个 host (并行)
+2026-10-16T05:12:54.1540425Z   … ✗ home-pc           68.5s  error: The option `systemd.services.agent-service.environment.AGENT_SERVICE_QUOTA_PACING' has conflicting definition values:
+2026-10-16T05:12:54.1541388Z   … ✗ home-router       68.5s  error: The option `systemd.services.agent-service.environment.AGENT_SERVICE_QUOTA_PACING' has conflicting definition values:
+2026-10-16T05:12:54.1541689Z   … ✓ ssh-installer     68.5s  ✗未构建
+2026-10-16T05:12:54.1542034Z   … ✓ mini-pc           68.5s  ✗未构建
+2026-10-16T05:12:54.1542377Z   … ✓ installer-iso     68.5s  ✗未构建
+2026-10-16T05:12:54.1542668Z   … ✓ bootstrap         68.5s  ✗未构建
+2026-10-16T05:12:54.1542995Z   … ✓ pssd-nixos        68.5s  ✗未构建
+2026-10-16T05:12:54.1543363Z   … 合计: 68.9s  失败: ['home-pc', 'home-router']
+2026-10-16T05:12:54.1543766Z   … error: recipe `_neve_w` failed on line 53 with exit code 1
+2026-10-16T05:12:54.1544176Z   … error: recipe `check` failed on line 93 with exit code 1
+2026-10-16T05:12:54.1544434Z   … [check] ✗ check 失败 (exit 1)
+2026-10-16T05:12:54.1544986Z   … forgejo-ci-check@94226b28534361a12afd22eaf0f4f7e0dd6c7bbf.service: Main process exited, code=exited, status=1/FAILURE
+2026-10-16T05:12:54.1545455Z   … forgejo-ci-check@94226b28534361a12afd22eaf0f4f7e0dd6c7bbf.service: Failed with result 'exit-code'.
+2026-10-16T05:12:54.1545874Z   … Failed to start Forgejo CI check for commit @94226b28534361a12afd22eaf0f4f7e0dd6c7bbf.
+2026-10-16T05:12:54.1546732Z   … forgejo-ci-check@94226b28534361a12afd22eaf0f4f7e0dd6c7bbf.service: Consumed 9min 18.776s CPU time over 2min 11.612s wall clock time, 22.4G memory peak, 5.4M read from disk, 21.8M written to disk.
+2026-10-16T05:12:54.1549118Z   详见宿主: journalctl -u 'forgejo-ci-check@94226b28534361a12afd22eaf0f4f7e0dd6c7bbf' --since '130 min ago'
+2026-10-16T05:12:54.1562732Z ⚙️ [runner]: RUN exit status 1
+2026-10-16T05:12:54.1563063Z 🏁  Job failed
+2026-10-16T05:12:54.1567005Z Job 'check' failed
