@@ -18,7 +18,7 @@ DATA_DIR="${CORPUS_DIR:-$ROOT/data/logs}" # 语料根 (参数化: 语料仓 GHA 
 WANT_FAIL=${WANT_FAIL:-14}
 WANT_SUCCESS=${WANT_SUCCESS:-5}
 MAX_CANDIDATES=40 # 每仓候选 run 上限 (留冗余吸收 404 跳过)
-REPOS=(sst/opencode niri-wm/niri nix-community/home-manager)
+REPOS=(anomalyco/opencode niri-wm/niri nix-community/home-manager)
 
 log() { printf '[fetch %(%H:%M:%S)T] %s\n' -1 "$*" >&2; }
 
@@ -31,6 +31,8 @@ api_get() { # api_get <path> -> JSON body (stdout); HTTP 错误时输出为空
 
 download_log() { # download_log <jobs-api-path> <dest>; 0=成功落盘
   local code
+  # 输出父目录前置保证 (缺目录时 curl -o 失败会被下方 || true 吞成空文件形态)
+  mkdir -p "$(dirname "$2")"
   code=$(curl -sSL --max-time 180 --retry 1 \
     -H "Authorization: Bearer $GITHUB_API_TOKEN" \
     -o "$2.tmp" -w '%{http_code}' "$API/$1" || true)
@@ -63,6 +65,9 @@ runs_to_tsv() { # runs_to_tsv <status-filter-or-empty> — 列表响应转 "id<T
     | if $s == "failure" then map(select(.conclusion == "failure"))
       elif $s == "success" then map(select(.conclusion == "success"))
       else . end
+    # 年龄过滤: 跳过 <10min 的 run — 正在跑/刚完成的 run 日志 blob 未就绪 (BlobNotFound);
+    #   completed 的 blob 分钟级就绪, 10min 保守余量
+    | map(select((.created_at // "1970-01-01T00:00:00Z" | fromdateiso8601) < (now - 600)))
     | sort_by(-.id) | .[] | "\(.id)\t\(.created_at // "?")\t\(.name // .path // "?")"'
 }
 
@@ -83,7 +88,8 @@ list_failure_candidates() { # list_failure_candidates <repo> — 失败 run 候�
       if [[ $(grep -c . <<<"$lines" || true) -ge $MAX_CANDIDATES ]]; then break; fi
     done
   fi
-  awk -F'\t' 'NF==2 && !seen[$1]++' <<<"$lines"
+  # NF==3: TSV 三列 (id\tcreated\tname) — 布局迁移加列时曾漏改 NF==2 致候选恒空
+  awk -F'\t' 'NF==3 && !seen[$1]++' <<<"$lines"
 }
 
 process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
@@ -111,6 +117,9 @@ process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
   jname=$(tr '/ ' '--' <<<"${jname:-unknown}" | cut -c1-30)
   date=${created%%T*}; [ -n "$date" ] || date=unknown
   out="$dir/$date/$run_id-$job_id-$jname-$concl.log"
+  # 嵌套布局 date 目录必须先建 (2026-10-16 事故: 布局迁移加 $date/ 层而未建目录,
+  #   curl -o 打开输出文件失败被 || true 吞成 "http=200 空文件", 全候选静默跳过)
+  mkdir -p "$dir/$date"
   if download_log "repos/$repo/actions/jobs/$job_id/logs" "$out"; then
     jq -n --arg repo "github.com/$repo" --argjson run_id "$run_id" --argjson job_id "$job_id" \
       --arg concl "$concl" --arg wf "$wf" --arg ca "$created" --arg jn "$jname" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

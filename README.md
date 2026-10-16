@@ -18,7 +18,7 @@ POC 回测语料: **4 个真实仓库、67 对成败样本 (49 失败 / 18 成�
 
 | 仓库 | 工具栈 | 形态特征 |
 | --- | --- | --- |
-| sst/opencode | bun / eslint / playwright | GHA 时间戳前缀 + ANSI 色码 |
+| anomalyco/opencode (原 sst/opencode, 2026-10 易主) | bun / eslint / playwright | GHA 时间戳前缀 + ANSI 色码 |
 | niri-wm/niri | cargo / rustc / rust-test | 同上 |
 | nix-community/home-manager | nix / git / nixfmt | 完整多行错误树 (最大 219 行) |
 | lc-studio/nixos | nix / just / treefmt / nim / systemd | Forgejo 沙箱轮询回显前缀 |
