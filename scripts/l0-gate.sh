@@ -20,6 +20,14 @@ IMPROVE_HINT_PCT=2     # 压缩率相对改善提示线 % (不判红)
 SUMMARY=$(bash "$ROOT/scripts/l0-collect.sh" | jq -s -f "$ROOT/scripts/l0-summarize.jq")
 
 if [ "${1:-}" = "--update-baseline" ]; then
+  # 基线生成在场断言: 管辖域 (ci=github) 样本 <50 拒绝写基线 — 防空语料生成
+  #   "空基线" 被原子配对合法化 (2026-10-16 事故; 57 对现状留 7 对余量; 主仓
+  #   判定模式仍是全量 ≥60, 两侧阈值语义不同故各自声明)
+  n_github=$(jq -r '[.per_repo | to_entries[] | select(.value.ci == "github") | .value.runs] | add // 0' <<<"$SUMMARY")
+  if [ "${n_github:-0}" -lt 50 ]; then
+    echo "基线生成拒绝: 管辖域 (ci=github) 样本仅 ${n_github:-0} (<50), 疑语料缺失/拉取链路故障" >&2
+    exit 1
+  fi
   # 基线管辖域 = ci=github 的 repo (forgejo 侧是内网数据, 其 repo 键不出现在公网语料仓)
   jq -n --argjson s "$SUMMARY" '$s.per_repo | map_values(select(.ci == "github"))
     | map_values({runs, input_lines, comp_blk_pct, comp_sig_pct})

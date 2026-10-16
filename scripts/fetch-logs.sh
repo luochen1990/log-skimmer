@@ -160,10 +160,21 @@ main() {
     fetch_batch "$repo" "$dir" success "$WANT_SUCCESS"
   done
   log "== 汇总 =="
+  local empty=0
   for repo in "${REPOS[@]}"; do
     dir="$DATA_DIR/github.com/$repo"
-    log "$repo: failure=$(existing_count "$dir" failure) success=$(existing_count "$dir" success) (文件对 $(find "$dir" -name '*.log.json' | wc -l))"
+    n=$(find "$dir" -name '*.log.json' | wc -l)
+    log "$repo: failure=$(existing_count "$dir" failure) success=$(existing_count "$dir" success) (文件对 $n)"
+    # 空仓硬防线: 任一仓 0 对在场 = 拉取链路整体故障 (认证/网络/API), 拒绝以
+    #   "韧性逐条跳过" 之名把空语料合法化 (2026-10-16 事故: GHA per-run token
+    #   跨仓 401 → 全跳过 → exit 0 → 空仓被 commit)。已满配额的幂等重跑不受影响
+    #   (existing > 0)。
+    if [ "$n" -eq 0 ]; then
+      log "ERROR: $repo 语料为 0 对 — 拉取链路故障, 拒绝空仓收场"
+      empty=1
+    fi
   done
+  [ "$empty" -eq 0 ] || exit 1
 }
 
 main "$@"
