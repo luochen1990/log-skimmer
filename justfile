@@ -28,4 +28,4 @@ l0-stats:
 ci-merge:
     nix develop --command just _ci-merge
 
-_ci-merge: check rules-load l0-gate
+_ci-merge: check l0-gate

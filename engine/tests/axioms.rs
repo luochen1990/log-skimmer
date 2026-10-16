@@ -389,3 +389,11 @@ fn zero_block_guard_unconditional() {
         .unwrap();
     assert_eq!(out2.status.code(), Some(0), "有块 → exit 0");
 }
+
+/// A0 行归一 (spec §2): CRLF 剥 \r / 空输入零行 / 尾部空行不计 — 三方消费的唯一行预处理。
+#[test]
+fn a0_normalize_lines() {
+    assert_eq!(log_skimmer::normalize_lines("a\r\nb\r\n"), vec!["a", "b"]);
+    assert_eq!(log_skimmer::normalize_lines(""), Vec::<String>::new());
+    assert_eq!(log_skimmer::normalize_lines("a\n\n"), vec!["a", ""]);
+}

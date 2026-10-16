@@ -2,8 +2,9 @@
 #   per_repo_conclusion (repo×conclusion) / per_repo / totals (主指标) + per_rule + structural。
 # 口径 (spec §4, 沿用 POC l0-stats.sh 现状):
 #   - 主指标滤除 rerun-through (excluded=true);
-#   - FN 代理 = 非 success 样本上 failure-intent fragment 数为 0 的样本数;
-#   - FP = success 样本上 failure-intent fragment 行数与计数, 率分母 = 该聚合 success 样本输入行;
+#   - FN = failure 家族 (failure/timed_out) 样本上 failure-intent fragment 数为 0 的样本数
+#     (cancelled 截断日志不计缺失, spec §4 三态; skipped 排除见 collect);
+#   - FP = success 样本上 failure-intent fragment 的 block 行数与计数, 率分母 = 该聚合 success 样本输入行;
 #   - 零块/边界违例是全量统计 (spec §3 结构承诺 / §4 实现哨兵语义, 不滤 excluded);
 #   - 压缩率 blk = 1-Σout/Σin, sig = 1-Σsig/Σin (聚合行数比, 非样本内率的平均)。
 # 消费方: scripts/l0-gate.sh (门禁判定) 与 scripts/l0-stats.sh (人类报表) — 二者只做渲染,
@@ -16,7 +17,9 @@ def agg: {
   input_lines: (map(.input_lines) | add // 0),
   output_lines: (map(.output_lines) | add // 0),
   signature_output_lines: (map(.signature_output_lines) | add // 0),
-  fn: (map(select((.conclusion != "success") and (.failure_frags == 0))) | length),
+  # FN 谓词只数 failure/timed_out (spec §4: cancelled 截断日志未命中不计 FN;
+  # skipped 排除口径见 collect; 非 success 且非 failure 家族的 cancelled 单列为弱信号)
+  fn: (map(select((.conclusion == "failure" or .conclusion == "timed_out") and (.failure_frags == 0))) | length),
   success_input_lines: (map(select(.conclusion == "success").input_lines) | add // 0),
   fp_frags: (map(select(.conclusion == "success").failure_frags) | add // 0),
   fp_lines: (map(select(.conclusion == "success").failure_frag_lines) | add // 0),
@@ -27,7 +30,7 @@ def agg: {
 def with_rates: . + {
   comp_blk_pct: ratio(.input_lines - .output_lines; .input_lines),
   comp_sig_pct: ratio(.input_lines - .signature_output_lines; .input_lines),
-  fp_rate_pct: ratio(.fp_lines; .input_lines)
+  fp_rate_pct: ratio(.fp_lines; .success_input_lines)
 };
 
 map(select(.excluded | not)) as $m

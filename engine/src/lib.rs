@@ -363,6 +363,14 @@ fn out_span(rule: &Rule, block: (usize, usize), n: usize) -> (usize, usize) {
     )
 }
 
+/// A0 行归一 (spec §2): `lines()` 切行 + 剥尾部 `\r`; 尾部空行不计。
+/// 引擎/CLI/server 三方唯一行预处理 (SSOT, 禁止各消费点再写同款)。
+pub fn normalize_lines(raw: &str) -> Vec<String> {
+    raw.lines()
+        .map(|l| l.trim_end_matches('\r').to_string())
+        .collect()
+}
+
 /// A5/A6/A7 + 统计: 聚合为输出块。
 pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
     let n = lines.len();

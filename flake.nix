@@ -24,8 +24,7 @@
               ripgrep # rg 基线对照与开发调试
               yq # YAML 处理储备 (规则集工具链)
             ];
-            # 协议显式声明 (rsproxy sparse 镜像见 .cargo/config.toml, 那是镜像 SSOT)
-            CARGO_REGISTRIES_CRATES_IO_PROTOCOL = "sparse";
+            # crates 镜像 SSOT 在 .cargo/config.toml (source replacement, 本地/devShell/CI 同源)
           };
         });
     };

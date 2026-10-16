@@ -431,7 +431,6 @@ version = "0.1.0"
 dependencies = [
  "log-skimmer",
  "rmcp",
- "schemars",
  "serde",
  "serde_json",
  "tokio",

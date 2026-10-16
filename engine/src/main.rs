@@ -50,11 +50,8 @@ fn main() {
         eprintln!("读取日志失败 {}: {e}", log_file.display());
         std::process::exit(2);
     });
-    // 行归一: 去 \r (CRLF), 保内容; 尾部空行不计。
-    let lines: Vec<String> = raw
-        .lines()
-        .map(|l| l.trim_end_matches('\r').to_string())
-        .collect();
+    // 行归一: 去 \r (CRLF), 保内容; 尾部空行不计 (A0, engine lib SSOT)。
+    let lines = log_skimmer::normalize_lines(&raw);
     let result = log_skimmer::skim(&log_file.display().to_string(), &rules_loaded, &lines);
     let compression = if result.input_lines > 0 {
         100.0 - 100.0 * result.output_lines as f64 / result.input_lines as f64

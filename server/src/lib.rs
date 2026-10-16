@@ -75,15 +75,6 @@ pub fn load_ruleset_at(dir: &Path) -> Result<Vec<Rule>, String> {
     Ok(rules)
 }
 
-/// A0 行归一 (与 engine CLI 薄壳同款语义): `lines()` 切行 + 剥尾部 `\r`。
-/// engine lib 未暴露该 helper (M2 边界禁改 engine), 上提到 engine 后本函数退役改引。
-fn split_log_lines(log_text: &str) -> Vec<String> {
-    log_text
-        .lines()
-        .map(|l| l.trim_end_matches('\r').to_string())
-        .collect()
-}
-
 /// 超限错误文案单点 (两 tool 的 Oversized 共用; 对外契约文案防双份分叉)。
 fn oversized_msg(n: usize) -> String {
     format!("log_text {n} 字节超过上限 {MAX_LOG_BYTES} 字节; 请预处理截取 (如 tail -c) 后分段提交")
@@ -197,7 +188,7 @@ pub fn skim_view(
     if let Some(n) = context.filter(|n| !(0..=10).contains(n)) {
         return Err(SkimInputError::InvalidContext(n));
     }
-    let lines = split_log_lines(log_text);
+    let lines = log_skimmer::normalize_lines(log_text);
     let result = match context {
         None => skim("mcp", rules, &lines),
         Some(n) => skim("mcp", &override_context(rules, n as u32), &lines),
@@ -320,7 +311,7 @@ pub fn read_around_view(
     if line_start < 1 || line_end < line_start {
         return Err(ReadAroundError::BadRange(line_start, line_end));
     }
-    let lines = split_log_lines(log_text);
+    let lines = log_skimmer::normalize_lines(log_text);
     let total = lines.len();
     let start = line_start as usize;
     if start > total {
@@ -399,15 +390,6 @@ mod tests {
                 .as_path(),
         )
         .expect("仓库规则集装载成功")
-    }
-
-    // A0 行归一: \r 剥除、空日志零行 (仅经 Err 路径到达前不可见, 此处钉住行为)
-    #[test]
-    fn split_lines_crlf_and_tail() {
-        assert_eq!(split_log_lines("a\r\nb\r\n"), vec!["a", "b"]);
-        assert_eq!(split_log_lines(""), Vec::<String>::new());
-        // lines() 不产尾部空行
-        assert_eq!(split_log_lines("a\n\n"), vec!["a", ""]);
     }
 
     #[test]

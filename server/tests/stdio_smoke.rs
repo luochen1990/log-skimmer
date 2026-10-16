@@ -3,7 +3,7 @@
 //! 职责边界: 只验证协议链路与响应形态, 语义正确性由 src 内 fixture 单测覆盖。
 //!
 //! 大文本验证 (CI 日志单条数百 KB 量级): `stdio_big_log_e2e` 默认忽略,
-//! 语料不入 git (docs/rule-format.md §5), 以 env 门控触发:
+//! 以 env 门控触发 (语料已入仓, 见 docs/rule-format.md §5; 仓内最大样本 niri 1.4MB):
 //! `LOG_SKIMMER_E2E_LOG=<大日志路径> cargo test -p log-skimmer-server --test stdio_smoke -- --ignored`
 
 use std::io::{BufWriter, Read, Write};

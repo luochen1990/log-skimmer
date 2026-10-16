@@ -2,7 +2,7 @@
 
 CI 日志高信噪比提取工具 — 以确定性规则集把失败的 CI 日志压缩成带坐标、带语义标注的高信噪比摘要，供 AI agent 消费。
 
-> 引擎与规则集已在 4 个真实仓库的语料上完成回测验证 (见下文数据), 并以 L0 门禁化语料回归守住质量基线; MCP 服务等集成形态是未来项。
+> 引擎与规则集已在 4 个真实仓库的语料上完成回测验证 (见下文数据), 并以 L0 门禁化语料回归守住质量基线; CLI 与 MCP server (`log-skimmer-mcp`) 双形态可用。
 
 ## 项目动机
 
@@ -33,7 +33,7 @@ POC 回测语料: **4 个真实仓库、67 对成败样本 (49 失败 / 18 成�
 - **结构承诺与可复现**: 零 LLM、零网络, 逐行状态机 + RE2 语义正则 (线性复杂度), 同输入恒同输出。输出定位为「索引 + 摘要」: 每个块恒带行号坐标与元数据 (规则 / category / intent / confidence), agent 据此决定是否展开上下文, 而非把输出当日志替代品。
 - **规则 folksonomy**: 无中央注册表, 规则文件的存在即定义工具 ID (`rules/<tool-id>/<rule-id>.yaml`, 一文件一规则)。当前内置 15 个工具共 30 条规则, 覆盖 bun / cargo / eslint / forgejo-actions / git / github-actions / just / nim / nix / nixfmt / playwright / rust / rustc / systemd / treefmt。
 
-路线图: MCP 服务、LLM 规则学习 Adapter 等集成形态属未来规划, 当前不提供。
+路线图: LLM 规则学习 Adapter (日志 → 规则草案 PR + 回测报告)、Validator 双层验证、WebPage 规则浏览站属后续规划; MCP server (`server/`) 已交付。
 
 ## 快速上手
 
@@ -64,6 +64,31 @@ target/release/log-skimmer skim failed-job.log --rules rules/ --context 3
 | 0 | 正常完成 | 消费输出 |
 | 2 | 规则集非法 (加载校验失败) 或日志读取失败 | 修复规则 / 日志后重试 |
 | 3 | 零块失明 — 规则集对该日志无任何命中 | 无条件回退 `rg -i 'error|warn'` 基线 |
+
+### MCP server (agent 集成形态)
+
+`log-skimmer-mcp` 以 stdio transport 暴露三个 tool: `skim(log_text, context?)` (提取块 + fragment 摘要 + 压缩统计; 零块时返回 `fallback: "no-blocks"` 与回退建议字段, 不报错) / `read_around(log_text, line_start, line_end)` (按坐标取原文窗口, 单次限 200 行) / `list_rules()` (装载规则清单)。
+
+```bash
+cargo build --release -p log-skimmer-server
+# 产物: target/release/log-skimmer-mcp (stdio transport)
+```
+
+opencode / Claude 等客户端配置示例 (command 形态):
+
+```json
+{
+  "local": {
+    "log-skimmer": {
+      "type": "local",
+      "command": ["/path/to/log-skimmer-mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+部署前提: 二进制旁须有 `rules/` 目录, 或设 `LOG_SKIMMER_RULES` 指向规则集目录 (缺省探测编译期路径与可执行文件相邻路径, 均失败时 fail-fast 退出码 2)。单条日志上限 32MB, 超限报错并建议 `tail -c` 截取。
 
 开发验证 (开发环境经 nix flake 提供, 无需系统 rust 工具链):
 

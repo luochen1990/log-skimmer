@@ -133,7 +133,7 @@ L4: build failed
       "start_line": 120, "end_line": 135,
       "fragments": [
         { "rule": "nix-eval-error", "kind": "signal", "category": "typecheck",
-          "intent": "failure", "confidence": "high", "block": [120, 128],
+          "intent": "failure", "confidence": "high", "block": [120, 128], "out": [120, 135],
           "text": "...(context 扩展后的完整文本)..." }
       ]
     }
@@ -167,8 +167,8 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 | 指标 | 定义 |
 | --- | --- |
 | 压缩率 | `1 - Σ(输出行数) / 输入总行数`, 按粒度分列 (块级 / 签名行级), 按工具分列 |
-| FP | **仅 `intent: failure` 规则**: success job 上产出的此类 fragment 计数 (CI 通过却被提取出失败证据 = 假阳性)。`intent: warning` 规则命中属预期, 单列「warning 命中」不计 FP |
-| FN 代理 | failure job 日志中 `intent: failure` fragment 数为 0 的 job 计数 (完全漏检) — **验收线 = 0, 不变量** (召回优先, §0; 宁可覆盖过头牺牲压缩); 部分漏检需 LLM 对照 (POC 抽查雏形, 不自动化) |
+| FP | **仅 `intent: failure` 规则**: success job 上产出的此类 fragment 计数 (CI 通过却被提取出失败证据 = 假阳性)。`intent: warning` 规则命中属预期, 单列「warning 命中」不计 FP。**FP 率 = failure-intent fragment 的 block 区间行数总和 / success 样本输入总行数** (验收线 ≤2%, 分母口径 SSOT — 工具被污染程度只在 success 样本上度量; 分子取 block 区间不含 context 扩展, 免重叠双计) |
+| FN 代理 | failure 家族 (failure/timed_out) job 日志中 `intent: failure` fragment 数为 0 的 job 计数 (完全漏检) — **验收线 = 0, 不变量** (召回优先, §0; 宁可覆盖过头牺牲压缩); 部分漏检需 LLM 对照 (POC 抽查雏形, 不自动化) |
 | 边界完整性 (机械) | fragment 的 block 尾行必须仍被该规则任一 pattern 匹配 (锚或扩展), 违例计数 (防 context 污染与实现 bug) |
 
 **cancelled/skipped 三态** (证据能力非对称):
@@ -182,7 +182,7 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 ## 5. 样本与配对 (POC 约定)
 
 - 样本存放: `data/logs/<repo-slug>/<run_id>-<job_id>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, attempt, ci, fetched_at}` — `repo` 为 **`host/owner/repo` 完整形态** (SSOT; 与规则 `repo:` 字段/manifest 索引键同构, oss-cache repo-id 同款), 目录名 `repo-slug` 为其扁平化 (`/`→`__`, 如 `github.com__sst__opencode`); conclusion 取 **job 级 result**; attempt 取数时从 API 元数据写入。
-- **样本不入 git** (`data/` 在 .gitignore): 原始日志体积大且含他人内容; 回测本地跑。未来规则 PR 配最小化样本 (错误片段截取, ≤50 行) 入库 — v0 不做。
+- **语料入仓** (M1 门禁化决策, 演进记录: POC 期曾 "样本不入 git" — 工作区卫生考量; 门禁化后语料是 L0 回归 fixture, 可复现性优先, 67 对样本 6.1M 已入仓): 仅 `data/logs/fetch.log` 抓取残留排除; 原始日志含他人内容的版权/体积考量转为 — 语料仅作回归 fixture, 不对外分发语义, 发布形态再评估。未来规则 PR 配最小化样本 (错误片段截取, ≤50 行) 入库 — v0 不做。
 - 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。
 
 ## 6. POC 明确不做

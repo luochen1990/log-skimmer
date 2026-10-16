@@ -17,7 +17,7 @@ BIN="${LOG_SKIMMER_BIN:-${CARGO_TARGET_DIR:-$ROOT/target}/release/log-skimmer}"
 for j in "$DL"/*/*.log.json; do
   log="${j%.log.json}.log"; [ -f "$log" ] || continue
   con=$(jq -r .conclusion "$j"); att=$(jq -r '.attempt // 1' "$j"); repo=$(jq -r .repo "$j")
-  sample="${j%.log.json}.log"; sample="${sample#"$DL"/}"
+  sample="${log#"$DL"/}"
   set +e
   r=$("$BIN" skim "$log" --rules "$RL" --json 2>/dev/null)
   rc=$?

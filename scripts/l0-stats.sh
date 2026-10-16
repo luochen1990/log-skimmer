@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # 职责: L0 人类可读报表 — 消费 l0-collect.sh JSONL (统计口径 SSOT: scripts/l0-summarize.jq),
 # 渲染 per repo×conclusion 汇总 / per-rule 分列 / rg 基线对照 三张表。
-# 演进注记: POC 期主循环内联 skim 调用带 `|| r='{...}'` 兜底 (兼容写法), 门禁化 (M1) 后
-#   采集职责移 l0-collect.sh 且 fail-fast (skim 失败直接红), 本脚本不再接触 skim 二进制;
-#   BIN 定位亦随之退役 (原 engine/target/ 路径已因 workspace 化失效)。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DL="$ROOT/data/logs"
@@ -42,10 +39,11 @@ BIN_=0; BOUT=0; BFP=0; BFN=0; BN=0; BSC=0
 while IFS=$'\t' read -r sample con excluded in_; do
   [ "$excluded" = true ] && continue
   log="$DL/$sample"
-  bl=$( { grep -ciE 'error|warn' "$log" || true; tail -100 "$log" | wc -l; } | awk 'NR==1{a=$1} NR==2{b=$1} END{print (a>b)?a:b}')
+  gw=$(grep -ciE 'error|warn' "$log" || true)
+  bl=$( { echo "$gw"; tail -100 "$log" | wc -l; } | awk 'NR==1{a=$1} NR==2{b=$1} END{print (a>b)?a:b}')
   BIN_=$((BIN_+in_)); BOUT=$((BOUT+bl)); BN=$((BN+1))
   if [ "$con" = success ]; then
-    BSC=$((BSC+1)); BFP=$((BFP + $(grep -ciE 'error|warn' "$log" || true)))
+    BSC=$((BSC+1)); BFP=$((BFP + gw))
   else
     [ "$bl" -eq 0 ] && BFN=$((BFN+1))
   fi
@@ -56,5 +54,5 @@ bc=$((10000*(BIN_-BOUT)/(BIN_>0?BIN_:1)))
 tot=$(jq -r '[.totals.runs, .totals.comp_blk_pct, .totals.fp_rate_pct, .totals.fn] | @tsv' <<<"$SUM")
 read -r runs cb lk fp fn <<<"$(awk -F'\t' '{print $1, $2, $3, $4}' <<<"$tot")"
 printf 'baseline: %d runs, 压缩 %d.%02d%%, 成功 job %d 个上假阳性行 %d (均值 %.1f 行/job), FN %d\n' \
-  "$BN" $((bc/100)) $((bc%100)) "$BSC" "$BFP" "$(awk "BEGIN{print $BFP/$BSC}")" "$BFN"
+  "$BN" $((bc/100)) $((bc%100)) "$BSC" "$BFP" "$(awk "BEGIN{print ($BSC>0)?$BFP/$BSC:0}")" "$BFN"
 printf 'skim:     %d runs, 压缩 %.2f%%, FP(failure-intent) 率 %.2f%%, FN %d\n' "$runs" "$cb" "$fp" "$fn"

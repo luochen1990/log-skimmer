@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 职责: L0 门禁 (M1) — 全语料回归判定, 机器可读 JSON 输出到 stdout, 任一违例 exit 1:
-#   1. FN=0        (主指标; 非 success 样本上 failure-intent fragment 数为 0 的样本数, spec §4 不变量);
-#   2. FP 率 ≤2%   (主指标全局; success 样本上 failure-intent fragment 行数 / success 输入总行数);
+#   0. 语料在场 ≥60 (防空转假绿: 语料路径漂移/误 ignore 时拒绝在空集上判定);
+#   1. FN=0        (主指标; failure 家族样本上 failure-intent fragment 数为 0 的样本数, spec §4 不变量);
+#   2. FP 率 ≤2%   (主指标全局; success 样本上 failure-intent fragment 的 block 行数 / success 输入总行数);
 #   3. 边界违例=0  (全量; spec §4 实现哨兵, 非零 = 引擎 bug);
 #   4. 零块=0      (全量; spec §3 结构承诺, 非零 = 规则集对某日志失明);
 #   5. 基线防退化  (per repo × blk/sig 双粒度; 相对退化 >2% 判红; 改善 ≥2% 仅提示更新基线)。
@@ -28,7 +29,7 @@ fi
 
 BASE=$(cat "$BASELINE" 2>/dev/null || echo '{"repos":{}}')
 
-jq -n --argjson s "$SUMMARY" --argjson base "$BASE" \
+RESULT=$(jq -n --argjson s "$SUMMARY" --argjson base "$BASE" \
   --argjson fp_max "$FP_RATE_MAX" --argjson reg_max "$REGRESS_MAX_PCT" --argjson imp "$IMPROVE_HINT_PCT" '
   def pctchg(new; old): if old > 0 then 100 * (new - old) / old else 0 end;
   def r2: (. * 100 | round) / 100;
@@ -54,8 +55,13 @@ jq -n --argjson s "$SUMMARY" --argjson base "$BASE" \
     | flatten)   # to_entries[] 迭代 else 分支产数组, 收集后扁平化
   as $baseline_checks |
 
-  # --- 1-4. 硬判定 ---
-  (if $s.totals.fn > 0 then [{type: "fn",
+  # --- 0-4. 硬判定 ---
+  # 0. 语料在场断言 (防空转通过: 语料路径漂移/误 ignore 时 collect 静默产出空集,
+  #    全部指标恒 0 → verdict=pass 的假绿; 60 = 当前 67 对留余量, 语料增长无需改)
+  (if $s.structural.samples_total < 60 then [{type: "corpus-missing",
+     samples_total: $s.structural.samples_total,
+     note: "语料样本数异常 (<60), 疑似 data/logs 路径漂移或被 ignore — 门禁拒绝在空语料上判定"}] else [] end)
+  + (if $s.totals.fn > 0 then [{type: "fn",
      detail: ($s.per_repo_conclusion | to_entries | map(select(.value.fn > 0))
        | map({repo: .key, fn: .value.fn})),
      note: "失败样本零 failure-intent fragment (完全漏检, spec §0 召回优先不变量)"}] else [] end)
@@ -74,8 +80,7 @@ jq -n --argjson s "$SUMMARY" --argjson base "$BASE" \
    violations: $violations,
    notices: [$baseline_checks[] | select(.type == "new-repo" or .type == "stale-baseline" or .type == "improved")],
    summary: $s}
-' > /tmp/opencode/l0-gate-result.$$ || { cat /tmp/opencode/l0-gate-result.$$ >&2; exit 1; }
-RESULT=$(cat /tmp/opencode/l0-gate-result.$$); rm -f /tmp/opencode/l0-gate-result.$$
+') || { printf '%s\n' "$RESULT" >&2; exit 1; }
 echo "$RESULT"  # stdout: 机器可读判定
 echo "l0-gate: $(jq -r '"verdict=\(.verdict) FN=\(.summary.totals.fn) FP率=\(.summary.totals.fp_rate_pct|.*100|round/100)% 零块=\(.summary.structural.zero_block) 边界违例=\(.summary.structural.boundary_violations) 压缩 blk=\(.summary.totals.comp_blk_pct|.*100|round/100)% sig=\(.summary.totals.comp_sig_pct|.*100|round/100)%"' <<<"$RESULT")" >&2
 jq -e '.verdict == "pass"' <<<"$RESULT" > /dev/null

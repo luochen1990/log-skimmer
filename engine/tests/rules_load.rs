@@ -25,13 +25,8 @@ fn all_rules_load_with_unique_ids() {
         .map(|w| w[0])
         .collect();
     assert!(dups.is_empty(), "规则 id 重复: {dups:?}");
-}
 
-#[test]
-fn template_rule_is_loadable() {
-    // 模板自身必须是合法规则 (贡献起点可直接复制; 加载失败 = 模板与引擎校验漂移)
-    let rules_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../rules");
-    let rules = log_skimmer::load_rules(&rules_dir).unwrap_or_else(|e| panic!("规则集非法: {e}"));
+    // 模板自身必须可加载且 id 未偏离约定 (贡献起点; 加载失败 = 模板与引擎校验漂移)
     assert!(
         rules.iter().any(|r| r.id == "template-my-rule"),
         "rules/_template.yaml 未被加载或 id 已偏离模板约定"
