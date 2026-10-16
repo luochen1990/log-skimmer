@@ -51,7 +51,9 @@ while IFS=$'\t' read -r run_id job_id; do
   fi
   mv "$log_file.tmp" "$log_file"
   # sidecar: 清单固化不可变元数据, 仅 fetched_at 动态
-  jq "$m + {fetched_at: \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "$dest_dir/$base.log.json"
+  # -n: 无输入求值 — 不带输入源的 jq 会偷吃 while 循环的 stdin (manifest 剩余行),
+  #     循环首条即 EOF 提前结束 (run 19465 形态: 拉到 1 对后 "在场数与清单不符")
+  jq -n "$m + {fetched_at: \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "$dest_dir/$base.log.json"
   n=$((n+1))
 done < <(jq -r '.[] | [.run_id, .job_id] | @tsv' "$MANIFEST")
 
