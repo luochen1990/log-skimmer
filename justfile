@@ -28,19 +28,12 @@ corpus-fetch:
     bash scripts/fetch-corpus.sh
     bash scripts/fetch-forgejo.sh
 
-# 判定器镜像同步 (P2 周期档载体): 主仓 engine/rules/L0 脚本 → 语料仓镜像目录,
-# 有差则推送 + dispatch 触发语料仓 GHA 即时刷新 (新引擎 × 当前语料重算基线)。
-# 语料槽位滚动重拉在语料仓 GHA 侧自执行 (GitHub 机房闭环) — 语料字节不走内网出口
-# (省外网流量); 本 recipe 只送文本镜像 (~150KB 级, 低频)。
-# 需 CORPUS_GH_TOKEN; 语料数据变更纪律: 一律改语料仓工作副本并提交, 主仓 data/logs 只读消费
-corpus-sync:
-    bash scripts/corpus-sync.sh
-
-# ci-periodic — org 标准 P2 周期兜底契约 (非超集/阻塞级/幂等): 判定器镜像同步 +
-# 内网现场语料补抓 (fetch-forgejo 是内网 API 调用, 零出网流量; 新语料的 FN 信号由
-# 主仓下一 PR 的 l0-gate 暴露, 归因明确)
-ci-periodic: corpus-sync
-    bash scripts/fetch-forgejo.sh
+# ci-periodic — org 标准 P2 周期兜底契约 (非超集/阻塞级/幂等): 内网现场语料补抓
+# (fetch-forgejo 是内网 API 调用, 零出网流量) + 语料仓新鲜度哨兵 (GHA weekly 自刷
+# 挂掉时暴露 — 判定器从 GitHub mirror 主仓 checkout, 刷新闭环全在 GitHub 机房)
+ci-periodic: corpus-fetch
+    # 语料仓 HEAD 距今 >8 天判红 (weekly 刷新 + 余量; 单行: just 各行独立 shell 不共享变量); 自愈: 语料仓手动 dispatch
+    age=$(( $(date +%s) - $(date -d "$(git -C data/logs log -1 --format=%cI)" +%s) )); [ "$age" -lt $((8*86400)) ] || { echo "语料仓陈旧 ($((age/86400)) 天未刷新, GHA 刷新链疑似故障"; exit 1; }; echo "语料新鲜度 OK ($((age/86400)) 天)"
 
 # ci-merge — org 标准 CI P0 合入门禁契约:
 #   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (fmt→clippy→test→L0)。
