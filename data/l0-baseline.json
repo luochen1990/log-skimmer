@@ -1,0 +1,29 @@
+{
+  "comment": "l0-gate 压缩率基线 (per repo, 主指标聚合); 由 scripts/l0-gate.sh --update-baseline 生成, 勿手编",
+  "repos": {
+    "git.lambda.lc/lc-studio/nixos": {
+      "runs": 10,
+      "input_lines": 1390,
+      "comp_blk_pct": 83.7410071942446,
+      "comp_sig_pct": 84.1726618705036
+    },
+    "github.com/niri-wm/niri": {
+      "runs": 19,
+      "input_lines": 29606,
+      "comp_blk_pct": 99.38188205093562,
+      "comp_sig_pct": 99.80071607106667
+    },
+    "github.com/nix-community/home-manager": {
+      "runs": 19,
+      "input_lines": 9818,
+      "comp_blk_pct": 92.74801385210837,
+      "comp_sig_pct": 99.58239967406804
+    },
+    "github.com/sst/opencode": {
+      "runs": 19,
+      "input_lines": 19387,
+      "comp_blk_pct": 96.48733687522567,
+      "comp_sig_pct": 99.12312374271418
+    }
+  }
+}
