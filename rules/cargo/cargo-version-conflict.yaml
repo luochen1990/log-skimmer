@@ -6,7 +6,7 @@ id: cargo-version-conflict
 title: cargo 版本/feature 解析冲突树 (failed to select a version for)
 tool: cargo
 scope: global
-category: build
+category: deps
 confidence: high
 patterns:
   - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?(?:\x1b\[[0-9;]*m)*error(?:\x1b\[[0-9;]*m)*:(?:\x1b\[[0-9;]*m)* failed to select a version for '

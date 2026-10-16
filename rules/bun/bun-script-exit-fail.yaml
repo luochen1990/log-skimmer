@@ -5,7 +5,7 @@ id: bun-script-exit-fail
 title: 'bun run 脚本退出失败 (error: script ... exited with code N)'
 tool: bun
 scope: global
-category: other
+category: unknown
 confidence: high
 patterns:
   - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?error: script "[^"]+" exited with code [0-9]+$'

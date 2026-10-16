@@ -5,7 +5,7 @@ id: nix-deprecation-warning
 title: nix 生态 deprecation/配置警告
 tool: nix
 scope: global
-category: other
+category: config
 confidence: medium
 intent: warning
 patterns:

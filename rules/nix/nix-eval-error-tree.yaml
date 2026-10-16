@@ -6,7 +6,7 @@ id: nix-eval-error-tree
 title: 'nix 求值错误树 (裸 error: 锚 + 7 缩进 trace 帧)'
 tool: nix
 scope: global
-category: typecheck
+category: config
 confidence: high
 patterns:
   - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?error: ?$'

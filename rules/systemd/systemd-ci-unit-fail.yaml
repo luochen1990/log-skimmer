@@ -5,7 +5,7 @@ id: systemd-ci-unit-fail
 title: CI 沙箱 systemd unit 失败回显
 tool: systemd
 scope: global
-category: infra
+category: config
 confidence: high
 patterns:
   - regex: '\.service: (Main process exited, code=\w+, status=\d+\S*|Failed with result .+)$'

@@ -59,7 +59,8 @@ pub enum Confidence {
     High,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// category 封闭枚举 (spec §1, 调研定稿 10 值; 省缺注入 Unknown — 宁缺勿错)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Category {
     Fmt,
@@ -67,8 +68,12 @@ pub enum Category {
     Typecheck,
     Build,
     Test,
+    Security,
+    Deps,
     Infra,
-    Other,
+    Config,
+    #[default]
+    Unknown, // 省缺注入 (宁缺勿错)
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
@@ -94,7 +99,7 @@ pub struct Rule {
     #[serde(default)]
     pub intent: Option<Intent>,
     #[serde(default)]
-    pub category: Option<Category>,
+    pub category: Category,
     #[serde(default = "default_confidence")]
     pub confidence: Confidence,
     #[serde(default)]
@@ -117,7 +122,7 @@ pub struct Fragment {
     pub kind: Kind,
     /// 有效 intent (signal 恒有值: 显式或默认 Failure)。
     pub intent: Intent,
-    pub category: Option<Category>,
+    pub category: Category,
     pub confidence: Confidence,
     /// 该规则自身消费区间 (无 context), 1-based 含端点。
     pub block: (usize, usize),

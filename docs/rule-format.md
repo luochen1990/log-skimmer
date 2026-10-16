@@ -28,8 +28,8 @@ patterns:                     # 状态机 pattern 链, ≥1 项 (见 §2)
     loop: true                 # 贪心重复消费
 kind: signal                  # signal (提取) | noise (标记噪音)
 # ---- 选填 (默认值如下) ----
-repo: null                    # scope: repo 时必填, "owner/name"
-category: null                # fmt|lint|typecheck|build|test|infra|other (POC 期允许 null=unknown; 枚举集 MVP 调研后冻结)
+repo: null                    # scope: repo 时必填, "host/owner/repo" (oss-cache 同构, 如 github.com/sst/opencode; 多 CI 平台 host 消歧)
+category: unknown             # 封闭枚举 10 值 (见下表); 省缺 = unknown (装载入口统一注入, 宁缺勿错)
 intent: failure               # failure|warning|info — 见下方语义表; noise 规则必须缺省
 confidence: medium            # high|medium|low (片段继承, 排序参考)
 context: { before: 0, after: 0 }   # 输出边界扩展 (行数, 不参与状态机)
@@ -56,7 +56,25 @@ warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊�
 | scope/repo | `scope: repo` 时 repo 必填; `scope: global` 时 repo 必须为 null |
 | patterns | 非空数组; 每项 regex 必填; loop 默认 false |
 | context.before/after | 0 ≤ 值 ≤ 10 |
-| kind/confidence/category | 枚举值; category 允许 null |
+| kind/confidence/category | 枚举值; category 省缺视为 unknown (装载入口统一注入) |
+| repo | `host/owner/repo` 完整形态 (oss-cache 同构); 裸 `owner/repo` 缺 host 视为非法 |
+
+`category` 封闭枚举 (调研定稿, 见 docs/category-survey.md; 两域混合, 域归属仅作文档/WebPage 分组, 不进枚举值):
+
+| 值 | 域 | 定义 (判定基准: 工具在 CI 中的角色优先, 日志形态辅助) |
+| --- | --- | --- |
+| `fmt` | 质量门 | 格式化工具的漂移报告 |
+| `lint` | 质量门 | 静态分析/风格/反模式告警 (不含类型诊断与安全扫描) |
+| `typecheck` | 质量门 | 独立类型检查器/编译器的类型诊断 (tsc/mypy/rustc `error[E...]`) |
+| `build` | 质量门 | 编译/链接/打包/构建系统失败 (非类型诊断) |
+| `test` | 质量门 | 任何测试框架的断言/用例失败 (unit/integration/VM/e2e 统一; 测试类型由 tool 表达) |
+| `security` | 质量门 | 漏洞/密钥泄漏/危险模式扫描告警 (含依赖漏洞**内容**; 依赖**获取**失败归 deps) |
+| `deps` | 环境根因 | 依赖解析/下载/版本冲突/哈希校验失败 |
+| `infra` | 环境根因 | 网络/凭据/资源 (OOM/磁盘)/超时/runner 故障/工具链崩溃/git 操作失败 |
+| `config` | 环境根因 | 配置文件/声明式求值/生成物漂移 (nix eval, `nginx -t`, systemd verify, gen 哨兵) |
+| `unknown` | 兜底 | 无法唯一判类 |
+
+打标纪律 (**宁缺勿错**): 错标污染查询语义 (agent 程序化过滤, 不可检测), unknown 只损失该规则自身的过滤价值。多因混合/类别超出枚举 (集合演化信号, PR 记录样例)/样例不足/L0 回测发现规则命中多类日志 → 打 unknown。unknown 占比长期 >40% 触发集合审视; unknown 升级具名走 PR 人工确认。flaky 是属性不是类别, 不进 category (未来独立维度)。
 | intent | `failure`(默认)/`warning`; **kind: noise 时必须缺省** |
 
 ## 2. 状态机语义 (公理 A1-A8)
@@ -163,7 +181,7 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 
 ## 5. 样本与配对 (POC 约定)
 
-- 样本存放: `data/logs/<repo-slug>/<run_id>-<job_id>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, attempt, fetched_at}` (conclusion 取 **job 级 result**; attempt 取数时从 API 元数据写入)。
+- 样本存放: `data/logs/<repo-slug>/<run_id>-<job_id>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, attempt, ci, fetched_at}` — `repo` 为 **`host/owner/repo` 完整形态** (SSOT; 与规则 `repo:` 字段/manifest 索引键同构, oss-cache repo-id 同款), 目录名 `repo-slug` 为其扁平化 (`/`→`__`, 如 `github.com__sst__opencode`); conclusion 取 **job 级 result**; attempt 取数时从 API 元数据写入。
 - **样本不入 git** (`data/` 在 .gitignore): 原始日志体积大且含他人内容; 回测本地跑。未来规则 PR 配最小化样本 (错误片段截取, ≤50 行) 入库 — v0 不做。
 - 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。
 

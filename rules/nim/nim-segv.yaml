@@ -4,7 +4,7 @@ id: nim-segv
 title: Nim SIGSEGV 崩溃
 tool: nim
 scope: global
-category: other
+category: infra
 confidence: high
 patterns:
   - regex: 'SIGSEGV: Illegal storage access'

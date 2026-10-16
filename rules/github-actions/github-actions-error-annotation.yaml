@@ -5,7 +5,7 @@ id: github-actions-error-annotation
 title: GH Actions 错误注解行 (##[error] 失败标记安全网)
 tool: github-actions
 scope: global
-category: other
+category: unknown
 confidence: high
 patterns:
   - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?##\[error\]'

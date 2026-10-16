@@ -5,7 +5,7 @@ id: nix-option-conflict
 title: nix option 冲突定义错误
 tool: nix
 scope: global
-category: typecheck
+category: config
 confidence: high
 patterns:
   - regex: "error: The option `.+['`] has conflicting definition values:"
