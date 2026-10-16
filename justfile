@@ -22,9 +22,11 @@ l0-gate:
 l0-stats:
     bash scripts/l0-stats.sh
 
-# 语料获取 (幂等): 克隆/更新语料仓到 data/logs (public 零凭据; 离线容忍见脚本头注释)
+# 语料获取 (幂等, 双源): GitHub 公开语料仓 (GHA 57 对) + forgejo 内网现场拉取
+# (固定清单 10 对, 隐私红线: 数据不出内网; 全在场时零凭据)
 corpus-fetch:
     bash scripts/fetch-corpus.sh
+    bash scripts/fetch-forgejo.sh
 
 # 语料仓滚动刷新 (P2 周期档载体): GHA 槽位重拉 + master 引擎重算基线 + 推回语料仓
 # (需 CORPUS_GH_TOKEN; 语料与基线原子配对提交, 主仓 PR 判定无失配窗口)

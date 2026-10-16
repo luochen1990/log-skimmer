@@ -182,7 +182,7 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 ## 5. 样本与配对 (POC 约定)
 
 - 样本存放: `data/logs/<repo-slug>/<run_id>-<job_id>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, attempt, ci, fetched_at}` — `repo` 为 **`host/owner/repo` 完整形态** (SSOT; 与规则 `repo:` 字段/manifest 索引键同构, oss-cache repo-id 同款), 目录名 `repo-slug` 为其扁平化 (`/`→`__`, 如 `github.com__sst__opencode`); conclusion 取 **job 级 result**; attempt 取数时从 API 元数据写入。
-- **语料独立仓 (需求方裁决, 2026-10-16)**: 语料不入主仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏; 独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, 纯数据零维护) 承载, 由主仓 ci-periodic **滚动刷新** (weekly 拉最新 run 替换槽位 + master 引擎重算基线, 语料与基线原子配对提交 — 压缩率防退化判定恒为 "master × 当前语料", 无失配窗口)。主仓只放获取/刷新脚本 (`scripts/fetch-corpus.sh` 幂等克隆/更新, `scripts/corpus-refresh.sh` 刷新+回推), `data/logs` 是工作副本 (gitignored); L0 门禁的语料在场 ≥60 断言同时兜底语料获取失败。演进记录: POC 期不入仓 (工作区卫生) → M1 门禁化短暂入仓 (可复现性) → 需求方否决入仓 (腐坏论), 独立仓+持续刷新同时满足可复现与新鲜度。
+- **语料独立仓 + 内网现场层 (需求方裁决, 2026-10-16)**: 语料不入主仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏。双源形态: ① GHA 侧 (公开仓) 三仓 14F+5S 滚动槽位存独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, 纯数据零维护), 由主仓 ci-periodic **滚动刷新** (weekly 重拉 + master 引擎重算基线, 语料与基线原子配对提交 — 防退化判定恒为 "master × 当前语料", 无失配窗口); ② **Forgejo 侧 (私有内网实例) 语料永不出内网** (隐私红线: 内网拓扑数据禁止进任何外网仓 — 2026-10-16 事故: 曾推 GitHub ~1h 后重写历史重建, 见 AGENTS.md), 主仓 `fetch-forgejo.sh` 按固定清单 (`data/forgejo-runs.json`, run_id + 不可变元数据固化) 现场拉取, 换样本走 PR 改清单。主仓只放脚本与清单 (`fetch-corpus.sh`/`fetch-forgejo.sh`/`corpus-refresh.sh`), `data/logs` 是工作副本 (gitignored); L0 门禁的语料在场 ≥60 断言同时兜底获取失败。演进链: POC 不入仓 → M1 入仓 → 需求方否决 (腐坏论) → 独立仓+刷新 → 内网数据现场拉取 (隐私)。
 - 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。
 
 ## 6. POC 明确不做

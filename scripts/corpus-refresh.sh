@@ -22,8 +22,9 @@ log() { printf '[corpus-refresh %(%H:%M:%S)T] %s\n' -1 "$*" >&2; }
 
 [ -n "${CORPUS_GH_TOKEN:-}" ] || { echo "缺 CORPUS_GH_TOKEN (推送语料仓用)" >&2; exit 1; }
 
-# 1. 语料仓工作副本在场 (ci-periodic 前置 fetch-corpus.sh 已建; 本地手动跑亦然)
-[ -d "$DEST/.git" ] || { echo "语料仓工作副本不存在: $DEST (先跑 fetch-corpus.sh)" >&2; exit 1; }
+# 1. 双源语料在场 (corpus: clone/update GitHub 语料仓; forgejo: 固定清单现场拉取)
+bash "$ROOT/scripts/fetch-corpus.sh"
+bash "$ROOT/scripts/fetch-forgejo.sh"
 
 # 2. GHA 侧槽位滚动: 清旧拉新 (fetch-logs 幂等配额: 每仓 14F+5S)
 rm -rf "$DEST"/github.com__*

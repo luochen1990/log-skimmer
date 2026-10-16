@@ -58,6 +58,11 @@ jobs:
     # 全 skip 时 run 结论 skipped 非 success, 不污染 skip-if-passed)
     if: ${{ (github.event_name != 'push' || github.ref == 'refs/heads/master') && (github.event_name != 'pull_request' || github.event.pull_request.draft != true) }}
     timeout-minutes: 30 # ⟦必改⟧
+    # ⟦可选⟧ env: 持久卷缓存 + forgejo 语料拉取凭据 (双源语料: GitHub 语料仓零凭据 +
+    #   forgejo 内网实例按固定清单现场拉取 — 隐私红线: 私有实例日志不出内网)
+    env:
+      CARGO_TARGET_DIR: /var/lib/forgejo-runner/cache/cargo-target
+      FORGEJO_API_TOKEN: ${{ secrets.FORGEJO_API_TOKEN }}
     env: # ⟦可选⟧ 持久卷缓存重定向, 按技术栈
       CARGO_TARGET_DIR: /var/lib/forgejo-runner/cache/cargo-target
     steps:

@@ -97,7 +97,7 @@ just ci-merge              # CI 合入门禁: 语料获取 → fmt → clippy �
 nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt + clippy + test)
 ```
 
-回归语料来自独立语料仓 [log-skimmer-corpus](https://github.com/luochen1990/log-skimmer-corpus) (公开 CI 日志滚动快照, 由 CI weekly 刷新保持新鲜), 首次跑门禁时自动克隆到 `data/logs`。
+回归语料双源: [log-skimmer-corpus](https://github.com/luochen1990/log-skimmer-corpus) (公开仓 CI 日志滚动快照, weekly CI 刷新) + 私有内网实例日志按固定清单现场拉取 (数据不出内网), 首次跑门禁时自动获取。
 
 ## 贡献指引
 

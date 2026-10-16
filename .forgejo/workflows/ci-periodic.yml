@@ -73,6 +73,7 @@ jobs:
       CARGO_TARGET_DIR: /var/lib/forgejo-runner/cache/cargo-target
       CORPUS_GH_TOKEN: ${{ secrets.CORPUS_GH_TOKEN }}
       GITHUB_API_TOKEN: ${{ secrets.CORPUS_GH_TOKEN }}
+      FORGEJO_API_TOKEN: ${{ secrets.FORGEJO_API_TOKEN }}
     steps:
       # ── checkout 链 (与 ci-merge.skeleton.yml 逐字节同构; 无法 action 化, 见其
       #    文件头设计修正记录) — 不用 actions/checkout: 实例 DISABLE_HTTP_GIT=true
