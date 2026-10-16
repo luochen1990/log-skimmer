@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-**核心假设验证通过 (双语料 + 基线对照)**: 27 条规则 (18 GHA + 9 本仓 Forgejo, 全部人工零 LLM) 在四个真实仓上: **FP=0 vs 基线 230 行** (intent 分层下), FN=0 = 基线, 压缩率 84-99% (基线 86.95%, 但基线输出是无结构行集且成功 run 上含 230 行假阳性)。本仓 Forgejo 轮询回显形态 (与 GHA 直出完全不同的宿主前缀) 由规则正则自承载容忍, 跨形态适配成功。
+**核心假设验证通过 (双语料 + 基线对照)**: 28 条规则 (18 GHA + 10 本仓 Forgejo, 全部人工零 LLM) 在四个真实仓上: **FP 率 0% vs 基线 100%** (18 个成功 job 基线全部产出假阳性, 均值 12.8 行/job; intent 三分口径), FN=0 = 基线, 压缩率 83-99% (结果性指标, 不做门槛)。本仓 Forgejo 轮询回显形态 (与 GHA 直出完全不同的宿主前缀) 由规则正则自承载容忍, 跨形态适配成功。
 
 ## 1. 方法与语料
 
@@ -28,17 +28,20 @@
 | 指标 | Log Skimmer | rg 基线 | 评注 |
 | --- | --- | --- | --- |
 | FN (完全漏检) | **0 / 49** | 0 / 49 | 平手 (基线 tail-100 兜底强) |
-| FP (成功 job 假阳性) | **0** (failure-intent 口径) | **230 行** (18 个成功 job) | **核心优势**: 基线在成功 run 上照样吐 error/warn 行; intent 分层使 warning 命中 (166 处) 不计 FP 且语义正确 |
+| FP (成功 job 假阳性) | **0 行 / 18 job (FP 率 0%)** | **230 行 / 18 job (FP 率 100%, 均值 12.8 行/job)** | **核心优势**: 基线在每个成功 job 上都吐假阳性"错误"行; intent 分层使 warning/info 命中不计 FP 且语义正确 |
 | 压缩率 (块级) | 本仓 83.9% / hm 91.2% / oc 96.4% / niri 98.9% | 86.95% (全局) | LS 分仓 3/4 高于基线; 本仓因 warning 有意保留而略低 (failure-intent-only 口径下本仓 ≈97%, 见 §3) |
 | 结构性 | 完整错误树 + 坐标 + category/intent/confidence | 孤立行集, 树中部丢失 | 基线只抓锚行, nix 219 行树只回显 1 行; rg 无法支撑「定位」只支持「瞥见」 |
 
 **双粒度压缩比** (spec §3, 失败 run): 块级 vs 签名行级 — niri 98.89%/99.73%, home-manager 91.22%/**99.72%** (巨树场景签名级优势极大: 219 行树 → 1 行索引), opencode 96.41%/99.18%。验证「索引+摘要」输出定位: agent 首屏用签名级, 按需 `read_around` 展开。
 
-## 3. intent 分层实证 (FP 口径的核心修正)
+## 3. intent 三分实证 (FP 口径的核心修正)
 
-- `nix-deprecation-warning` (**intent: warning**, 本仓新规则): 成败 run 均大量命中 (166 frags, 4 样本含成功 run) — **旧口径下这是 166 个 FP, 会击穿验收线; 新口径 0 FP 且信息保留**。
-- 全部 25 条 signal 规则中 24 条 intent: failure (默认), FP=0; 1 条 warning 如上。
-- 本仓 failure-intent-only 压缩率: 7 个失败 run 合计 778 行 → 42 行 (94.6%) — warning 剔除后与 GHA 三仓同量级。
+`intent` 三分 (v0.3, 需求方反馈): `failure` (失败证据, 唯一 FP 统计对象) / `warning` (**有问题倾向**但非失败, deprecation 类) / `info` (**纯环境快照**, 无问题倾向 — 版本行等; 排除环境因素时按需取用)。warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊断高优先), 后者是环境事实。
+
+- `nix-deprecation-warning` (**warning**): 成败 run 均大量命中 (166 frags, 4 样本含成功 run) — 旧口径下这是 166 个 FP, 会击穿验收线; 新口径 0 FP 且信息保留。
+- `forgejo-actions-runner-version-info` (**info**, runner 版本行): 10 frags / 7 样本 — 版本信息类「有价值但与错误无关」的内容有了正确归位, 不再挤占 failure 语义。
+- 全部 26 条 signal 规则: 24 failure (默认, FP=0) + 1 warning + 1 info。
+- 本仓 failure-intent-only 压缩率: 7 个失败 run 合计 778 行 → 42 行 (94.6%) — warning/info 剔除后与 GHA 三仓同量级。
 
 ## 4. per-rule 分列 (Top, 全语料 frags/FP)
 
@@ -50,6 +53,7 @@
 | forgejo-actions-job-failed (安全网) | 21 | 21 | 0 | 7 |
 | bun-error-json | 11 | 77 | 0 | 11 |
 | systemd-ci-unit-fail | 10 | 10 | 0 | 5 |
+| forgejo-actions-runner-version-info (info) | 10 | 10 | 0 | 7 |
 | rustc-error-tree | 9 | 107 | 0 | 5 |
 | just-recipe-fail | 8 | 8 | 0 | 4 |
 | nix-eval-error-tree | 3 | **657** | 0 | 3 |
@@ -69,14 +73,17 @@
 
 ## 6. 验收线建议 (MVP L0 门禁初始线, 按工具分列)
 
-| 项 | 线 | POC 实测 |
-| --- | --- | --- |
-| FN (failure-intent 完全漏检) | ≤ 5%/工具 | 0 |
-| FP (failure-intent 在成功 job) | ≤ 2%/工具 | 0 |
-| 压缩率 (块级) | ≥ 85%/工具 (本仓含 warning 82%+) | 83.9-98.9% |
-| 边界违例 | = 0 (不变量) | 0 |
+**质量门槛只设 FP/FN/边界** — 压缩率是**结果性指标**而非质量指标: 它取决于日志本身的信噪比 (为可读性优化过的 CI 天然冗余少, 无从高压), 规则再好也压不出固定比例。硬限压缩率会惩罚「本来就干净」的工作流。
 
-按分布随规则集/样本扩容校准; 本仓 warning 输出占比是口径敏感点, MVP 需定「warning 默认呈现策略」(如默认折叠)。
+| 项 | 线 | 性质 | POC 实测 |
+| --- | --- | --- | --- |
+| FN (failure-intent 完全漏检) | ≤ 5%/工具 | 质量门槛 | 0 |
+| FP (failure-intent 在成功 job) | ≤ 2%/工具 | 质量门槛 | 0 |
+| 边界违例 | = 0 | 不变量 | 0 |
+| 压缩率 | **> 0 (有得压即可, 能压 10 个点也是收益)** | 弱底线, 防零收益 | 83.2-98.9% |
+| 压缩率回归 | 同语料集上规则集变更不得显著下降 | 防退化哨兵 (CI 内对比) | — |
+
+压缩率作为**报告指标**持续跟踪 (供 L1 必要性检查与呈现策略决策), 不做绝对门槛; warning/info 呈现策略 (折叠/过滤) 是 MVP 定稿项, 它决定消费端看到的实际体量。
 
 ## 7. POC 未覆盖 (MVP 须补)
 

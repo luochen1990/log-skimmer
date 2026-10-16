@@ -40,12 +40,15 @@ pub enum Kind {
     Noise,
 }
 
-/// 命中语义 (spec §1): failure = 失败证据 (成功 job 命中即 FP); warning = 无论成败都有价值 (不计 FP/FN)。
+/// 命中语义 (spec §1): failure = 失败证据 (成功 job 命中即 FP);
+/// warning = 有问题倾向但非失败 (deprecation 类); info = 纯环境快照 (版本行等)。
+/// warning/info 均不计 FP、不参与 FN。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Intent {
     Failure,
     Warning,
+    Info,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

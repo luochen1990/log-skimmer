@@ -1,7 +1,7 @@
 # Log Skimmer 规则格式与状态机规范 (v0)
 
 > 职责边界: 本文是规则 YAML 格式、逐行状态机语义、fragment 输出协议与 L0 统计口径的**单一事实来源**, 是规则编写者与引擎实现者的共同契约。两者对语义的任何疑问以本文为准; 本文未定义的行为视为未指定 (实现不应依赖)。
-> 版本: v0.2 (POC)。v0.1 吸收 T2 实测反馈 (A0 行语义/宿主前缀自承载); v0.2 吸收第二轮增量建议 (intent 字段/坐标恒带/双粒度统计/三态与 rerun 口径)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
+> 版本: v0.3 (POC)。v0.1 吸收 T2 实测反馈 (A0); v0.2 吸收第二轮增量建议 (intent/坐标恒带/双粒度/三态与 rerun); v0.3 intent 三分化 (failure|warning|info, 需求方反馈: 非 failure 信息区分问题倾向与纯环境快照)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
 
 ## 0. 设计灵魂 (约束一切后续演进)
 
@@ -29,7 +29,7 @@ kind: signal                  # signal (提取) | noise (标记噪音)
 # ---- 选填 (默认值如下) ----
 repo: null                    # scope: repo 时必填, "owner/name"
 category: null                # fmt|lint|typecheck|build|test|infra|other (POC 期允许 null=unknown; 枚举集 MVP 调研后冻结)
-intent: failure               # failure|warning — 见下方语义表; noise 规则必须缺省
+intent: failure               # failure|warning|info — 见下方语义表; noise 规则必须缺省
 confidence: medium            # high|medium|low (片段继承, 排序参考)
 context: { before: 0, after: 0 }   # 输出边界扩展 (行数, 不参与状态机)
 structured-hint: null         # 未来字段, POC 不实现, 保留占位
@@ -39,10 +39,13 @@ attribution: null             # POC 手写规则省略; Adapter 生成时必填
 
 `intent` 语义 (FP/FN 统计分层的依据, 与 `category` 正交 — category 说「什么类别的信息」, intent 说「命中对成败判定意味着什么」):
 
-| 取值 | 语义 | 统计口径 |
-| --- | --- | --- |
-| `failure` | 提取失败证据; 在通过的 job 里命中 = FP | **FP 只在这类规则上统计**; 参与 FN |
-| `warning` | 提取无论成败都有价值的信息 (如 `warning: unused variable`) | 成功 job 命中属预期, 不计 FP; 不参与 FN |
+| 取值 | 语义 | 例子 | 统计口径 |
+| --- | --- | --- | --- |
+| `failure` | 提取失败证据; 在通过的 job 里命中 = FP | rustc `error[E0308]` / nix error 树 / pytest `FAILED` | **FP 只在这类规则上统计**; 参与 FN |
+| `warning` | **有问题倾向**但非失败 — 将来会坏/值得注意的信号 | `warning: ... is deprecated` / `colliding subpath` | 不计 FP; 不参与 FN |
+| `info` | **纯环境/上下文快照**, 无问题倾向 — 排除环境因素、复现定位时有用 | runner/工具链版本行 / 测试通过摘要 (`N pass / 0 fail`) | 不计 FP; 不参与 FN |
+
+warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊断时高优先), 后者是环境事实 (按需取用)。消费端呈现分层 (如 info 默认折叠) 由 MVP 定稿, 引擎/统计口径二者等价。
 
 字段约束 (加载期校验, 违例 = 规则集非法, 整体拒绝加载):
 

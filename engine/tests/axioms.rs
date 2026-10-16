@@ -298,6 +298,16 @@ fn intent_defaults_and_inheritance() {
         "显式 warning 继承"
     );
 
+    let info = rules(
+        "id: t-i3\ntitle: i\ntool: t\nscope: global\nkind: signal\nintent: info\npatterns:\n  - regex: '^v[0-9]'\n",
+    );
+    let res3 = skim("-", &info, &lines(&["v1.98.0 toolchain"]));
+    assert_eq!(
+        res3.blocks[0].fragments[0].intent,
+        Intent::Info,
+        "info = 纯环境快照通道"
+    );
+
     let dir = std::env::temp_dir().join("ls-test-intent");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -340,4 +350,3 @@ fn context_override() {
         "原规则不受影响"
     );
 }
-

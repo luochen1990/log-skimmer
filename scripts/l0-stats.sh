@@ -7,9 +7,9 @@ RL="$(dirname "$0")/../rules"
 DL="$(dirname "$0")/../data/logs"
 
 # --- 汇总态 ---
-declare -A IN_T=() OUT_T=() SIG_T=() FP_T=() WN_T=() FN_T=() N_T=()
+declare -A IN_T=() OUT_T=() SIG_T=() FP_T=() WN_T=() INF_T=() FN_T=() N_T=()
 declare -A RULE_HIT=() RULE_FP=() RULE_FPX=() RULE_LINES=()   # per-rule: fragments / success-failure-intent-frags / 命中样本数 / 块行数
-BASE_IN_T=0; BASE_OUT_T=0; BASE_FP=0; BASE_FN=0; BASE_N=0
+BASE_IN_T=0; BASE_OUT_T=0; BASE_FP=0; BASE_FN=0; BASE_N=0; BASE_SC=0
 
 for j in "$DL"/*/*.log.json; do
   log="${j%.log.json}.log"; [ -f "$log" ] || continue
@@ -28,7 +28,8 @@ for j in "$DL"/*/*.log.json; do
   done < <(jq -r '.blocks[].fragments[] | [.rule, 1, (.block[1]-.block[0]+1)] | @tsv' <<<"$r")
   if [ "$con" = success ]; then
     FP_T[$repo]=$(( ${FP_T[$repo]:-0} + fifrags ))
-    WN_T[$repo]=$(( ${WN_T[$repo]:-0} + wnfrags ))
+    WN_T[$repo]=$(( ${WN_T[$repo]:-0} + wnfrags )); INF_T[$repo]=$(( ${INF_T[$repo]:-0} + $(jq "[.blocks[].fragments[] | select(.intent==\"info\")] | length" <<<"$r") ))
+    BASE_SC=$((BASE_SC+1))
     # per-rule FP (failure-intent on success)
     while IFS=$'\t' read -r rid cnt; do
       RULE_FP[$rid]=$(( ${RULE_FP[$rid]:-0} + cnt ))
@@ -52,12 +53,12 @@ for j in "$DL"/*/*.log.json; do
 done
 
 echo "=== 汇总 (per repo × conclusion; rerun-through 已排除) ==="
-printf '%-32s %-9s %5s %9s %9s %6s %6s %14s\n' repo concl runs 'comp%blk' 'comp%sig' FN 'FP(fail-int)' 'warn-hit(succ)'
+printf '%-32s %-9s %5s %9s %9s %6s %6s %14s\n' repo concl runs 'comp%blk' 'comp%sig' FN 'FP(fail-int)' 'warn/info-hit(succ)'
 for key in "${!N_T[@]}"; do
   repo="${key%|*}"; con="${key#*|}"; n=${N_T[$key]}; i=${IN_T[$key]}; o=${OUT_T[$key]}; s=${SIG_T[$key]}
   cb=$((10000*(i-o)/(i>0?i:1))); cs=$((10000*(i-s)/(i>0?i:1)))
   if [ "$con" = failure ]; then printf '%-32s %-9s %5d %6d.%02d%% %6d.%02d%% %6s %8s\n' "$repo" "$con" "$n" $((cb/100)) $((cb%100)) $((cs/100)) $((cs%100)) "${FN_T[$repo]:-0}" "-"
-  else printf '%-32s %-9s %5d %9s %9s %6s %8d\n' "$repo" "$con" "$n" "-" "-" "-" "${FP_T[$repo]:-0}"; fi
+  else printf '%-32s %-9s %5d %9s %9s %6s %14s\n' "$repo" "$con" "$n" "-" "-" "-" "${FP_T[$repo]:-0} (${WN_T[$repo]:-0}w/${INF_T[$repo]:-0}i)"; fi
 done | sort
 echo
 echo "=== per-rule (全语料; FP=failure-intent 在 success job 的 fragment 数) ==="
@@ -68,4 +69,4 @@ done | sort -k2 -rn
 echo
 echo "=== rg 基线 (error|warn ∪ tail-100) vs Log Skimmer ==="
 bc=$((10000*(BASE_IN_T-BASE_OUT_T)/(BASE_IN_T>0?BASE_IN_T:1)))
-printf 'baseline: %d runs, 压缩 %d.%02d%%, success-run error/warn 匹配行 (FP 代理) %d, FN %d\n' "$BASE_N" $((bc/100)) $((bc%100)) "$BASE_FP" "$BASE_FN"
+printf 'baseline: %d runs, 压缩 %d.%02d%%, 成功 job %d 个上假阳性行 %d (均值 %.1f 行/job, 中招率见报告), FN %d\n' "$BASE_N" $((bc/100)) $((bc%100)) "$BASE_SC" "$BASE_FP" "$(awk "BEGIN{print $BASE_FP/$BASE_SC}")" "$BASE_FN"

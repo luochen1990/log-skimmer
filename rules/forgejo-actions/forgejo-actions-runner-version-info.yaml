@@ -1,0 +1,13 @@
+# samples: lc-studio/nixos/19371-24992, 19373-24994 (全部本仓样本首行)
+# intent: info 的首个实例 — runner 版本是纯环境快照 (无问题倾向), 排除环境因素/
+# 复现定位时按需取用。行内匹配 (行首为 GHA 时间戳前缀)。
+id: forgejo-actions-runner-version-info
+title: Forgejo runner 版本信息
+tool: forgejo-actions
+scope: global
+category: infra
+confidence: high
+intent: info
+patterns:
+  - regex: 'Runner [0-9a-f-]+ \(version:v[0-9.]+\) received task'
+kind: signal
