@@ -351,9 +351,10 @@ fn context_override() {
     );
 }
 
-// 零块警示 (spec §3): --expect-failure 下零 failure-intent 块 → 退出码 3; 有块 → 0。
+// 零块警示 (spec §3, 默认开启 safe by default): 零 failure-intent 块 → 退出码 3;
+// --expect-success 退出 (成功日志 warning/info 消费场景); 有 failure 块 → 0。
 #[test]
-fn expect_failure_zero_hit_guards() {
+fn zero_hit_guard_default_on() {
     let bin = env!("CARGO_BIN_EXE_log-skimmer");
     let dir = std::env::temp_dir().join("ls-test-ef");
     let _ = std::fs::remove_dir_all(&dir);
@@ -365,16 +366,44 @@ fn expect_failure_zero_hit_guards() {
     .unwrap();
     let clean = dir.join("clean.log");
     std::fs::write(&clean, "all good\nno errors here\n").unwrap();
+    // 默认 (失败诊断主场景): 零块 → exit 3, 无需任何参数
     let out = std::process::Command::new(bin)
-        .args(["skim", clean.to_str().unwrap(), "--rules", dir.join("t").to_str().unwrap(), "--expect-failure"])
+        .args([
+            "skim",
+            clean.to_str().unwrap(),
+            "--rules",
+            dir.join("t").to_str().unwrap(),
+        ])
         .output()
         .unwrap();
-    assert_eq!(out.status.code(), Some(3), "预期失败 + 零 failure 块 → exit 3");
+    assert_eq!(out.status.code(), Some(3), "默认: 零 failure 块 → exit 3");
     assert!(String::from_utf8_lossy(&out.stderr).contains("疑似漏检"));
+    // --expect-success: 零块是正常结果 → exit 0
+    let out1 = std::process::Command::new(bin)
+        .args([
+            "skim",
+            clean.to_str().unwrap(),
+            "--rules",
+            dir.join("t").to_str().unwrap(),
+            "--expect-success",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        out1.status.code(),
+        Some(0),
+        "--expect-success: 零块 → exit 0"
+    );
+    // 有 failure 块 → exit 0
     let dirty = dir.join("dirty.log");
     std::fs::write(&dirty, "ERR boom\n").unwrap();
     let out2 = std::process::Command::new(bin)
-        .args(["skim", dirty.to_str().unwrap(), "--rules", dir.join("t").to_str().unwrap(), "--expect-failure"])
+        .args([
+            "skim",
+            dirty.to_str().unwrap(),
+            "--rules",
+            dir.join("t").to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert_eq!(out2.status.code(), Some(0), "有 failure 块 → exit 0");

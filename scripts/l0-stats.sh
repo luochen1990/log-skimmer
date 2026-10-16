@@ -16,7 +16,7 @@ for j in "$DL"/*/*.log.json; do
   con=$(jq -r .conclusion "$j"); att=$(jq -r '.attempt // 1' "$j"); repo=$(jq -r .repo "$j")
   # rerun-through: attempt>1 且最终成功 → 排除主指标
   if [ "$att" -gt 1 ] && [ "$con" = "success" ]; then continue; fi
-  r=$("$BIN" skim "$log" --rules "$RL" --json 2>/dev/null)
+  r=$("$BIN" skim "$log" --rules "$RL" --json --expect-success 2>/dev/null)
   in=$(jq .input_lines <<<"$r"); out=$(jq .output_lines <<<"$r"); sig=$(jq .stats.signature_output_lines <<<"$r")
   # failure-intent frags (FP/FN 口径) 与 warning frags 分层
   fifrags=$(jq '[.blocks[].fragments[] | select(.intent=="failure")] | length' <<<"$r")
