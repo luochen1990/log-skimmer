@@ -1,0 +1,14 @@
+# samples: sst__opencode/38850055589-116809069736, niri-wm__niri/*, nix-community__home-manager/* (全部 GHA 样本首行)
+# 成功侧安全网 (spec §0 召回优先配套): GHA job 日志首行恒有 runner 版本声明 —
+# 与失败侧 annotation 安全网对称, 兑现「任何 CI 日志 skim 非零」的结构承诺,
+# 使零块无条件等于「规则集失明」→ fallback。行内匹配 (容忍 BOM/时间戳前缀)。
+id: github-actions-runner-version-info
+title: GHA runner 版本信息 (成功侧安全网)
+tool: github-actions
+scope: global
+category: infra
+confidence: high
+intent: info
+patterns:
+  - regex: 'Current runner version: .[0-9.]+.'
+kind: signal

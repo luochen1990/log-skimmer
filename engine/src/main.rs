@@ -25,10 +25,6 @@ enum Cmd {
         /// 全局覆盖 context 为 before=N/after=N (默认按规则自带)
         #[arg(long)]
         context: Option<u32>,
-        /// 声明该 job 预期成功: 零 failure-intent 块不报警 (成功日志 warning/info 消费/Validator 回测场景;
-        /// 默认 (失败诊断主场景) 零块 → exit 3 + 漏检警告, spec §3 零块警示默认开启)
-        #[arg(long)]
-        expect_success: bool,
     },
 }
 
@@ -39,7 +35,6 @@ fn main() {
         rules,
         json,
         context,
-        expect_success,
     } = cli.cmd;
     let rules_loaded = match log_skimmer::load_rules(&rules) {
         Ok(r) => match context {
@@ -89,17 +84,13 @@ fn main() {
         result.input_lines, result.output_lines, compression,
         result.stats.noise_lines_removed, result.stats.boundary_violations.len()
     );
-    // 零块警示 (spec §3, 默认开启 — safe by default): 失败诊断主场景下零 failure-intent
-    // 块 = 疑似漏检, 退出码 3 让调用方可编程回退。--expect-success 显式退出 (成功日志
-    // warning/info 消费、Validator 回测 — 零块是正常结果)。
-    if !expect_success
-        && !result
-            .blocks
-            .iter()
-            .flat_map(|b| &b.fragments)
-            .any(|f| f.intent == log_skimmer::Intent::Failure)
-    {
-        eprintln!("⚠ 零 failure 提取 — 疑似漏检 (召回优先, spec §0); 若该 job 预期成功请传 --expect-success; 否则建议回退全量日志或 grep 基线");
+    // 零块警示 (spec §3, 无条件): 「任何真实 CI 日志 skim 非零」是规则集的结构承诺
+    // (失败侧 annotation/runner 安全网 + 成功侧 runner 版本 info 规则) — 零块 = 规则集
+    // 对该日志失明, 与 job 成败无关, 调用方应无条件回退 rg 基线。
+    if result.blocks.is_empty() && result.input_lines > 0 {
+        eprintln!(
+            "⚠ 零提取 — 规则集对该日志失明 (spec §0 召回优先); 建议回退 rg error|warn && tail 基线"
+        );
         std::process::exit(3);
     }
 }
