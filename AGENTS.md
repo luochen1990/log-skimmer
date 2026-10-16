@@ -18,7 +18,7 @@
 - **语料已入仓 (M1 起)**: `data/logs/` 67 对样本是 L0 门禁回归 fixture, 必须可复现 (POC 期不入仓决策已演进); 抓取残留 `fetch.log` 仍排除; 规则头注释记 `# samples:` 溯源。
 - **脚本**: L0 家族三件套 — `l0-collect.sh` (采集 SSOT, fail-fast, 输出含 conclusion 供三态口径) / `l0-summarize.jq` (统计口径 SSOT; FN 谓词只数 failure/timed_out, cancelled 不计缺失, spec §4) / `l0-gate.sh` (判定阈值 SSOT, 含语料在场断言防空转假绿); `l0-stats.sh` 是消费采集层的人类报表 (含 rg 基线对照)。改口径只动前两者, 改阈值只动 gate。新增统计/判定脚本默认同栈 (bash + jq); 超过 ~50 行或出现复杂控制流时改为 engine 内嵌子命令 (Rust), 不再引入新语言。
 - 环境: devShell 经 flake.nix (`nix develop`), 提供 rust 工具链 + just/jq/ripgrep/yq; cargo 国内镜像 SSOT 在 `.cargo/config.toml` (rsproxy)。
-- **CI**: `.forgejo/workflows/ci-merge.yml` (org 标准 P0 契约, 骨架源自 lc-studio/forgejo-actions, 只改 ⟦必改⟧/⟦可选⟧ 字段); 契约实现 justfile `ci-merge` recipe (外层 nix develop 进 devShell, CI runner 无系统 cargo)。
+- **CI**: `.forgejo/workflows/ci-merge.yml` (org 标准 P0 契约, 骨架源自 lc-studio/forgejo-actions, 只改 ⟦必改⟧/⟦可选⟧ 字段); 契约实现 justfile `ci-merge` recipe。**vm-nix runner 契约 (secret-guard 同模式)**: VM systemPackages 预装 rust 工具链 (rustc/cargo/clippy/rustfmt/just, 版本随 VM nixpkgs), **禁止 `nix develop`/`nix build` 在 VM 内求值 flake** (ro store + temproots 无写权限, 必炸 — 首跑 run 19423 实证); 编译产物经 job 级 env `CARGO_TARGET_DIR=/var/lib/forgejo-runner/cache/cargo-target` 落宿主持久卷跨 job 复用。devShell (flake.nix) 仅服务本地开发。
 
 ## POC 交付物清单 (DoD, 已验收)
 

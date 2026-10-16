@@ -90,11 +90,11 @@ opencode / Claude 等客户端配置示例 (command 形态):
 
 部署前提: 二进制旁须有 `rules/` 目录, 或设 `LOG_SKIMMER_RULES` 指向规则集目录 (缺省探测编译期路径与可执行文件相邻路径, 均失败时 fail-fast 退出码 2)。单条日志上限 32MB, 超限报错并建议 `tail -c` 截取。
 
-开发验证 (开发环境经 nix flake 提供, 无需系统 rust 工具链):
+开发验证 (CI 与本地同链: 直接调用 — 需 PATH 有 rust 工具链; 纯 nix 环境经 devShell):
 
 ```bash
-nix develop -c just check  # cargo fmt + clippy + test (devShell 内快速循环)
-just ci-merge              # CI 合入门禁: fmt → clippy → test → 规则加载回归 → L0 全语料门禁
+just ci-merge              # CI 合入门禁: fmt → clippy → test → L0 全语料门禁 (vm-nix 预装工具链直用)
+nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt + clippy + test)
 ```
 
 ## 贡献指引

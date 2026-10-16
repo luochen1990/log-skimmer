@@ -23,9 +23,10 @@ l0-stats:
     bash scripts/l0-stats.sh
 
 # ci-merge — org 标准 CI P0 合入门禁契约:
-#   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (fmt→clippy→test→规则加载→L0)。
-# CI runner (vm-nix) 有 nix+just 无系统 cargo → 经 nix develop 进入 devShell (flake.nix)
-ci-merge:
-    nix develop --command just _ci-merge
+#   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (fmt→clippy→test→L0)。
+# CI runner (vm-nix) 契约: 预装工具链直用, 禁 nix develop (VM ro store + temproots
+# 无写权限, nix 求值必炸 — forgejo-runner-vm config 头注释; secret-guard 同模式)。
+# 本地开发: 系统无 rust 时 `nix develop -c just check` 进 devShell (flake.nix)。
+ci-merge: _ci-merge
 
 _ci-merge: check l0-gate
