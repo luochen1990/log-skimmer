@@ -18,9 +18,16 @@ if BASE_BIN=$(bash scripts/l0-base.sh 2>/dev/null); then
   WT=/tmp/opencode/l0-base-wt
   if "$BASE_BIN" l0 --help >/dev/null 2>&1; then
     "$BASE_BIN" l0 --corpus data/logs --rules data/rules --emit-summary > /tmp/l0-s-base.json
-  else
+  elif [ -f "$WT/scripts/l0-collect.sh" ]; then
+    # 中间形态 master (有 bash 采集链无 l0 子命令的窗口期): 用其自带链
     RULES_DIR="$ROOT/data/rules" CORPUS_DIR="$ROOT/data/logs" LOG_SKIMMER_BIN="$BASE_BIN" \
       bash "$WT/scripts/l0-collect.sh" | jq -s -f "$WT/scripts/l0-summarize.jq" > /tmp/l0-s-base.json
+  else
+    # 奠基 PR 场景: master (POC 形态) 无可比判定链 — 降级单测; 合并后 master
+    # 具备完整链, 后续 PR 双测自动生效
+    echo "WARN: master 无 l0 子命令亦无 bash 采集链 (POC 形态), 降级单测" >&2
+    "$BIN" l0 --corpus data/logs --rules data/rules
+    exit $?
   fi
   "$BIN" l0 --corpus data/logs --rules data/rules --base /tmp/l0-s-base.json
 else
