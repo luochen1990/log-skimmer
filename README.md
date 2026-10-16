@@ -1,34 +1,78 @@
-# Log Skimmer (POC)
+# Log Skimmer
 
-> CI 日志高信噪比提取工具 — 为 AI agent 提供确定性的「学习型规则集」日志提取。
-> 立项评估见 nixos 仓 issue #1872; 本仓处于 **POC 阶段**。
+CI 日志高信噪比提取工具 — 以确定性规则集把失败的 CI 日志压缩成带坐标、带语义标注的高信噪比摘要，供 AI agent 消费。
 
-## 动机
+> 引擎与规则集已在 4 个真实仓库的语料上完成回测验证 (见下文数据), 并以 L0 门禁化语料回归守住质量基线; MCP 服务等集成形态是未来项。
 
-Agent 消费 CI 日志时, 全量日志爆上下文且信噪比极低 (github-mcp-server #608 官方确认未解决); grep 单行正则抓不到多行错误树。Log Skimmer 用「LLM 离线学习规则集 + 运行期纯正则逐行状态机提取」同时解决成本、可复现、可审计。
+## 项目动机
 
-## POC 范围 (仅此四件事)
+AI agent 排查 CI 失败时, 日志消费存在结构性困境:
 
-1. 从 GHA 真实仓 (sst/opencode · niri-wm/niri · nix-community/home-manager) 抓取成败 run 的 job 日志样本;
-2. 人工分析失败模式, 按规范手写规则 (不用 LLM — 验证「规则可人工产出」这条基线);
-3. Rust 引擎: 加载规则 + 逐行状态机扫描 + fragment 输出 + L0 统计;
-4. 数据报告: 压缩率 / FP / FN / 边界完整性, 据此定 MVP 验收线。
+- **全量日志太大**: 一次失败的 job 动辄数千上万行, 整体塞进上下文既昂贵, 又让关键错误淹没在噪音里。
+- **关键词基线假阳性高**: agent 的保底手段 `rg -i 'error|warn'` 会把成功 job 里大量无害的 warning 字样当成错误信号。POC 实测: 该基线在 18 个成功 job 上产出 **230 行假阳性** (FP 率 100%, 均值 12.8 行/job); Log Skimmer 同口径为 **0 行**。
+- **单行正则抓不住错误树**: nix/rustc 等工具的失败证据是多行结构 (POC 语料中最大的 nix 错误树达 219 行), `rg` 只回显孤立锚行, 支撑「瞥见」但无法支撑「定位」。
 
-**不做**: MCP / Adapter (LLM 学习) / 按需拉取 / WebPage / CI 集成。
+Log Skimmer 的解法是**学习型规则集 + 运行期纯正则逐行状态机**: 规则描述「各类工具的失败证据长什么样」(锚行 + 多行扩展), 引擎按规则提取出完整错误树并附加坐标与语义标注。LLM 只在未来学习期 (规则生成 Adapter) 参与, 读取期零 LLM、零网络、结果可复现。
 
-## 目录
+POC 回测语料: **4 个真实仓库、67 对成败样本 (49 失败 / 18 成功)、约 6 万行日志**, 覆盖 GitHub Actions 与 Forgejo Actions 两种 CI 平台:
 
-```
-docs/rule-format.md   # 规则格式与状态机规范 (SSOT, 必读)
-rules/<tool>/         # 规则 (一文件一规则)
-data/logs/            # 日志样本 (gitignore, 本地回测)
-engine/               # Rust 引擎 (POC: CLI)
-scripts/              # 抓取脚本
-```
+| 仓库 | 工具栈 | 形态特征 |
+| --- | --- | --- |
+| sst/opencode | bun / eslint / playwright | GHA 时间戳前缀 + ANSI 色码 |
+| niri-wm/niri | cargo / rustc / rust-test | 同上 |
+| nix-community/home-manager | nix / git / nixfmt | 完整多行错误树 (最大 219 行) |
+| lc-studio/nixos | nix / just / treefmt / nim / systemd | Forgejo 沙箱轮询回显前缀 |
 
-## 快速开始
+核心结果: FN (失败完全漏检) 0/49; FP 0 行 vs 基线 230 行; 双粒度压缩率 — 块级 83.9%-98.9%, 签名行级 99.18%-99.73% (巨树场景收益最大: 219 行错误树在签名行级收敛为 1 行索引)。
+
+## 关键特性
+
+- **intent 三分**: 每条规则标注提取意图 — `failure` (失败证据, 在成功 job 命中才算假阳性) / `warning` (有问题倾向但非失败, 如 deprecation) / `info` (纯环境快照, 如 runner 版本)。分层让 FP 统计口径语义正确: 「成功 job 里有 warning」是预期而非误报。
+- **category 封闭枚举**: 10 个封闭值 (`fmt` / `lint` / `typecheck` / `build` / `test` / `security` / `deps` / `infra` / `config` / `unknown`), 描述信息类别, 与 intent 正交。agent 可据此程序化过滤, 不必再对文本做二次理解。
+- **零块安全网**: 规则集底座恒有双侧平台安全网 — 失败侧 (CI 平台 annotation / runner 失败信号) 兜住失败日志, 成功侧 (runner 版本等环境 info 规则) 兜住成功日志。由此「任何真实 CI 日志 skim 输出非零」成为**结构承诺** (POC 67/67 兑现); 零块 = 规则集对该日志失明, 与 job 成败无关。
+- **结构承诺与可复现**: 零 LLM、零网络, 逐行状态机 + RE2 语义正则 (线性复杂度), 同输入恒同输出。输出定位为「索引 + 摘要」: 每个块恒带行号坐标与元数据 (规则 / category / intent / confidence), agent 据此决定是否展开上下文, 而非把输出当日志替代品。
+- **规则 folksonomy**: 无中央注册表, 规则文件的存在即定义工具 ID (`rules/<tool-id>/<rule-id>.yaml`, 一文件一规则)。当前内置 15 个工具共 30 条规则, 覆盖 bun / cargo / eslint / forgejo-actions / git / github-actions / just / nim / nix / nixfmt / playwright / rust / rustc / systemd / treefmt。
+
+路线图: MCP 服务、LLM 规则学习 Adapter 等集成形态属未来规划, 当前不提供。
+
+## 快速上手
+
+构建 (Rust toolchain):
 
 ```bash
-scripts/fetch-logs.sh            # 抓样本 (需 GITHUB_API_TOKEN)
-cargo run --release -- engine/ -- skim <log-file> --rules rules/   # 提取
+cargo build --release
+# 产物: target/release/log-skimmer
 ```
+
+两种输出形态:
+
+```bash
+# 人类可读 (默认): 块间 --- 分隔, 块头带行号坐标与命中规则, 尾行输出压缩统计
+target/release/log-skimmer skim failed-job.log --rules rules/
+
+# JSON 协议 (--json): 块/fragment 结构化坐标与元数据 + L0 统计, 供 agent 程序化消费
+target/release/log-skimmer skim failed-job.log --rules rules/ --json
+
+# --context N: 全局覆盖上下文扩展为前 N 行 / 后 N 行 (默认按规则自带)
+target/release/log-skimmer skim failed-job.log --rules rules/ --context 3
+```
+
+退出码语义 (调用方契约):
+
+| 退出码 | 含义 | 调用方行为 |
+| --- | --- | --- |
+| 0 | 正常完成 | 消费输出 |
+| 2 | 规则集非法 (加载校验失败) 或日志读取失败 | 修复规则 / 日志后重试 |
+| 3 | 零块失明 — 规则集对该日志无任何命中 | 无条件回退 `rg -i 'error|warn'` 基线 |
+
+开发验证 (开发环境经 nix flake 提供, 无需系统 rust 工具链):
+
+```bash
+nix develop -c just check  # cargo fmt + clippy + test (devShell 内快速循环)
+just ci-merge              # CI 合入门禁: fmt → clippy → test → 规则加载回归 → L0 全语料门禁
+```
+
+## 贡献指引
+
+- 新增或修改规则: 读 [rules/README.md](rules/README.md) (规则贡献指南与打标纪律)。
+- 规则格式、状态机语义与输出协议的规范 SSOT: [docs/rule-format.md](docs/rule-format.md)。
