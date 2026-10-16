@@ -12,7 +12,7 @@
 # 数据链: l0-collect.sh (采集) → l0-summarize.jq (口径) → 本脚本 (判定), 判定阈值 SSOT 在本文件。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BASELINE="$ROOT/data/l0-baseline.json"
+BASELINE="${CORPUS_DIR:-$ROOT/data/logs}/l0-baseline.json" # 基线随语料仓版本化 (语料与基线恒配对; --update-baseline 亦写此处)
 FP_RATE_MAX=2          # FP(failure-intent) 行数率上限 %
 REGRESS_MAX_PCT=2      # 压缩率相对退化判红线 %
 IMPROVE_HINT_PCT=2     # 压缩率相对改善提示线 % (不判红)

@@ -1,0 +1,138 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# 薄入口骨架 — org 标准 CI P2 周期档 ci-periodic (v3.0, 2026-09-16; 三档分级
+# ci-merge/ci-deploy/ci-periodic 见 lc-studio/forgejo-actions README)
+# ─────────────────────────────────────────────────────────────────────────────
+# 使用: 前提 — 仓库已接入 ci-merge 骨架 (P0), justfile 已实现 `ci-periodic` 契约
+#   recipe (**非超集**: 仅 P2 层步骤, 见下)。复制本文件到
+#   .forgejo/workflows/ci-periodic.yml; skip-if-passed 本地 action 与 ci-merge.yml
+#   共用 (接入时已拷贝, 无需重复), repo secrets 为仓库级, 各 workflow 自动共用。
+#   只改 ⟦⟧ 标记的 per-repo 字段。
+#
+# 无门禁语义: ci-periodic 红 = 欠债待还, **不阻塞任何事** — 低频功能验证 /
+#   特定场景回归的兜底网。P2 档职责见 README rubric (E2E 长尾, 跨版本升级矩阵,
+#   真外部系统集成, coverage 防倒退等)。
+#
+# 刻意不订阅 push (这是三档分级的意义所在): 慢内容离开 push 关键路径 —
+#   master push 的即时验证由 ci-merge/ci-deploy 承担, P2 内容延迟到夜间消化,
+#   单槽位 org runner 的白天槽位留给门禁类 run。
+#
+# 与 ci-deploy nightly 的非对称去重 (原理, 勿"顺手统一"):
+#   ci-deploy nightly  无条件重跑 — 安全类步骤环境敏感 (同 SHA, 新 CVE 出现即须再验)
+#   ci-periodic 按 SHA 去重 — 回归测试代码敏感 (同代码同结果), 同 SHA 跑一次即足:
+#     新 commit 合入当晚跑一次, 此后夜间 skip (空闲仓库零成本); 失败无 success
+#     记录 → 次晚自动重试 (自愈); 手动 dispatch = 显式重试意图, 永不跳过。
+#   代价声明: P2 步骤自身的环境漂移不设兜底 (非核心, 接受; P0/P1 的环境漂移
+#   仍由 ci-deploy nightly 无条件覆盖)。
+#
+# 特定情况逃生舱: workflow_dispatch 在 forgejo UI 可选任意分支 — 高风险 PR 想在
+#   合入前跑全量 P2 回归, 手动 dispatch 到该分支即可 (checkout 链按 GITHUB_SHA
+#   取所选分支 HEAD, 零额外机制)。
+#
+# 分层 (同 ci-merge.skeleton.yml, 详见 forgejo-actions README):
+#   骨架层  本文件 (含内联 checkout 链) — check-drift 结构断言锁死, 人工不改 (除 ⟦⟧ 字段)
+#   逻辑层  .forgejo/actions/skip-if-passed — 机器同步分发, 人工不改 (改 SSOT 上游)
+#   契约层  justfile 的 `ci-periodic` recipe — 各仓库自由实现 (非超集, 仅 P2 层步骤)
+#
+# [v3.0] 首版: schedule + dispatch 双事件, 快推去旧 concurrency, skip-if-passed
+#   仅 schedule 事件查询 (per-SHA 去重), check-drift 对接入仓库结构断言。
+#
+# ⟦必改⟧ timeout-minutes: P2 全量预算 + 余量 (硬上限, 超时算 failure)
+# ⟦可选⟧ cron: 默认 nightly 20:00 UTC (与 ci-deploy 的 19:00 错峰, 单槽位 runner
+#        先消化门禁档; 北京次日 04:00); 低频仓库可改周档 '0 20 * * 0'
+# ⟦可选⟧ env: 持久卷缓存重定向 (同 ci-merge.skeleton.yml, 按技术栈)
+# ⟦不改⟧ 其余全部 — checkout 链与 ci-merge.skeleton.yml 逐字节同构 (安全关键行同源,
+#        骨架演进时机械同步; 其中 BASE_REF 分支在本 workflow 恒为空 — 无
+#        PR 事件, 保留是为保持各骨架单一形态)
+name: ci-periodic
+
+on:
+  schedule:
+    # 按 SHA 去重的延迟验证入口 (去重原理见文件头; 语义上等价于 "每个新 commit 的
+    # P2 内容在夜间被验证一次", 而非 "每晚无条件全量")
+    - cron: '0 20 * * *'
+  workflow_dispatch: # 手动重试/逃生舱: forgejo UI → Actions → ci-periodic → Run
+                      # workflow (可选任意分支 — 高风险 PR 合入前全量回归)
+
+# 快推去旧: 夜间验证对象始终是 master HEAD (被更新的 HEAD supersede 的旧 HEAD
+# 不值得跑); dispatch 到 PR 分支时 ref 不同 → 独立 group 不互踩。schedule 的 ref
+# 为 master → 与 master 上的 dispatch 共组互取消, 属良性。
+concurrency:
+  group: ci-periodic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: vm-nix
+    # 无 job 级 if (同 ci-deploy.yml): 无 PR 事件 → 无 WIP 门禁需求;
+    # schedule 天然只在默认分支跑, dispatch 的分支由触发者自选
+    timeout-minutes: 30 # ⟦必改⟧ 语料刷新 (fetch 三仓 + 全语料 skim + 引擎 release 编译) 预算
+    # ⟦可选⟧ env: 持久卷缓存 + 语料刷新凭据 (CORPUS_GH_TOKEN = GitHub PAT,
+    #   同时供 fetch-logs 的 GITHUB_API_TOKEN — forgejo 自动注入的 GITHUB_TOKEN
+    #   指向本实例 API, 打不了 api.github.com)
+    env:
+      CARGO_TARGET_DIR: /var/lib/forgejo-runner/cache/cargo-target
+      CORPUS_GH_TOKEN: ${{ secrets.CORPUS_GH_TOKEN }}
+      GITHUB_API_TOKEN: ${{ secrets.CORPUS_GH_TOKEN }}
+    steps:
+      # ── checkout 链 (与 ci-merge.skeleton.yml 逐字节同构; 无法 action 化, 见其
+      #    文件头设计修正记录) — 不用 actions/checkout: 实例 DISABLE_HTTP_GIT=true
+      #    + SSH 用户名 forgejo + 端口 5522, 官方 action 硬编码不兼容。host key
+      #    TOFU: 优先 SSH_KNOWN_HOSTS secret 固定 (消除动态 keyscan 的 MITM 窗口,
+      #    directory-algebra #89); secret 缺失退回动态 keyscan + stderr 警告。
+      #    服务端 host key 变更须同步轮换该 secret。
+      #    PR 事件 fetch base+head (支持三点 diff); 其他事件浅克隆 --depth 1 省时
+      #    (本 workflow 无 PR 事件, 恒走浅克隆分支)。
+      - name: Checkout via SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          else
+            echo "WARN: repo secret SSH_KNOWN_HOSTS 未设置 (TOFU 固定要求), 退回动态 ssh-keyscan (存在 MITM 窗口)." >&2
+            ssh-keyscan -p 5522 git.lambda.lc >> ~/.ssh/known_hosts
+          fi
+          git init
+          git remote add origin "ssh://forgejo@git.lambda.lc:5522/${GITHUB_REPOSITORY}.git"
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags origin "$BASE_REF"
+            git fetch --no-tags origin "$GITHUB_SHA"
+          else
+            git fetch --depth 1 origin "$GITHUB_SHA"
+          fi
+          git checkout "$GITHUB_SHA"
+
+      # 最小权限收尾: 清理 deploy key — runner VM 与缓存卷为 org 各仓库共享 (单槽位
+      # 串行), 不清理则本 repo 的只读 key 对其他 repo 的后续 job 可读。
+      - name: Cleanup deploy key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519
+
+      # ── 内容去重 (checkout 后, 本地 action 此时才可读; 编排在骨架, 判定在逻辑层) ──
+      # 仅 schedule 事件查询 (与 ci-merge/ci-deploy 的 push-only 形成非对称分工,
+      # 原理见文件头): dispatch 是显式重试/逃生舱意图, 不查询。
+      # workflow_file 显式自指 ci-periodic.yml (关键, check-drift 有断言) — 查询的是
+      # **ci-periodic workflow 自身** 的历史成功 run。若沿用默认值 ci-merge.yml,
+      # PR/合入阶段的 P0 成功记录会毒化判定 → P2 被静默跳过 (P0 过 ≠ P2 过)。
+      # continue-on-error: API 失败退化为不跳过 (fail-open; 宁可重跑不可漏验)。
+      - name: skip-if-passed
+        id: skip
+        uses: ./.forgejo/actions/skip-if-passed
+        with:
+          workflow_file: ci-periodic.yml
+        if: success() && github.event_name == 'schedule'
+        continue-on-error: true
+
+      # 质量门禁 — 契约层入口, 各仓库 justfile 实现 `ci-periodic` recipe
+      # (**非超集**: 仅 P2 层步骤 — 低频验证/特定场景回归; 不重复 ci-merge/
+      # ci-deploy 内容, 单槽位 runner 经济性, P0/P1 已被门禁档 push+nightly 覆盖):
+      # 阻塞级 (run 内失败即红, 供次晚自愈重试与看板), 零参数。
+      - name: Quality gate (just ci-periodic)
+        if: success() && steps.skip.outputs.should_skip != 'true'
+        run: just ci-periodic

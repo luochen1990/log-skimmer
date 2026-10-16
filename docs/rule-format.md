@@ -182,7 +182,7 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 ## 5. 样本与配对 (POC 约定)
 
 - 样本存放: `data/logs/<repo-slug>/<run_id>-<job_id>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, attempt, ci, fetched_at}` — `repo` 为 **`host/owner/repo` 完整形态** (SSOT; 与规则 `repo:` 字段/manifest 索引键同构, oss-cache repo-id 同款), 目录名 `repo-slug` 为其扁平化 (`/`→`__`, 如 `github.com__sst__opencode`); conclusion 取 **job 级 result**; attempt 取数时从 API 元数据写入。
-- **语料入仓** (M1 门禁化决策, 演进记录: POC 期曾 "样本不入 git" — 工作区卫生考量; 门禁化后语料是 L0 回归 fixture, 可复现性优先, 67 对样本 6.1M 已入仓): 仅 `data/logs/fetch.log` 抓取残留排除; 原始日志含他人内容的版权/体积考量转为 — 语料仅作回归 fixture, 不对外分发语义, 发布形态再评估。未来规则 PR 配最小化样本 (错误片段截取, ≤50 行) 入库 — v0 不做。
+- **语料独立仓 (需求方裁决, 2026-10-16)**: 语料不入主仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏; 独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, 纯数据零维护) 承载, 由主仓 ci-periodic **滚动刷新** (weekly 拉最新 run 替换槽位 + master 引擎重算基线, 语料与基线原子配对提交 — 压缩率防退化判定恒为 "master × 当前语料", 无失配窗口)。主仓只放获取/刷新脚本 (`scripts/fetch-corpus.sh` 幂等克隆/更新, `scripts/corpus-refresh.sh` 刷新+回推), `data/logs` 是工作副本 (gitignored); L0 门禁的语料在场 ≥60 断言同时兜底语料获取失败。演进记录: POC 期不入仓 (工作区卫生) → M1 门禁化短暂入仓 (可复现性) → 需求方否决入仓 (腐坏论), 独立仓+持续刷新同时满足可复现与新鲜度。
 - 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。
 
 ## 6. POC 明确不做

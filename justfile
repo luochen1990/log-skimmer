@@ -22,6 +22,19 @@ l0-gate:
 l0-stats:
     bash scripts/l0-stats.sh
 
+# 语料获取 (幂等): 克隆/更新语料仓到 data/logs (public 零凭据; 离线容忍见脚本头注释)
+corpus-fetch:
+    bash scripts/fetch-corpus.sh
+
+# 语料仓滚动刷新 (P2 周期档载体): GHA 槽位重拉 + master 引擎重算基线 + 推回语料仓
+# (需 CORPUS_GH_TOKEN; 语料与基线原子配对提交, 主仓 PR 判定无失配窗口)
+corpus-refresh:
+    bash scripts/corpus-refresh.sh
+
+# ci-periodic — org 标准 P2 周期兜底契约 (非超集/阻塞级/幂等): 本仓承载语料新鲜度
+# (weekly 防 fixture 腐坏; 新语料的 FN 信号由主仓下一 PR 的 l0-gate 暴露, 归因明确)
+ci-periodic: corpus-refresh
+
 # ci-merge — org 标准 CI P0 合入门禁契约:
 #   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (fmt→clippy→test→L0)。
 # CI runner (vm-nix) 契约: 预装工具链直用, 禁 nix develop (VM ro store + temproots
@@ -29,4 +42,4 @@ l0-stats:
 # 本地开发: 系统无 rust 时 `nix develop -c just check` 进 devShell (flake.nix)。
 ci-merge: _ci-merge
 
-_ci-merge: check l0-gate
+_ci-merge: check corpus-fetch l0-gate

@@ -10,7 +10,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RL="$ROOT/rules"
-DL="$ROOT/data/logs"
+DL="${CORPUS_DIR:-$ROOT/data/logs}" # 语料根 (fetch-corpus.sh 克隆的语料仓工作副本; 参数化供 periodic 刷新复用)
 BIN="${LOG_SKIMMER_BIN:-${CARGO_TARGET_DIR:-$ROOT/target}/release/log-skimmer}"
 [ -x "$BIN" ] || { echo "skim 二进制不存在: $BIN (先 cargo build --release)" >&2; exit 1; }
 

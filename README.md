@@ -93,9 +93,11 @@ opencode / Claude 等客户端配置示例 (command 形态):
 开发验证 (CI 与本地同链: 直接调用 — 需 PATH 有 rust 工具链; 纯 nix 环境经 devShell):
 
 ```bash
-just ci-merge              # CI 合入门禁: fmt → clippy → test → L0 全语料门禁 (vm-nix 预装工具链直用)
+just ci-merge              # CI 合入门禁: 语料获取 → fmt → clippy → test → L0 全语料门禁 (vm-nix 预装工具链直用)
 nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt + clippy + test)
 ```
+
+回归语料来自独立语料仓 [log-skimmer-corpus](https://github.com/luochen1990/log-skimmer-corpus) (公开 CI 日志滚动快照, 由 CI weekly 刷新保持新鲜), 首次跑门禁时自动克隆到 `data/logs`。
 
 ## 贡献指引
 

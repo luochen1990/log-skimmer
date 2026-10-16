@@ -1,6 +1,5 @@
 target/
-# 语料入仓决策演进: POC 期 `data/` 整体 ignore (原始日志体积大且含他人内容, 工作区卫生决策);
-# M1 门禁化后语料是 l0-gate 回归 fixture, 必须可复现 → 67 对样本 (6.1M) 正式入仓;
-# fetch.log 抓取残留仍排除。
-data/logs/fetch.log
+# 语料是外部滚动资源 (语料仓 github.com/luochen1990/log-skimmer-corpus, CI 持续刷新保新鲜);
+# 主仓只放获取/刷新脚本 (fetch-corpus.sh / corpus-refresh.sh), data/logs 是其工作副本。
+data/logs/
 pdfs/

@@ -13,7 +13,7 @@ set -euo pipefail
 
 API="https://api.github.com"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DATA_DIR="$ROOT/data/logs"
+DATA_DIR="${CORPUS_DIR:-$ROOT/data/logs}" # 语料根 (参数化: periodic 刷新直接写语料仓工作副本)
 WANT_FAIL=${WANT_FAIL:-5}
 WANT_SUCCESS=${WANT_SUCCESS:-5}
 MAX_CANDIDATES=40 # 每仓候选 run 上限 (留冗余吸收 404 跳过)
