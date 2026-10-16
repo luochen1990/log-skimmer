@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────────
+# Log Skimmer 规则模板 (贡献起点)
+#
+# 用法: 复制本文件到 rules/<tool-id>/<语义名>.yaml 后逐字段填写;
+#   本文件自身即一条合法规则 (锚为自明占位正则, 对任何真实日志零命中),
+#   保留在本仓可被加载校验覆盖 — 复制后忘改 id 会在加载期被 id 唯一性拒绝。
+# 语义细节 (intent 三值/category 判定/状态机公理) 以 ../docs/rule-format.md 为 SSOT;
+# 贡献流程见 ../rules/README.md。
+# ─────────────────────────────────────────────────────────────────────
+# 溯源约定 (spec §5): 头注释标注来源样本, 供人工回溯规则依据:
+# samples: <owner>/<repo>/<run_id>-<job_id>, <owner>/<repo>/<run_id>-<job_id>
+# ─────────────────────────────────────────────────────────────────────
+id: template-my-rule # 必填: <tool-id>-<语义名>, 全局唯一 (重复加载为错误); ^[a-z0-9-]+$
+title: 规则模板 (一句话人类可读描述) # 必填
+tool: template # 必填: 工具维度, 与所在目录名一致 (目录 folksonomy 约定名)
+scope: global # 必填: global (全仓适用) | repo (单仓适用)
+repo: null # scope: repo 时必填, "host/owner/repo" 完整形态 (如 github.com/sst/opencode); global 时必须 null
+category: unknown # 选填: 封闭枚举 10 值 (fmt/lint/typecheck/build/test/security/deps/infra/config/unknown);
+#   省缺 = unknown。判定基准见 ../docs/category-survey.md; 宁缺勿错, 把握不足打 unknown
+intent: failure # 选填: failure (失败证据, 默认) | warning (问题倾向非失败) | info (纯环境快照);
+#   kind: noise 时必须缺省本字段
+confidence: medium # 选填: high | medium | low (默认; 片段继承, 排序参考)
+patterns: # 必填: 状态机 pattern 链, ≥1 项; patterns[0] 是锚 (开块唯一途径)
+  # 锚: 匹配当前行即开块。规则自带宿主前缀容忍 (CI 时间戳/ANSI 色码不预处理, 见 spec §2.A0)
+  - regex: '^__TEMPLATE_PLACEHOLDER_NEVER_MATCH__'
+  # 扩展 (可选): 开块后贪心消费后续行; loop: true 停留本 pattern 继续尝试; 须带缩进/前缀约束防过度贪心
+  - regex: '^\s'
+    loop: true
+kind: signal # 必填: signal (提取) | noise (标记噪音, 覆盖行从 signal 输出剔除)
+# context: { before: 0, after: 0 } # 选填: 输出边界扩展行数, 0-10; 只影响输出不影响状态机
+# structured-hint: null # 未来字段, POC 不实现, 保留占位 (勿用)
+# ─────────────────────────────────────────────────────────────────────
+# attribution — POC 手写规则省略; LLM Adapter 生成时必填, 形态:
+# attribution:
+#   contributor: <github-username>
+#   generated-by: { harness: <harness 名>, model: <模型名> }
+#   adapter-version: <x.y.z>
+# ─────────────────────────────────────────────────────────────────────

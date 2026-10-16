@@ -1,0 +1,12 @@
+# 职责: cargo 国内镜像 SSOT — rsproxy sparse 索引 (CI runner 与日常开发都在国内网络,
+# 直连 crates.io 慢且易超时)。对本仓库所有 cargo 调用生效 (本地/devShell/CI 同源)。
+# Cargo.lock 记录仍是 crates.io 源坐标, source replacement 只影响下载路径, 无 lock 污染。
+# 公开发布后再评估按环境切换 (海外贡献者本地删除本文件即可)。
+[source.crates-io]
+replace-with = 'rsproxy-sparse'
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+
+[net]
+git-fetch-with-cli = true
