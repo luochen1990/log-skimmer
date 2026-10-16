@@ -366,7 +366,12 @@ fn zero_block_guard_unconditional() {
     let clean = dir.join("clean.log");
     std::fs::write(&clean, "all good\nno errors here\n").unwrap();
     let out = std::process::Command::new(bin)
-        .args(["skim", clean.to_str().unwrap(), "--rules", dir.join("t").to_str().unwrap()])
+        .args([
+            "skim",
+            clean.to_str().unwrap(),
+            "--rules",
+            dir.join("t").to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(3), "零块无条件 → exit 3");
@@ -374,7 +379,12 @@ fn zero_block_guard_unconditional() {
     let dirty = dir.join("dirty.log");
     std::fs::write(&dirty, "ERR boom\n").unwrap();
     let out2 = std::process::Command::new(bin)
-        .args(["skim", dirty.to_str().unwrap(), "--rules", dir.join("t").to_str().unwrap()])
+        .args([
+            "skim",
+            dirty.to_str().unwrap(),
+            "--rules",
+            dir.join("t").to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert_eq!(out2.status.code(), Some(0), "有块 → exit 0");

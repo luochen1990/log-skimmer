@@ -1,0 +1,10 @@
+# 职责: cargo workspace 根 — 统一锁定依赖闭包 (engine + server 单一 Cargo.lock);
+# 新增 crate 时在 members 登记。resolver=2 是 edition 2021+ 的正确默认。
+[workspace]
+resolver = "2"
+members = ["engine"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "TBD"
