@@ -75,7 +75,7 @@ warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊�
 | `unknown` | 兜底 | 无法唯一判类 |
 
 打标纪律 (**宁缺勿错**): 错标污染查询语义 (agent 程序化过滤, 不可检测), unknown 只损失该规则自身的过滤价值。多因混合/类别超出枚举 (集合演化信号, PR 记录样例)/样例不足/L0 回测发现规则命中多类日志 → 打 unknown。unknown 占比长期 >40% 触发集合审视; unknown 升级具名走 PR 人工确认。flaky 是属性不是类别, 不进 category (未来独立维度)。
-| intent | `failure`(默认)/`warning`; **kind: noise 时必须缺省** |
+| intent | `failure`(默认)/`warning`/`info`; **kind: noise 时必须缺省** |
 
 ## 2. 状态机语义 (公理 A1-A8)
 
