@@ -1,0 +1,25 @@
+[package]
+# 职责: log-skimmer MCP server — rmcp 3.x stdio 协议层, 向 agent 暴露 engine 的 skim 能力
+# (tool: skim / read_around / list_rules)。业务语义 SSOT 在 engine lib 与 docs/rule-format.md。
+name = "log-skimmer-server"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+# binary 名固定 log-skimmer-mcp: MCP client 配置 (command 名) 的稳定契约
+[[bin]]
+name = "log-skimmer-mcp"
+path = "src/main.rs"
+
+[dependencies]
+log-skimmer = { path = "../engine" }
+rmcp = { version = "3", features = ["server", "macros", "transport-io"] }
+# 特性面收窄为 rt-multi-thread: 本 crate 自身只用 Runtime::new + block_on,
+# stdio transport 的 tokio 需求由 rmcp 侧 feature 满足 (实证: 冒烟测试全链路过)
+tokio = { version = "1", features = ["rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 版本须与 rmcp 3.x 内部依赖一致, 避免 JsonSchema 实现重复 (rmcp 宏生成的参数 schema 派生)
+schemars = "1"
