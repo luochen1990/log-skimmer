@@ -14,7 +14,7 @@ DL="${CORPUS_DIR:-$ROOT/data/logs}" # 语料根 (fetch-corpus.sh 克隆的语料
 BIN="${LOG_SKIMMER_BIN:-${CARGO_TARGET_DIR:-$ROOT/target}/release/log-skimmer}"
 [ -x "$BIN" ] || { echo "skim 二进制不存在: $BIN (先 cargo build --release)" >&2; exit 1; }
 
-for j in "$DL"/*/*.log.json; do
+for j in $(find "$DL" -name '*.log.json' | sort); do # 递归遍历 (语料嵌套布局 host/owner/repo/<date>/)
   log="${j%.log.json}.log"; [ -f "$log" ] || continue
   con=$(jq -r .conclusion "$j"); att=$(jq -r '.attempt // 1' "$j"); repo=$(jq -r .repo "$j")
   sample="${log#"$DL"/}"

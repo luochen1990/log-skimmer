@@ -23,19 +23,22 @@ need_token=0
 [ -n "${FORGEJO_API_TOKEN:-}" ] || need_token=1
 [ -f "$MANIFEST" ] || { echo "清单不存在: $MANIFEST" >&2; exit 1; }
 
-OUT="$DL/git.lambda.lc__lc-studio__nixos"
-mkdir -p "$OUT"
-
+OUT="$DL/git.lambda.lc/lc-studio/nixos"
 n=0
 while IFS=$'\t' read -r run_id job_id; do
   [ -n "$run_id" ] || continue
-  log_file="$OUT/${run_id}-${job_id}.log"
+  # 新布局路径从清单固化元数据派生 (created_at→日期, job_name, conclusion)
+  m=$(jq -c ".[] | select(.run_id==$run_id)" "$MANIFEST")
+  dest_dir="$OUT/$(jq -r .created_at <<<"$m" | cut -dT -f1)"
+  base="${run_id}-${job_id}-$(jq -r .job_name <<<"$m")-$(jq -r .conclusion <<<"$m")"
+  log_file="$dest_dir/$base.log"
   if [ -s "$log_file" ]; then n=$((n+1)); continue; fi
   # 惰性凭据: 全在场幂等跳过场景零凭据可跑; 真拉时才要求 token
   if [ "$need_token" = 1 ]; then
     echo "缺 FORGEJO_API_TOKEN (读 lc-studio/nixos actions 的 PAT; 已在场 $n 对跳过拉取)" >&2
     exit 1
   fi
+  mkdir -p "$dest_dir"
   # 日志本体 (raw 端点, 纯文本); 404 = 日志已被清理, 属清单腐坏信号 → 硬错提示换样本
   code=$(curl -sfSL --max-time 90 --retry 2 \
     -H "Authorization: token $FORGEJO_API_TOKEN" \
@@ -47,9 +50,8 @@ while IFS=$'\t' read -r run_id job_id; do
     exit 1
   fi
   mv "$log_file.tmp" "$log_file"
-  # sidecar: 清单固化不可变元数据 (conclusion/attempt 等), 仅 fetched_at 动态
-  jq --argjson m "$(jq -c ".[] | select(.run_id==$run_id)" "$MANIFEST")" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '$m + {fetched_at: $t}' > "$OUT/${run_id}-${job_id}.log.json"
+  # sidecar: 清单固化不可变元数据, 仅 fetched_at 动态
+  jq "$m + {fetched_at: \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "$dest_dir/$base.log.json"
   n=$((n+1))
 done < <(jq -r '.[] | [.run_id, .job_id] | @tsv' "$MANIFEST")
 

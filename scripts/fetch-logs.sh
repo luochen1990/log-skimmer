@@ -46,17 +46,13 @@ existing_count() { # existing_count <dir> <conclusion> -> 已有样本 run 数 (
   local dir=$1 c=$2 n
   [[ -d $dir ]] || { echo 0; return; }
   n=$(jq -rs --arg c "$c" 'map(select(.conclusion == $c)) | map(.run_id) | unique | length' \
-    "$dir"/*.json 2>/dev/null || true)
+    $(find "$dir" -name '*.log.json' 2>/dev/null) 2>/dev/null || true)
   echo "${n:-0}"
 }
 
 run_already_fetched() { # run_already_fetched <dir> <run_id>; 0=已存在
-  # 注: 本机 bash 无 compgen (编译禁用 completion), 用 glob 判断
-  local f
-  for f in "$1"/"$2"-*.log; do
-    if [[ -f $f ]]; then return 0; fi
-  done
-  return 1
+  # 递归匹配嵌套布局下任意日期目录的 <run_id>-*.log
+  find "$1" -name "$2-*.log" -print -quit 2>/dev/null | grep -q .
 }
 
 runs_to_tsv() { # runs_to_tsv <status-filter-or-empty> — 列表响应转 "id<TAB>name" 行, 客户端过滤 failure
@@ -66,7 +62,7 @@ runs_to_tsv() { # runs_to_tsv <status-filter-or-empty> — 列表响应转 "id<T
     | if $s == "failure" then map(select(.conclusion == "failure"))
       elif $s == "success" then map(select(.conclusion == "success"))
       else . end
-    | sort_by(-.id) | .[] | "\(.id)\t\(.name // .path // "?")"'
+    | sort_by(-.id) | .[] | "\(.id)\t\(.created_at // "?")\t\(.name // .path // "?")"'
 }
 
 list_failure_candidates() { # list_failure_candidates <repo> — 失败 run 候选 (新优先, 去重保序)
@@ -91,7 +87,7 @@ list_failure_candidates() { # list_failure_candidates <repo> — 失败 run 候�
 
 process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
   # 返回: 0=新落盘 (配额 +1); 1=跳过; 2=早已存在 (已计入初始存量, 勿重复计数)
-  local repo=$1 dir=$2 run_id=$3 wf=$4 concl=$5 jobs job_id out
+  local repo=$1 dir=$2 run_id=$3 wf=$4 concl=$5 created=$6 jobs job_id jname date out
   if run_already_fetched "$dir" "$run_id"; then
     log "  run $run_id 样本已存在 (已计入初始存量)"
     return 2
@@ -110,11 +106,14 @@ process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
     log "  run $run_id 无 ${concl} job, 跳过"
     return 1
   fi
-  out="$dir/$run_id-$job_id.log"
+  jname=$(jq -r --argjson id "$job_id" '.jobs[]? | select(.id==$id) | .name // "?"' <<<"$jobs" | head -1)
+  jname=$(tr '/ ' '--' <<<"${jname:-unknown}" | cut -c1-30)
+  date=${created%%T*}; [ -n "$date" ] || date=unknown
+  out="$dir/$date/$run_id-$job_id-$jname-$concl.log"
   if download_log "repos/$repo/actions/jobs/$job_id/logs" "$out"; then
-    jq -n --arg repo "$repo" --argjson run_id "$run_id" --argjson job_id "$job_id" \
-      --arg concl "$concl" --arg wf "$wf" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '{repo:$repo, run_id:$run_id, job_id:$job_id, conclusion:$concl, workflow_name:$wf, fetched_at:$at}' \
+    jq -n --arg repo "github.com/$repo" --argjson run_id "$run_id" --argjson job_id "$job_id" \
+      --arg concl "$concl" --arg wf "$wf" --arg ca "$created" --arg jn "$jname" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '{repo:$repo, run_id:$run_id, job_id:$job_id, conclusion:$concl, workflow_name:$wf, created_at:$ca, job_name:$jn, fetched_at:$at}' \
       >"$out.json"
     log "  已存 run=$run_id job=$job_id (${concl}, $(wc -l <"$out") 行, wf=${wf})"
     return 0
@@ -123,7 +122,7 @@ process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
 }
 
 fetch_batch() { # fetch_batch <repo> <dir> <concl:failure|success> <want>
-  local repo=$1 dir=$2 concl=$3 want=$4 have line run_id wf
+  local repo=$1 dir=$2 concl=$3 want=$4 have line run_id created rest wf
   have=$(existing_count "$dir" "$concl")
   log "$concl run: 已有 $have / 目标 $want"
   if ((have < want)); then
@@ -138,9 +137,9 @@ fetch_batch() { # fetch_batch <repo> <dir> <concl:failure|success> <want>
     for line in "${cands[@]}"; do
       if ((have >= want)); then break; fi
       [[ -z $line ]] && continue
-      run_id=${line%%$'\t'*}
-      wf=${line#*$'\t'}
-      if process_run "$repo" "$dir" "$run_id" "$wf" "$concl"; then
+      run_id=${line%%$'\t'*}; rest=${line#*$'\t'}
+      created=${rest%%$'\t'*}; wf=${rest#*$'\t'}
+      if process_run "$repo" "$dir" "$run_id" "$wf" "$concl" "$created"; then
         have=$((have + 1)) # 仅新落盘才计; 返回 2 (已存在) 已含于初始存量, 不重复计
       fi
     done
@@ -153,8 +152,7 @@ main() {
   mkdir -p "$DATA_DIR"
   local repo slug dir
   for repo in "${REPOS[@]}"; do
-    slug=${repo//\//__}
-    dir="$DATA_DIR/$slug"
+    dir="$DATA_DIR/github.com/$repo" # 嵌套布局 host/owner/repo/<date>/ (可读性优先, 弃 __ 扁平化)
     mkdir -p "$dir"
     log "== $repo =="
     fetch_batch "$repo" "$dir" failure "$WANT_FAIL"
@@ -162,9 +160,8 @@ main() {
   done
   log "== 汇总 =="
   for repo in "${REPOS[@]}"; do
-    slug=${repo//\//__}
-    dir="$DATA_DIR/$slug"
-    log "$slug: failure=$(existing_count "$dir" failure) success=$(existing_count "$dir" success) (文件对 $(find "$dir" -maxdepth 1 -name '*.json' | wc -l))"
+    dir="$DATA_DIR/github.com/$repo"
+    log "$repo: failure=$(existing_count "$dir" failure) success=$(existing_count "$dir" success) (文件对 $(find "$dir" -name '*.log.json' | wc -l))"
   done
 }
 

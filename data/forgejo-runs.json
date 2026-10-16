@@ -6,7 +6,10 @@
     "conclusion": "failure",
     "workflow_name": "ci-full.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-12T19:07:32Z",
+    "job_name": "check",
+    "display_title": "feat(nim-wrap): runtimeInputs 默认 shell 大礼包 — 隐藏传递依赖结构性根治"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -15,7 +18,10 @@
     "conclusion": "failure",
     "workflow_name": "ci.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-13T10:29:23Z",
+    "job_name": "check",
+    "display_title": "fix(forgejo-automation): Memory 护栏死而不僵盲点 (issue #1726)"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -24,7 +30,10 @@
     "conclusion": "failure",
     "workflow_name": "ci-full.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-14T12:57:29Z",
+    "job_name": "check",
+    "display_title": "doc(home-router): 明确关于内存抖动和数据安全的核心关切"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -33,7 +42,10 @@
     "conclusion": "failure",
     "workflow_name": "ci-full.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-14T13:41:20Z",
+    "job_name": "check",
+    "display_title": "chore: fmt"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -42,7 +54,10 @@
     "conclusion": "failure",
     "workflow_name": "ci-full.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-15T14:16:44Z",
+    "job_name": "check",
+    "display_title": "fix(neve-check): units verify 路径探测与实现化统一指向物化 flake 源 (#1424)"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -51,7 +66,10 @@
     "conclusion": "failure",
     "workflow_name": "ci-full.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-16T04:00:22Z",
+    "job_name": "check",
+    "display_title": "ci-full"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -60,7 +78,10 @@
     "conclusion": "success",
     "workflow_name": "ci.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-16T13:07:01Z",
+    "job_name": "check",
+    "display_title": "docs(troubleshooting): 登记 origin 窄 refspec 致无参 force-with-lease 恒误报排障条目 (#1520)"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -69,7 +90,10 @@
     "conclusion": "failure",
     "workflow_name": "ci.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-16T13:10:16Z",
+    "job_name": "check",
+    "display_title": "chore(flake): bump agent-service & directory-algebra"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -78,7 +102,10 @@
     "conclusion": "success",
     "workflow_name": "ci.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-16T13:10:25Z",
+    "job_name": "check",
+    "display_title": "docs(troubleshooting): 登记 userborn 只增不删 + /etc overlay 系统用户残留的 upper 层清理法 (#1553)"
   },
   {
     "repo": "git.lambda.lc/lc-studio/nixos",
@@ -87,6 +114,9 @@
     "conclusion": "success",
     "workflow_name": "ci.yml",
     "attempt": 1,
-    "ci": "forgejo"
+    "ci": "forgejo",
+    "created_at": "2026-10-16T13:20:56Z",
+    "job_name": "check",
+    "display_title": "fix(agent-service): quotaPacing 裸 env 迁移上游 option (#1875)"
   }
 ]

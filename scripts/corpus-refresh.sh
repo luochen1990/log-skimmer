@@ -27,7 +27,7 @@ bash "$ROOT/scripts/fetch-corpus.sh"
 bash "$ROOT/scripts/fetch-forgejo.sh"
 
 # 2. GHA 侧槽位滚动: 清旧拉新 (fetch-logs 幂等配额: 每仓 14F+5S)
-rm -rf "$DEST"/github.com__*
+rm -rf "$DEST"/github.com
 WANT_FAIL=$WANT_FAIL WANT_SUCCESS=$WANT_SUCCESS CORPUS_DIR="$DEST" bash "$ROOT/scripts/fetch-logs.sh"
 
 # 3. master 引擎重算基线 (collect → gate --update-baseline 写入语料仓内)

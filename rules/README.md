@@ -45,6 +45,6 @@ intent 三值与 category 十值的详细判定基准不在本文重复:
 ## 4. 贡献流程与溯源约定
 
 1. 复制 `rules/_template.yaml` 起步, 存为 `rules/<tool-id>/<rule-id>.yaml`。
-2. 头注释写样例溯源: `# samples: <repo>/<run>-<job>, ...` (逗号分隔多个样本; 约定见 spec §5 — 样本本体在 `data/logs/` 已入仓作为 L0 门禁回归 fixture, 头注释仍是规则↔样本的人工溯源线索)。头注释同时建议写 why 叙事 (锚/扩展正则的匹配依据与宿主前缀容忍考虑), 参考示例: [nix/nix-eval-error-tree.yaml](nix/nix-eval-error-tree.yaml), [bun/bun-error-json.yaml](bun/bun-error-json.yaml)。
+2. 头注释写样例溯源: `# samples: <repo>/<run>-<job>, ...` (逗号分隔多个样本; 约定见 spec §5 — 样本本体经 `just corpus-fetch` 获取到 `data/logs/` (语料双源: GitHub 语料仓 + 内网现场拉取), 头注释仍是规则↔样本的人工溯源线索)。头注释同时建议写 why 叙事 (锚/扩展正则的匹配依据与宿主前缀容忍考虑), 参考示例: [nix/nix-eval-error-tree.yaml](nix/nix-eval-error-tree.yaml), [bun/bun-error-json.yaml](bun/bun-error-json.yaml)。
 3. 新增/修改规则必须跑 `just ci-merge`。其中 L0 门禁的判定阈值 SSOT 在 [../scripts/l0-gate.sh](../scripts/l0-gate.sh) 头注释, 与规则贡献者直接相关的四项: FN=0 (失败样本零 failure 片段的样本数必须为 0) / FP 率 ≤2% (success 样本上的 failure-intent 假阳性) / 零块=0 (任何语料日志 skim 非零, 零块即规则集对该日志失明) / 压缩率基线防退化 (相对退化 >2% 判红)。
 4. 规则语法错误 (regex 编译失败/枚举越界/字段约束违例) 会被 `engine/tests/rules_load.rs` 加载回归拦下; 单条规则违例会导致整个规则集拒绝加载, 提交前先本地跑门禁。
