@@ -42,7 +42,8 @@ pub const ADVICE_NO_BLOCKS: &str =
 /// - env: 显式指定, 部署方完全可控, 恒最优先;
 /// - exe 相邻: 覆盖两类布局 — 部署形态 (rules 与 bin 同级或 bin 的父目录同级) 与
 ///   cargo 布局 (bin 在 target/{debug,release}/, 仓库根 rules 在 `../../rules`);
-/// - 编译期 `CARGO_MANIFEST_DIR/../rules`: 开发/单测形态兜底 (源码树恒有 rules);
+/// - 编译期 `CARGO_MANIFEST_DIR/../engine/tests/fixtures/rules`: 开发/单测形态兜底
+///   (fixture 规则集, 离线可跑; 真实规则集独立成仓经 fetch-rules 获取, 四仓拓扑);
 ///   部署后该路径通常不存在, 故排在 exe 相邻之后。
 pub fn resolve_rules_dir() -> PathBuf {
     if let Some(p) = std::env::var_os("LOG_SKIMMER_RULES") {
@@ -58,7 +59,7 @@ pub fn resolve_rules_dir() -> PathBuf {
             }
         }
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../rules")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../engine/tests/fixtures/rules")
 }
 
 /// 装载规则集 (fail-fast 判定点): 目录不存在 / 加载校验失败 / 零条规则均为 Err。
@@ -386,10 +387,10 @@ mod tests {
     fn rules() -> Vec<Rule> {
         load_ruleset_at(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../rules")
+                .join("../engine/tests/fixtures/rules")
                 .as_path(),
         )
-        .expect("仓库规则集装载成功")
+        .expect("fixture 规则集装载成功")
     }
 
     #[test]
@@ -525,7 +526,10 @@ mod tests {
     #[test]
     fn list_rules_view_sorted_and_complete() {
         let views = list_rules_view(&rules());
-        assert!(views.len() >= 30, "仓库规则集基线 30 条");
+        assert!(
+            views.len() >= 2,
+            "fixture 规则集基线 (真实规则集规模由 l0 链把守)"
+        );
         let ids: Vec<&str> = views.iter().map(|v| v.id.as_str()).collect();
         let mut sorted = ids.clone();
         sorted.sort();

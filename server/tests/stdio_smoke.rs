@@ -189,7 +189,7 @@ fn stdio_smoke_read_around_and_list_rules() {
     let lr = by_id(&responses, 3);
     let text = lr["result"]["content"][0]["text"].as_str().expect("text");
     let arr: Vec<serde_json::Value> = serde_json::from_str(text).expect("规则清单 JSON");
-    assert!(arr.len() >= 30);
+    assert!(arr.len() >= 2, "fixture 规则集基线");
 
     // 空输入 → JSON-RPC error 响应 (invalid params), code/message 结构在场
     let err = by_id(&responses, 4);

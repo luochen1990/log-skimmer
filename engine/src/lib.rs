@@ -5,6 +5,8 @@
 //!
 //! 语义 SSOT: docs/rule-format.md — 实现与其冲突时以 spec 为准。
 
+pub mod l0;
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -249,6 +251,12 @@ fn collect_yaml_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
     };
     for e in entries.flatten() {
         let p = e.path();
+        // 隐藏路径 (如规则仓的 .github/) 是仓级元数据, 不是规则 — 跳过。
+        if p.file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with('.'))
+        {
+            continue;
+        }
         if p.is_dir() {
             collect_yaml_files(&p, out);
         } else if p

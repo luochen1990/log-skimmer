@@ -26,16 +26,79 @@ enum Cmd {
         #[arg(long)]
         context: Option<u32>,
     },
+    /// L0 全语料回归门禁 (采集→汇总→判定; 退出码 0=pass / 1=fail / 2=语料或规则非法)
+    L0 {
+        /// 语料根目录 (含 *.log + *.log.json 递归)
+        #[arg(long)]
+        corpus: PathBuf,
+        /// 规则目录
+        #[arg(long)]
+        rules: PathBuf,
+        /// base 侧 summary JSON (双测压缩率对比; 缺省单测模式)
+        #[arg(long)]
+        base: Option<PathBuf>,
+        /// 仅输出 summary JSON (实测交换用, 不判定)
+        #[arg(long)]
+        emit_summary: bool,
+    },
 }
 
 fn main() {
     let cli = Cli::parse();
-    let Cmd::Skim {
-        log_file,
-        rules,
-        json,
-        context,
-    } = cli.cmd;
+    match cli.cmd {
+        Cmd::Skim {
+            log_file,
+            rules,
+            json,
+            context,
+        } => skim_cmd(log_file, rules, json, context),
+        Cmd::L0 {
+            corpus,
+            rules,
+            base,
+            emit_summary,
+        } => l0_cmd(corpus, rules, base, emit_summary),
+    }
+}
+
+fn l0_cmd(corpus: PathBuf, rules: PathBuf, base: Option<PathBuf>, emit_summary: bool) {
+    let samples = log_skimmer::l0::collect(&corpus, &rules).unwrap_or_else(|e| {
+        eprintln!("l0 采集失败: {e}");
+        std::process::exit(2);
+    });
+    let summary = log_skimmer::l0::summarize(&samples);
+    if emit_summary {
+        println!("{}", serde_json::to_string_pretty(&summary).unwrap());
+        return;
+    }
+    let base_summary = base.map(|p| {
+        let raw = std::fs::read_to_string(&p).unwrap_or_else(|e| {
+            eprintln!("base summary 读取失败 {}: {e}", p.display());
+            std::process::exit(2);
+        });
+        serde_json::from_str(&raw).unwrap_or_else(|e| {
+            eprintln!("base summary 解析失败 {}: {e}", p.display());
+            std::process::exit(2);
+        })
+    });
+    let v = log_skimmer::l0::gate(&summary, base_summary.as_ref());
+    println!("{}", serde_json::to_string_pretty(&v).unwrap());
+    eprintln!(
+        "l0-gate: verdict={} FN={} FP率={:.2}% 零块={} 边界违例={} 压缩 blk={:.2}% sig={:.2}%",
+        v.verdict,
+        v.stats["fn"],
+        v.stats["fp_rate_pct"],
+        v.stats["zero_blocks"],
+        v.stats["boundary_violations"],
+        v.stats["comp_blk_pct"],
+        v.stats["comp_sig_pct"]
+    );
+    if v.verdict != "pass" {
+        std::process::exit(1);
+    }
+}
+
+fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>) {
     let rules_loaded = match log_skimmer::load_rules(&rules) {
         Ok(r) => match context {
             Some(n) => log_skimmer::override_context(&r, n),

@@ -1,5 +1,6 @@
 target/
 # 语料是外部滚动资源 (语料仓 github.com/luochen1990/log-skimmer-corpus, CI 持续刷新保新鲜);
-# 主仓只放获取/刷新脚本 (fetch-corpus.sh / corpus-refresh.sh), data/logs 是其工作副本。
+# 外部仓工作副本 (fetch-corpus / fetch-rules 幂等拉取): 语料 + 规则集
 data/logs/
+data/rules/
 pdfs/

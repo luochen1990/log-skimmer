@@ -130,10 +130,10 @@ mod tests {
     fn server() -> SkimServer {
         let rules = crate::load_ruleset_at(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../rules")
+                .join("../engine/tests/fixtures/rules")
                 .as_path(),
         )
-        .expect("仓库规则集装载成功");
+        .expect("fixture 规则集装载成功");
         SkimServer::new(rules)
     }
 
@@ -278,7 +278,7 @@ mod tests {
         let r = s.list_rules().expect("list_rules 恒成功");
         let v = result_json(r);
         let arr = v.as_array().expect("规则清单数组");
-        assert!(arr.len() >= 30);
+        assert!(arr.len() >= 2, "fixture 规则集基线");
         let first = &arr[0];
         for key in ["id", "tool", "kind", "intent", "category", "scope", "repo"] {
             assert!(first.get(key).is_some(), "缺字段 {key}");
