@@ -1,0 +1,12 @@
+# samples: lc-studio/nixos/19371-24992, 18720-24338, 18276-23894 (全部失败样本)
+# Forgejo runner 编排层失败安全网 (与 github-actions-error-annotation 同构):
+# 尾部 RUN exit status / signal: terminated / Job 'x' failed 三形态, 全部失败 run 必现其一。
+id: forgejo-actions-job-failed
+title: Forgejo runner 失败尾部信号 (安全网)
+tool: forgejo-actions
+scope: global
+category: infra
+confidence: high
+patterns:
+  - regex: '(⚙️ \[runner\]: RUN (exit status \d+|signal: \w+)|🏁  Job failed|Job ''.+'' failed|context canceled)'
+kind: signal

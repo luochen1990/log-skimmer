@@ -1,0 +1,10 @@
+# samples: lc-studio/nixos/19089-24707, 18114-23732
+# nix fetch 回显噪音: fetching path/git input 行 (单 run 可达数百行, 零信息量)。
+id: nix-fetch-input-noise
+title: nix fetching input 回显噪音
+tool: nix
+scope: global
+kind: noise
+patterns:
+  - regex: 'fetching (path|git|github) input '
+    loop: true

@@ -273,3 +273,71 @@ fn real_rules_load() {
     let rs = load_rules(&dir).expect("真实规则集应全部通过加载校验");
     assert!(rs.len() >= 15, "规则数: {}", rs.len());
 }
+
+// intent 语义 (spec §1): signal 缺省默认 Failure; 显式 warning 继承到 fragment;
+// noise 规则显式 intent 被加载校验拒绝。
+#[test]
+fn intent_defaults_and_inheritance() {
+    let def = rules(
+        "id: t-i1\ntitle: i\ntool: t\nscope: global\nkind: signal\npatterns:\n  - regex: '^E'\n",
+    );
+    let res = skim("-", &def, &lines(&["E1"]));
+    assert_eq!(
+        res.blocks[0].fragments[0].intent,
+        Intent::Failure,
+        "缺省默认 failure"
+    );
+
+    let warn = rules(
+        "id: t-i2\ntitle: i\ntool: t\nscope: global\nkind: signal\nintent: warning\npatterns:\n  - regex: '^W: '\n",
+    );
+    let res2 = skim("-", &warn, &lines(&["W: unused"]));
+    assert_eq!(
+        res2.blocks[0].fragments[0].intent,
+        Intent::Warning,
+        "显式 warning 继承"
+    );
+
+    let dir = std::env::temp_dir().join("ls-test-intent");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("bad.yaml"),
+        "id: t-bad\ntitle: b\ntool: t\nscope: global\nkind: noise\nintent: failure\npatterns:\n  - regex: '^n'\n",
+    )
+    .unwrap();
+    let err = load_rules(&dir).unwrap_err();
+    assert!(err.0.iter().any(|e| e.contains("noise 时 intent 必须缺省")));
+}
+
+// 签名行级粒度 (spec §3): signature_output_lines = 各 fragment 锚行去重计数。
+#[test]
+fn signature_granularity_stats() {
+    let rs = rules(
+        "id: t-sg\ntitle: s\ntool: t\nscope: global\nkind: signal\npatterns:\n  - regex: '^ERR'\n  - regex: '^ '\n    loop: true\n",
+    );
+    // 两个块: 锚行 1 和 5; 第二块 3 行
+    let res = skim("-", &rs, &lines(&["ERR", " a", " b", "x", "ERR", " c"]));
+    assert_eq!(res.stats.output_lines, 5, "块级: 2+3 行");
+    assert_eq!(res.stats.signature_output_lines, 2, "签名级: 两个锚行");
+}
+
+// --context 覆盖 (spec §3): 显示层全局覆盖, 不改规则文件。
+#[test]
+fn context_override() {
+    let rs = rules("id: t-co\ntitle: c\ntool: t\nscope: global\nkind: signal\ncontext: {before: 0, after: 0}\npatterns:\n  - regex: '^boom'\n");
+    let overridden = override_context(&rs, 1);
+    let res = skim("-", &overridden, &lines(&["a", "boom", "b"]));
+    assert_eq!(
+        (res.blocks[0].start_line, res.blocks[0].end_line),
+        (1, 3),
+        "覆盖后 before/after=1"
+    );
+    let res_orig = skim("-", &rs, &lines(&["a", "boom", "b"]));
+    assert_eq!(
+        (res_orig.blocks[0].start_line, res_orig.blocks[0].end_line),
+        (2, 2),
+        "原规则不受影响"
+    );
+}
+

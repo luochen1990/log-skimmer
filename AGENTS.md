@@ -14,7 +14,7 @@
 
 ## POC 交付物清单 (DoD)
 
-- [ ] 样本: ≥15 失败 run + ≥15 成功 run (三仓合计), 含 sidecar meta
-- [ ] 规则: 三仓各自主要错误类型覆盖, 每仓 ≥2 条, 全部通过加载校验
-- [ ] 引擎: cargo test 全绿 (A1-A8 单测), CLI 可跑
-- [ ] L0 报告: docs/poc-report.md, 含全部指标与样本量声明
+- [x] 样本: ≥15 失败 run + ≥15 成功 run (三仓合计), 含 sidecar meta
+- [x] 规则: 四语料各自主要错误类型覆盖 (25 signal + 4 noise 内含本仓 9 条), 全部通过加载校验
+- [x] 引擎: cargo test 15 用例全绿 (A0-A8 + intent/粒度/context), clippy clean
+- [x] L0 报告: docs/poc-report.md (v2, 双语料 + 基线对照 + intent 分层)

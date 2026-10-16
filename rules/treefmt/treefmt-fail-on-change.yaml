@@ -1,0 +1,15 @@
+# samples: lc-studio/nixos/18714-24332
+# treefmt 格式不幂等门禁失败: 锚为 --fail-on-change 强签名; ERRO file has changed
+# 诊断行在锚**之前**出现, 用 context.before 机械回看 (不经状态机)。
+id: treefmt-fail-on-change
+title: treefmt 格式不幂等 (--fail-on-change)
+tool: treefmt
+scope: global
+category: fmt
+confidence: high
+context:
+  before: 4
+  after: 2
+patterns:
+  - regex: 'Error: unexpected changes detected, --fail-on-change is enabled'
+kind: signal

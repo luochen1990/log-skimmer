@@ -3,14 +3,13 @@
 状态: pending | running | done | blocked
 
 ```
-T1 spec+骨架文档 (架构师)                    [done]
-├─→ T2 抓样本+分析+手写规则 (agent A)         [pending]   依赖: T1 (spec 是规则契约)
-├─→ T3 Rust 引擎骨架 (agent B)               [pending]   依赖: T1 (spec 是实现契约)
-│    T2 ∥ T3 (无相互依赖)
-└─→ T4 联调+L0 统计+数据报告 (架构师/agent)   [pending]   依赖: T2 ∧ T3
-     └─→ T5 建仓+推送                        [blocked]   依赖: 用户权限 + T4
+T1 spec+骨架文档 (架构师)                    [done]  spec v0.1 (含 A0 行语义, 吸收 T2 反馈)
+├─→ T2 抓样本+分析+手写规则 (agent A)         [done]  57 对样本 (42F/15S), 18 规则 (16 signal+2 noise)
+├─→ T3 Rust 引擎骨架 (架构师亲自)             [done]  subagent 两次空跑降级; 12 单测全绿+clippy clean;
+│                                                    A6 时序 bug (noise 顺序依赖) 被公理单测捕获
+└─→ T4 联调+L0 统计+数据报告 (架构师)          [done]  压缩 91-99% / FN=0 / FP=0 / 边界违例=0;
+                                                     充分性抽查 3/3; docs/poc-report.md 成稿
+     └─→ T5 建仓+推送                        [blocked]  等待用户建 lc-studio/log-skimmer 或 token 提权
 ```
 
-- T4 验收: 跑通全样本, 三仓各出压缩率/FP/FN, 机械边界检查零违例 (或违例有解释), docs/poc-report.md 成稿。
-- T2 交付: scripts/fetch-logs.sh (幂等) + data/logs/ 样本 + rules/ ≥6 条。
-- T3 交付: engine/ cargo 项目, A1-A8 单测全绿, CLI skim 子命令。
+本地仓: /tmp/opencode/log-skimmer @ 61ba5e7 (33 files, 单提交)。

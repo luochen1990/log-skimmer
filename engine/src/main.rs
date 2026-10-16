@@ -22,6 +22,9 @@ enum Cmd {
         /// 输出 spec §3 JSON 协议 (默认人类可读)
         #[arg(long)]
         json: bool,
+        /// 全局覆盖 context 为 before=N/after=N (默认按规则自带)
+        #[arg(long)]
+        context: Option<u32>,
     },
 }
 
@@ -31,9 +34,13 @@ fn main() {
         log_file,
         rules,
         json,
+        context,
     } = cli.cmd;
     let rules_loaded = match log_skimmer::load_rules(&rules) {
-        Ok(r) => r,
+        Ok(r) => match context {
+            Some(n) => log_skimmer::override_context(&r, n),
+            None => r,
+        },
         Err(e) => {
             eprintln!("{e}");
             std::process::exit(2);

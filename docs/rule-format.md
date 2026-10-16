@@ -1,7 +1,7 @@
 # Log Skimmer 规则格式与状态机规范 (v0)
 
 > 职责边界: 本文是规则 YAML 格式、逐行状态机语义、fragment 输出协议与 L0 统计口径的**单一事实来源**, 是规则编写者与引擎实现者的共同契约。两者对语义的任何疑问以本文为准; 本文未定义的行为视为未指定 (实现不应依赖)。
-> 版本: v0 (POC)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
+> 版本: v0.2 (POC)。v0.1 吸收 T2 实测反馈 (A0 行语义/宿主前缀自承载); v0.2 吸收第二轮增量建议 (intent 字段/坐标恒带/双粒度统计/三态与 rerun 口径)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
 
 ## 0. 设计灵魂 (约束一切后续演进)
 
@@ -28,13 +28,21 @@ patterns:                     # 状态机 pattern 链, ≥1 项 (见 §2)
 kind: signal                  # signal (提取) | noise (标记噪音)
 # ---- 选填 (默认值如下) ----
 repo: null                    # scope: repo 时必填, "owner/name"
-category: null                # fmt|lint|typecheck|build|test|infra|other (片段继承)
+category: null                # fmt|lint|typecheck|build|test|infra|other (POC 期允许 null=unknown; 枚举集 MVP 调研后冻结)
+intent: failure               # failure|warning — 见下方语义表; noise 规则必须缺省
 confidence: medium            # high|medium|low (片段继承, 排序参考)
 context: { before: 0, after: 0 }   # 输出边界扩展 (行数, 不参与状态机)
 structured-hint: null         # 未来字段, POC 不实现, 保留占位
 attribution: null             # POC 手写规则省略; Adapter 生成时必填
 #   attribution: { contributor: str, generated-by: {harness: str, model: str}, adapter-version: str }
 ```
+
+`intent` 语义 (FP/FN 统计分层的依据, 与 `category` 正交 — category 说「什么类别的信息」, intent 说「命中对成败判定意味着什么」):
+
+| 取值 | 语义 | 统计口径 |
+| --- | --- | --- |
+| `failure` | 提取失败证据; 在通过的 job 里命中 = FP | **FP 只在这类规则上统计**; 参与 FN |
+| `warning` | 提取无论成败都有价值的信息 (如 `warning: unused variable`) | 成功 job 命中属预期, 不计 FP; 不参与 FN |
 
 字段约束 (加载期校验, 违例 = 规则集非法, 整体拒绝加载):
 
@@ -45,6 +53,7 @@ attribution: null             # POC 手写规则省略; Adapter 生成时必填
 | patterns | 非空数组; 每项 regex 必填; loop 默认 false |
 | context.before/after | 0 ≤ 值 ≤ 10 |
 | kind/confidence/category | 枚举值; category 允许 null |
+| intent | `failure`(默认)/`warning`; **kind: noise 时必须缺省** |
 
 ## 2. 状态机语义 (公理 A1-A8)
 
@@ -90,6 +99,8 @@ L4: build failed
 
 ## 3. fragment 输出协议 (JSON)
 
+输出定位为「**索引+摘要**」而非日志替代品 — 每个片段恒带坐标与元数据, 消费方 (agent) 据此决定是否展开上下文。
+
 ```json
 {
   "file": "path/or:-",
@@ -100,32 +111,44 @@ L4: build failed
       "start_line": 120, "end_line": 135,
       "fragments": [
         { "rule": "nix-eval-error", "kind": "signal", "category": "typecheck",
-          "confidence": "high", "block": [120, 128],
+          "intent": "failure", "confidence": "high", "block": [120, 128],
           "text": "...(context 扩展后的完整文本)..." }
       ]
     }
   ],
-  "stats": { "noise_lines_removed": 200 }
+  "stats": { "noise_lines_removed": 200, "signature_output_lines": 12 }
 }
 ```
 
 - `start/end_line`: 合并块输出区间 hull (各成员 fragment 输出区间并集, 含 context 扩展; 1-based, 含端点)。
 - fragment 的 `block` 是该规则自身消费区间 (无 context); `text` 含 context 扩展。
-- `output_lines` = 合并块总行数 (noise 剔除后)。
+- `output_lines` = 合并块总行数 (noise 剔除后) — **块级粒度**。
+- `signature_output_lines` = 各 fragment block 首行 (锚行/签名行, 去重行号) 计数 — **签名行级粒度**。压缩比按两档粒度分列统计 (两数字差异大, 验收线不可混谈)。
+- CLI `--context N` (默认按规则自带 context): 显示层全局覆盖为 before=N/after=N, 纯机械按坐标切割, 不需规则参与。
 - 人类可读输出 (默认): 块间 `---` 分隔, 块头 `[L120-L135] rule1,rule2`, 后跟文本。
 
 ## 4. L0 统计口径 (POC)
 
+Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标签贴在 (run, attempt) 级。
+
 | 指标 | 定义 |
 | --- | --- |
-| 压缩率 | `1 - Σ(输出块行数) / 输入总行数` (对失败 run 计算; 成功 run 若有 signal 块则计入 FP) |
-| FP 代理 | success run 上产出的 signal fragment 计数 (CI 通过却被提取出"错误" = 规则假阳性) |
-| FN 代理 | failure run 的失败 job 日志中 signal fragment 数为 0 的 run 计数 (完全漏检); 部分漏检需 LLM 对照 (POC 抽查雏形, 不自动化) |
+| 压缩率 | `1 - Σ(输出行数) / 输入总行数`, 按粒度分列 (块级 / 签名行级), 按工具分列 |
+| FP | **仅 `intent: failure` 规则**: success job 上产出的此类 fragment 计数 (CI 通过却被提取出失败证据 = 假阳性)。`intent: warning` 规则命中属预期, 单列「warning 命中」不计 FP |
+| FN 代理 | failure job 日志中 `intent: failure` fragment 数为 0 的 job 计数 (完全漏检); 部分漏检需 LLM 对照 (POC 抽查雏形, 不自动化) |
 | 边界完整性 (机械) | fragment 的 block 尾行必须仍被该规则任一 pattern 匹配 (锚或扩展), 违例计数 (防 context 污染与实现 bug) |
+
+**cancelled/skipped 三态** (证据能力非对称):
+
+- `skipped`: 无日志, 完全排除出统计。
+- `cancelled`: 截断日志**只记命中, 不记缺失** — 命中 failure-intent 规则计为弱 TP (fail-fast 连坐场景下命中是真信号), 单独报告不进主指标; 未命中不计 FN (信息不完整)。
+- `timed_out` (GHA 独立 conclusion): 单独留意 — timeout 日志本身是可规则化的失败模式, 语料标注时专门收集。
+
+**rerun 处理** (取数层元数据, 不用正则): sidecar 必带 `attempt`; rerun-through (attempt>1 且最终成功) 排除出主指标; 其失败 attempt 是优质 failure 语料, 按 attempt 结论打标签收进语料库。
 
 ## 5. 样本与配对 (POC 约定)
 
-- 样本存放: `data/logs/<repo-slug>/<run_id>-<job_id>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, fetched_at}`。
+- 样本存放: `data/logs/<repo-slug>/<run_id>-<job_id>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, attempt, fetched_at}` (conclusion 取 **job 级 result**; attempt 取数时从 API 元数据写入)。
 - **样本不入 git** (`data/` 在 .gitignore): 原始日志体积大且含他人内容; 回测本地跑。未来规则 PR 配最小化样本 (错误片段截取, ≤50 行) 入库 — v0 不做。
 - 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。
 

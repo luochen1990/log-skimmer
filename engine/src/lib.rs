@@ -40,6 +40,14 @@ pub enum Kind {
     Noise,
 }
 
+/// 命中语义 (spec §1): failure = 失败证据 (成功 job 命中即 FP); warning = 无论成败都有价值 (不计 FP/FN)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Intent {
+    Failure,
+    Warning,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Confidence {
@@ -79,6 +87,9 @@ pub struct Rule {
     pub repo: Option<String>,
     pub patterns: Vec<Pattern>,
     pub kind: Kind,
+    /// None = YAML 缺省 (signal 语义默认 Failure; noise 必须缺省, 见校验)。
+    #[serde(default)]
+    pub intent: Option<Intent>,
     #[serde(default)]
     pub category: Option<Category>,
     #[serde(default = "default_confidence")]
@@ -101,6 +112,8 @@ fn default_confidence() -> Confidence {
 pub struct Fragment {
     pub rule: String,
     pub kind: Kind,
+    /// 有效 intent (signal 恒有值: 显式或默认 Failure)。
+    pub intent: Intent,
     pub category: Option<Category>,
     pub confidence: Confidence,
     /// 该规则自身消费区间 (无 context), 1-based 含端点。
@@ -109,6 +122,13 @@ pub struct Fragment {
     pub out: (usize, usize),
     /// 输出区间内文本 (noise 行已剔除; 全被剔则该 fragment 被 skim 丢弃, 不会出现空 text)。
     pub text: String,
+}
+
+impl Fragment {
+    /// 规则有效 intent: signal 语义默认 Failure。
+    pub fn effective_intent(rule: &Rule) -> Intent {
+        rule.intent.unwrap_or(Intent::Failure)
+    }
 }
 
 /// 输出块: 相邻/重叠 signal fragment 的聚合 (A5)。
@@ -131,6 +151,8 @@ pub struct BoundaryViolation {
 pub struct Stats {
     pub input_lines: usize,
     pub output_lines: usize,
+    /// 签名行级粒度: 各 fragment block 首行 (锚行) 去重计数 (spec §3 双粒度压缩比分列)。
+    pub signature_output_lines: usize,
     pub noise_lines_removed: usize,
     /// 边界完整性机械检查违例 (spec §4): block 尾行未被该规则任一 pattern 匹配。
     /// 按状态机构造该检查恒真, 作为实现哨兵存在 — 非零 = 引擎 bug。
@@ -250,6 +272,9 @@ fn validate_rule(rule: &mut Rule, rel: &str, errs: &mut LoadErrors) {
     if rule.patterns.is_empty() {
         errs.0.push(format!("{rel}: patterns 为空"));
     }
+    if rule.kind == Kind::Noise && rule.intent.is_some() {
+        errs.0.push(format!("{rel}: kind=noise 时 intent 必须缺省"));
+    }
     if rule.context.before > 10 || rule.context.after > 10 {
         errs.0.push(format!("{rel}: context 超出 [0,10]"));
     }
@@ -266,6 +291,22 @@ fn validate_rule(rule: &mut Rule, rel: &str, errs: &mut LoadErrors) {
 // ---------------------------------------------------------------------------
 // 状态机 (spec §2 A1-A8)
 // ---------------------------------------------------------------------------
+
+/// CLI `--context N`: 显示层全局覆盖所有规则的 context (before=N/after=N),
+/// 纯机械坐标切割, 不需规则参与 (spec §3)。返回覆盖后的规则副本。
+pub fn override_context(rules: &[Rule], n: u32) -> Vec<Rule> {
+    rules
+        .iter()
+        .map(|r| {
+            let mut c = r.clone();
+            c.context = Context {
+                before: n,
+                after: n,
+            };
+            c
+        })
+        .collect()
+}
 
 /// 单规则扫描: 返回该规则全部闭块 (block 区间, 1-based 含端点)。
 /// A1 独立扫描 / A2 锚开块 / A3 扩展指针贪心+透传。
@@ -364,6 +405,7 @@ pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
             signals.push(Fragment {
                 rule: rule.id.clone(),
                 kind: Kind::Signal,
+                intent: Fragment::effective_intent(rule),
                 category: rule.category,
                 confidence: rule.confidence,
                 block: *block,
@@ -396,18 +438,24 @@ pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
         }
     }
 
-    // 统计: output_lines = 合并块行数 (noise 剔除后) — 块内呈现行号去重计数。
+    // 统计: output_lines = 合并块行数 (noise 剔除后) — 块内呈现行号去重计数;
+    // signature_output_lines = 各 fragment 锚行去重计数 (签名行级粒度)。
     let mut presented: HashSet<usize> = HashSet::new();
+    let mut signatures: HashSet<usize> = HashSet::new();
     for b in &blocks {
         for l in b.start_line..=b.end_line {
             if !noise_lines.contains(&l) {
                 presented.insert(l);
             }
         }
+        for f in &b.fragments {
+            signatures.insert(f.block.0);
+        }
     }
     let stats = Stats {
         input_lines: n,
         output_lines: presented.len(),
+        signature_output_lines: signatures.len(),
         noise_lines_removed: noise_lines.len().min(n),
         boundary_violations,
     };
