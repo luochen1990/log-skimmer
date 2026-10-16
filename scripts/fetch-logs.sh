@@ -113,7 +113,7 @@ process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
   if download_log "repos/$repo/actions/jobs/$job_id/logs" "$out"; then
     jq -n --arg repo "github.com/$repo" --argjson run_id "$run_id" --argjson job_id "$job_id" \
       --arg concl "$concl" --arg wf "$wf" --arg ca "$created" --arg jn "$jname" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '{repo:$repo, run_id:$run_id, job_id:$job_id, conclusion:$concl, workflow_name:$wf, created_at:$ca, job_name:$jn, fetched_at:$at}' \
+      '{repo:$repo, run_id:$run_id, job_id:$job_id, conclusion:$concl, workflow_name:$wf, created_at:$ca, job_name:$jn, ci:"github", fetched_at:$at}' \
       >"$out.json"
     log "  已存 run=$run_id job=$job_id (${concl}, $(wc -l <"$out") 行, wf=${wf})"
     return 0

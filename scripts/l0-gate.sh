@@ -20,8 +20,10 @@ IMPROVE_HINT_PCT=2     # 压缩率相对改善提示线 % (不判红)
 SUMMARY=$(bash "$ROOT/scripts/l0-collect.sh" | jq -s -f "$ROOT/scripts/l0-summarize.jq")
 
 if [ "${1:-}" = "--update-baseline" ]; then
-  jq -n --argjson s "$SUMMARY" '$s.per_repo | map_values({runs, input_lines, comp_blk_pct, comp_sig_pct})
-    | {comment: "l0-gate 压缩率基线 (per repo, 主指标聚合); 由 scripts/l0-gate.sh --update-baseline 生成, 勿手编", repos: .}' \
+  # 基线管辖域 = ci=github 的 repo (forgejo 侧是内网数据, 其 repo 键不出现在公网语料仓)
+  jq -n --argjson s "$SUMMARY" '$s.per_repo | map_values(select(.ci == "github"))
+    | map_values({runs, input_lines, comp_blk_pct, comp_sig_pct})
+    | {comment: "l0-gate 压缩率基线 (per repo, 仅 ci=github 管辖域); 由 scripts/l0-gate.sh --update-baseline 生成, 勿手编", repos: .}' \
     > "$BASELINE"
   echo "基线已更新: $BASELINE" >&2
   exit 0
@@ -34,8 +36,9 @@ RESULT=$(jq -n --argjson s "$SUMMARY" --argjson base "$BASE" \
   def pctchg(new; old): if old > 0 then 100 * (new - old) / old else 0 end;
   def r2: (. * 100 | round) / 100;
 
-  # --- 5. 基线对比 (per repo × blk/sig) ---
-  ([$s.per_repo | to_entries[] | .key as $repo | .value as $cur | ($base.repos[$repo]) as $b |
+  # --- 5. 基线对比 (per repo × blk/sig; 管辖域 = ci=github, forgejo 侧不进判定) ---
+  ([$s.per_repo | to_entries[] | select(.value.ci == "github")
+    | .key as $repo | .value as $cur | ($base.repos[$repo]) as $b |
     if $b == null then {repo: $repo, type: "new-repo", note: "语料新增 repo 无基线 (提示补基线, 不判红)"}
     else
       (pctchg($cur.comp_blk_pct; $b.comp_blk_pct)) as $dblk |
@@ -51,7 +54,7 @@ RESULT=$(jq -n --argjson s "$SUMMARY" --argjson base "$BASE" \
       + (if $dsig >= $imp then [{repo: $repo, type: "improved", grain: "sig", rel_change_pct: ($dsig | r2)}] else [] end)
     end]
     + [$base.repos | to_entries[] | select(.key as $k | $s.per_repo | has($k) | not)
-      | {repo: .key, type: "stale-baseline", note: "基线含语料已无的 repo (提示重生成基线)"}]
+      | {repo: .key, type: "stale-baseline", note: "基线含语料已无的 repo (提示重生成基线; 语料仓管辖域内)"}]
     | flatten)   # to_entries[] 迭代 else 分支产数组, 收集后扁平化
   as $baseline_checks |
 
@@ -61,6 +64,11 @@ RESULT=$(jq -n --argjson s "$SUMMARY" --argjson base "$BASE" \
   (if $s.structural.samples_total < 60 then [{type: "corpus-missing",
      samples_total: $s.structural.samples_total,
      note: "语料样本数异常 (<60), 疑似 data/logs 路径漂移或被 ignore — 门禁拒绝在空语料上判定"}] else [] end)
+  # 空基线硬防线: 管辖域有语料而基线为空 = 退化哨兵静默失效 (sidecar ci 缺失/基线管线
+  #   同类回归), 拒绝无哨兵判定
+  + (if (($base.repos | length) == 0) and ($s.per_repo | [to_entries[] | select(.value.ci == "github")] | length > 0)
+   then [{type: "baseline-empty",
+     note: "基线管辖域 (ci=github) 为空但语料在场 — 退化哨兵失效, 先 --update-baseline 再判定"}] else [] end)
   + (if $s.totals.fn > 0 then [{type: "fn",
      detail: ($s.per_repo_conclusion | to_entries | map(select(.value.fn > 0))
        | map({repo: .key, fn: .value.fn})),

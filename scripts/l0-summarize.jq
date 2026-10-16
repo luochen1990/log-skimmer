@@ -38,7 +38,9 @@ map(select(.excluded | not)) as $m
     per_repo_conclusion: ($m | group_by(.repo + "|" + .conclusion)
       | map({key: (.[0].repo + "|" + .[0].conclusion), value: (agg | with_rates)}) | from_entries),
     per_repo: ($m | group_by(.repo)
-      | map({key: .[0].repo, value: (agg | with_rates)}) | from_entries),
+      # ci 域标记随行 (基线管辖域分界: 仅 ci=github 进公网基线/退化判定 —
+      # forgejo 侧数据不出内网, 其压缩率只进报表不进基线; FN/FP/零块/边界仍全量)
+      | map({key: .[0].repo, value: ((agg | with_rates) + {ci: .[0].ci})}) | from_entries),
     totals: ($m | agg | with_rates),
     per_rule: ([$m | .[] | . as $s | .frags[]
         | {rule, intent, lines, repo: $s.repo, con: $s.conclusion}]

@@ -27,9 +27,9 @@ for j in $(find "$DL" -name '*.log.json' | sort); do # 递归遍历 (语料嵌�
     echo "skim 失败 (exit $rc): $sample" >&2
     exit 1
   fi
-  jq -c --arg repo "$repo" --arg con "$con" --argjson att "$att" --arg sample "$sample" '
+  jq -c --arg repo "$repo" --arg con "$con" --argjson att "$att" --arg sample "$sample" --arg ci "$(jq -r '.ci // ""' "$j")" '
     {
-      repo: $repo, conclusion: $con, attempt: $att, sample: $sample,
+      repo: $repo, conclusion: $con, attempt: $att, sample: $sample, ci: $ci,
       excluded: ($att > 1 and $con == "success"),
       input_lines: .input_lines,
       output_lines: .output_lines,
