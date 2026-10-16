@@ -4,17 +4,18 @@
 # 职责边界: 拉取失败/成功 run 的 job 日志到 data/logs/<owner>__<repo>/,
 #   每 run 只取一个 job (失败 run 取第一个 conclusion=failure 的 job, 成功 run 取第一个
 #   conclusion=success 的 job, 无则 jobs[0]), 产 .log + .json sidecar。
-#   已存在的 run (目录下有 <run_id>-*.log) 直接计入配额跳过 — 幂等。
-# 配额: 每仓失败 run >=5 (status=failure 翻页不足 40 候选时, 放宽为全量列表客户端过滤,
-#   最多翻 10 页); 成功 run =5。
+#   已存在的 run (目录下 <run_id>-*.log 在场) 直接计入配额跳过 — 幂等。
+# 配额: 槽位约定 **14 失败 + 5 成功 per repo** (SSOT 在此默认值 — corpus-sync 与
+#   语料仓 GHA refresh 均不传参走默认); 翻页不足 40 候选时放宽为全量列表客户端
+#   过滤, 最多翻 10 页。
 # 韧性: 日志端点 404/410 (过期清理) / 无匹配 job / API 失败 → 跳过该 run 换下一个, 不计配额。
 # 依赖: bash + curl(-L) + jq; env GITHUB_API_TOKEN (必需)。
 set -euo pipefail
 
 API="https://api.github.com"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DATA_DIR="${CORPUS_DIR:-$ROOT/data/logs}" # 语料根 (参数化: periodic 刷新直接写语料仓工作副本)
-WANT_FAIL=${WANT_FAIL:-5}
+DATA_DIR="${CORPUS_DIR:-$ROOT/data/logs}" # 语料根 (参数化: 语料仓 GHA 刷新直接写仓内)
+WANT_FAIL=${WANT_FAIL:-14}
 WANT_SUCCESS=${WANT_SUCCESS:-5}
 MAX_CANDIDATES=40 # 每仓候选 run 上限 (留冗余吸收 404 跳过)
 REPOS=(sst/opencode niri-wm/niri nix-community/home-manager)

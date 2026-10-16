@@ -28,14 +28,19 @@ corpus-fetch:
     bash scripts/fetch-corpus.sh
     bash scripts/fetch-forgejo.sh
 
-# 语料仓滚动刷新 (P2 周期档载体): GHA 槽位重拉 + master 引擎重算基线 + 推回语料仓
-# (需 CORPUS_GH_TOKEN; 语料与基线原子配对提交, 主仓 PR 判定无失配窗口)
-corpus-refresh:
-    bash scripts/corpus-refresh.sh
+# 判定器镜像同步 (P2 周期档载体): 主仓 engine/rules/L0 脚本 → 语料仓镜像目录,
+# 有差则推送 + dispatch 触发语料仓 GHA 即时刷新 (新引擎 × 当前语料重算基线)。
+# 语料槽位滚动重拉在语料仓 GHA 侧自执行 (GitHub 机房闭环) — 语料字节不走内网出口
+# (省外网流量); 本 recipe 只送文本镜像 (~150KB 级, 低频)。
+# 需 CORPUS_GH_TOKEN; 语料数据变更纪律: 一律改语料仓工作副本并提交, 主仓 data/logs 只读消费
+corpus-sync:
+    bash scripts/corpus-sync.sh
 
-# ci-periodic — org 标准 P2 周期兜底契约 (非超集/阻塞级/幂等): 本仓承载语料新鲜度
-# (weekly 防 fixture 腐坏; 新语料的 FN 信号由主仓下一 PR 的 l0-gate 暴露, 归因明确)
-ci-periodic: corpus-refresh
+# ci-periodic — org 标准 P2 周期兜底契约 (非超集/阻塞级/幂等): 判定器镜像同步 +
+# 内网现场语料补抓 (fetch-forgejo 是内网 API 调用, 零出网流量; 新语料的 FN 信号由
+# 主仓下一 PR 的 l0-gate 暴露, 归因明确)
+ci-periodic: corpus-sync
+    bash scripts/fetch-forgejo.sh
 
 # ci-merge — org 标准 CI P0 合入门禁契约:
 #   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (fmt→clippy→test→L0)。

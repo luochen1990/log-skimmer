@@ -62,6 +62,7 @@ jobs:
     #   forgejo 内网实例按固定清单现场拉取 — 隐私红线: 私有实例日志不出内网)
     env:
       CARGO_TARGET_DIR: /var/lib/forgejo-runner/cache/cargo-target
+      CORPUS_DIR: /var/lib/forgejo-runner/cache/corpus # 语料仓持久缓存 (幂等 clone 一次后增量 pull, 语料获取流量从 ~10MB/run 降到 ~1MB/周)
       FORGEJO_API_TOKEN: ${{ secrets.FORGEJO_API_TOKEN }}
     env: # ⟦可选⟧ 持久卷缓存重定向, 按技术栈
       CARGO_TARGET_DIR: /var/lib/forgejo-runner/cache/cargo-target
