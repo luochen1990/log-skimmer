@@ -26,7 +26,10 @@ git -C "$ROOT" worktree add --detach --quiet "$WT" "$BASE_REF" 2>/dev/null || {
 }
 log "base ref: $(git -C "$WT" rev-parse --short HEAD) ($(git -C "$WT" log -1 --format=%s | head -c 60))"
 
-cargo build --release --quiet --manifest-path "$WT/engine/Cargo.toml"
-BIN="${CARGO_TARGET_DIR:-$ROOT/target}/release/log-skimmer"
+# 独立 -base 旁挂 target (CI 持久卷同卷旁挂 / 本地 target-base): 共享 target 会被
+# base 构建覆盖同名 bin (PR bin 变 master 版), 双测两引擎必须物理隔离产物
+BASE_TARGET="${CARGO_TARGET_DIR:-$ROOT/target}-base"
+CARGO_TARGET_DIR="$BASE_TARGET" cargo build --release --quiet --manifest-path "$WT/engine/Cargo.toml"
+BIN="$BASE_TARGET/release/log-skimmer"
 [ -x "$BIN" ] || { echo "base 引擎构建失败: $BIN 不存在" >&2; exit 1; }
 echo "$BIN"
