@@ -1,0 +1,13 @@
+# samples: niri-wm/niri/38707882543-116331716854, niri-wm/niri/38707552842-116330622870
+# nixfmt --ci 检出未格式化改动: 锚为其稳定报错行, context.before=2 带出
+# `formatted N files (M changed)` 统计行定位改动量 (仅扩输出)。
+id: nixfmt-fail-on-change
+title: 'nixfmt 格式检查失败 (Error: unexpected changes detected)'
+tool: nixfmt
+scope: global
+category: fmt
+confidence: high
+context: {before: 2, after: 0}
+patterns:
+  - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?Error: unexpected changes detected'
+kind: signal

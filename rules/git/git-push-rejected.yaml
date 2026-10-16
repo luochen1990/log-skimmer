@@ -1,0 +1,14 @@
+# samples: nix-community/home-manager/37250884107-111578068649, nix-community/home-manager/38778143008-116571035367
+# git push 被拒: 锚 `! [rejected]` 行, 透传扩展 error 行, 再贪心消费后续 hint: 建议行 (loop)。
+id: git-push-rejected
+title: 'git push 被拒 (! [rejected] + error: failed to push some refs + hint: 树)'
+tool: git
+scope: global
+category: infra
+confidence: high
+patterns:
+  - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?\s*! \[rejected\] '
+  - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?error: failed to push some refs to '
+  - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?hint: '
+    loop: true
+kind: signal

@@ -1,0 +1,12 @@
+# samples: niri-wm/niri/37725735250-113143344875
+# libtest 单测失败行 (`test <name> ... FAILED`, 名字无空格)。行首 test 限定 + 行尾 FAILED 限定,
+# 双端锚定避免误吞; 单行块, 相邻多失败行由输出层 A5 合并。
+id: rust-libtest-failed
+title: libtest 单测失败行 (test ... FAILED)
+tool: rust
+scope: global
+category: test
+confidence: high
+patterns:
+  - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?test \S+( \S+)* \.\.\. FAILED$'
+kind: signal

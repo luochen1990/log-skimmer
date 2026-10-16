@@ -1,0 +1,12 @@
+# samples: niri-wm/niri/37721016710-113128410430, niri-wm/niri/35428871875-105859640064, niri-wm/niri/35428989485-105859974298, niri-wm/niri/35550165700-106183274542, niri-wm/niri/37720469238-113126703223
+# cargo 编译失败汇总行 (error: could not compile `<crate>` ... due to N previous errors)。
+# 单行块; 汇总行之后通常紧跟日志结束/空行, 无可靠结构扩展。
+id: cargo-could-not-compile
+title: cargo 编译失败汇总行 (could not compile ... due to N previous errors)
+tool: cargo
+scope: global
+category: build
+confidence: high
+patterns:
+  - regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z )?(?:\x1b\[[0-9;]*m)*error(?:\x1b\[[0-9;]*m)*:(?:\x1b\[[0-9;]*m)* could not compile '
+kind: signal
