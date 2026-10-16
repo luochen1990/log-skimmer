@@ -350,3 +350,32 @@ fn context_override() {
         "原规则不受影响"
     );
 }
+
+// 零块警示 (spec §3): --expect-failure 下零 failure-intent 块 → 退出码 3; 有块 → 0。
+#[test]
+fn expect_failure_zero_hit_guards() {
+    let bin = env!("CARGO_BIN_EXE_log-skimmer");
+    let dir = std::env::temp_dir().join("ls-test-ef");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("t")).unwrap();
+    std::fs::write(
+        dir.join("t/r.yaml"),
+        "id: t-ef\ntitle: e\ntool: t\nscope: global\nkind: signal\npatterns:\n  - regex: '^ERR'\n",
+    )
+    .unwrap();
+    let clean = dir.join("clean.log");
+    std::fs::write(&clean, "all good\nno errors here\n").unwrap();
+    let out = std::process::Command::new(bin)
+        .args(["skim", clean.to_str().unwrap(), "--rules", dir.join("t").to_str().unwrap(), "--expect-failure"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(3), "预期失败 + 零 failure 块 → exit 3");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("疑似漏检"));
+    let dirty = dir.join("dirty.log");
+    std::fs::write(&dirty, "ERR boom\n").unwrap();
+    let out2 = std::process::Command::new(bin)
+        .args(["skim", dirty.to_str().unwrap(), "--rules", dir.join("t").to_str().unwrap(), "--expect-failure"])
+        .output()
+        .unwrap();
+    assert_eq!(out2.status.code(), Some(0), "有 failure 块 → exit 0");
+}
