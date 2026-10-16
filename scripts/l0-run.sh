@@ -12,7 +12,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 cargo build --release -q
-BIN="$ROOT/target/release/log-skimmer"
+BIN="${CARGO_TARGET_DIR:-$ROOT/target}/release/log-skimmer" # CI 持久卷缓存重定向
 
 if BASE_BIN=$(bash scripts/l0-base.sh 2>/dev/null); then
   WT=/tmp/opencode/l0-base-wt
