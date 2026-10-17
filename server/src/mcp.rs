@@ -60,7 +60,7 @@ impl SkimServer {
     }
 
     #[tool(
-        description = "skim CI 日志: 高信噪比提取失败证据/警示/环境快照。返回 blocks (块摘要: 坐标/规则/intent/category/输出行数/签名行数, 按 intent 优先级排序 failure>warning>info, 同级按行序) + fragments (每块代表片段全字段, 与 blocks 同序一一对应) + stats (双粒度压缩比)。零块时返回 fallback=\"no-blocks\": 规则集对该日志失明, 请无条件回退 rg 基线 (如 rg -i 'error|fail|panic') 并考虑贡献新规则。消费方判定矩阵: job 失败而 failure-intent 块为零 = 视同失明回退 (docs/rule-format.md §3)。需要块周边原文时用 read_around 按块坐标取窗。 规则贡献: https://github.com/luochen1990/log-skimmer-rules"
+        description = "skim CI 日志: 高信噪比提取失败证据/警示/环境快照。返回 blocks (块摘要: 坐标/规则/intent/category/输出行数/签名行数, 按 intent 优先级排序 failure>warning>info, 同级按行序) + fragments (每块代表片段全字段, 与 blocks 同序一一对应) + stats (双粒度压缩比, 零块时省略)。零块时返回 fallback=\"no-blocks\": 规则集对该日志失明, 请无条件回退 rg 基线 (如 rg -i 'error|fail|panic') 并考虑贡献新规则。消费方判定矩阵: job 失败而 failure-intent 块为零 = 视同失明回退 (docs/rule-format.md §3)。需要块周边原文时用 read_around 按块坐标取窗。 规则贡献: https://github.com/luochen1990/log-skimmer-rules"
     )]
     fn skim(
         &self,
@@ -164,6 +164,9 @@ mod tests {
         assert_eq!(blocks[0]["intent"], "failure");
         assert_eq!(v["stats"]["total_lines"], 2);
         assert!(v.get("fallback").is_none(), "非零块无 fallback 字段");
+        // issue #37 非零块侧: 压缩比照常在场 — 2 行入 1 行出, 双粒度均 0.5
+        assert_eq!(v["stats"]["compression_block"].as_f64(), Some(0.5));
+        assert_eq!(v["stats"]["compression_signature"].as_f64(), Some(0.5));
     }
 
     #[test]
@@ -202,6 +205,10 @@ mod tests {
         assert_eq!(v["blocks"].as_array().unwrap().len(), 0);
         assert_eq!(v["fallback"], "no-blocks");
         assert!(v["advice"].as_str().unwrap().contains("rg"));
+        // issue #37: 零块时 compression 字段省略 — 与 fallback 同屏不得自相矛盾
+        // (compression: 1.0 意为 100% 压缩, 零命中 ≠ 高压缩)
+        assert!(v["stats"].get("compression_block").is_none());
+        assert!(v["stats"].get("compression_signature").is_none());
     }
 
     #[test]

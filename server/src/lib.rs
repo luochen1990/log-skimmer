@@ -144,10 +144,13 @@ pub struct StatsView {
     pub total_lines: usize,
     pub out_lines: usize,
     pub signature_lines: usize,
-    /// 1 - out_lines/total_lines (块级粒度, 四位小数)。
-    pub compression_block: f64,
-    /// 1 - signature_lines/total_lines (签名行级粒度, 四位小数)。
-    pub compression_signature: f64,
+    /// 1 - out_lines/total_lines (块级粒度, 四位小数)。零块时 `None` 即序列化省略 —
+    /// 零命中 ≠ 高压缩, 拒绝 1.0 伪统计 (issue #37, 与 CLI 统计行 `n/a` 同一哲学)。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compression_block: Option<f64>,
+    /// 1 - signature_lines/total_lines (签名行级粒度, 四位小数)。零块时省略, 同上。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compression_signature: Option<f64>,
 }
 
 fn compression_ratio(total: usize, part: usize) -> f64 {
@@ -218,14 +221,18 @@ pub fn skim_view(
     let (blocks, fragments): (Vec<BlockSummary>, Vec<Fragment>) = paired.into_iter().unzip();
 
     let total = result.stats.input_lines;
+    // 零块判定唯一源 (issue #37): compression 省略与 fallback/advice 在场共用同一
+    // `blocks.is_empty()`, 不引入第二套判定 — 两信号恒一致, 消费方无从见到矛盾态。
+    let zero_blocks = blocks.is_empty();
+    let ratio = |part| (!zero_blocks).then(|| compression_ratio(total, part));
     let stats = StatsView {
         total_lines: total,
         out_lines: result.stats.output_lines,
         signature_lines: result.stats.signature_output_lines,
-        compression_block: compression_ratio(total, result.stats.output_lines),
-        compression_signature: compression_ratio(total, result.stats.signature_output_lines),
+        compression_block: ratio(result.stats.output_lines),
+        compression_signature: ratio(result.stats.signature_output_lines),
     };
-    let (fallback, advice) = if blocks.is_empty() {
+    let (fallback, advice) = if zero_blocks {
         (
             Some(FALLBACK_NO_BLOCKS.to_string()),
             Some(ADVICE_NO_BLOCKS.to_string()),
@@ -431,6 +438,14 @@ mod tests {
         assert_eq!(out.advice.as_deref(), Some(ADVICE_NO_BLOCKS));
         assert_eq!(out.stats.total_lines, 2);
         assert_eq!(out.stats.out_lines, 0);
+        // issue #37: 零块时压缩比无意义 (零命中 ≠ 高压缩), 序列化面省略两字段 —
+        // 判定与 fallback 同源 (blocks.is_empty()), 拒绝 compression = 1.0 伪统计。
+        let json = serde_json::to_value(&out).unwrap();
+        assert!(
+            json["stats"].get("compression_block").is_none()
+                && json["stats"].get("compression_signature").is_none(),
+            "零块时 compression 字段须省略: {json}"
+        );
     }
 
     /// issue #8: blocks/fragments 按 intent 优先级排序 (failure > warning > info),

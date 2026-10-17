@@ -149,6 +149,12 @@ fn stdio_smoke_handshake_list_and_skim() {
         .collect();
     assert!(rules0.contains(&"cargo-fixture-build-fail"));
     assert!(payload.get("fallback").is_none());
+    // issue #37 非零块侧: 压缩比照常在场 — 2 行入 1 行出, 双粒度均 0.5
+    assert_eq!(payload["stats"]["compression_block"].as_f64(), Some(0.5));
+    assert_eq!(
+        payload["stats"]["compression_signature"].as_f64(),
+        Some(0.5)
+    );
 }
 
 #[test]
@@ -258,6 +264,12 @@ fn stdio_big_log_e2e() {
         blocks.is_empty(),
         payload.get("fallback").is_some(),
         "blocks 非空 ⇔ 无 fallback (大文本响应结构自洽)"
+    );
+    // issue #37 同一互斥的压缩比面: 零块 ⇔ compression 字段省略 (与 fallback 同源判定)
+    assert_eq!(
+        blocks.is_empty(),
+        payload["stats"].get("compression_block").is_none(),
+        "blocks 非空 ⇔ compression 在场 (大文本响应结构自洽)"
     );
     eprintln!(
         "大文本 e2e: 请求 {} 字节, 响应 {} 块 / {} 签名行, total_lines {}",

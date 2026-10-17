@@ -94,7 +94,7 @@ Exit code semantics (caller contract):
 
 ### MCP Server (agent integration form)
 
-`log-skimmer-mcp` exposes three tools over stdio transport: `skim(log_text, context?)` (extract blocks + fragment summaries + compression stats; context range 0-10, out-of-range reports invalid_params; on zero blocks it returns `fallback: "no-blocks"` with fallback-advice fields instead of an error) / `read_around(log_text, line_start, line_end)` (fetch an original-text window by coordinates, capped at 200 lines per call) / `list_rules()` (the loaded rule inventory).
+`log-skimmer-mcp` exposes three tools over stdio transport: `skim(log_text, context?)` (extract blocks + fragment summaries + compression stats (omitted on zero blocks); context range 0-10, out-of-range reports invalid_params; on zero blocks it returns `fallback: "no-blocks"` with fallback-advice fields instead of an error) / `read_around(log_text, line_start, line_end)` (fetch an original-text window by coordinates, capped at 200 lines per call) / `list_rules()` (the loaded rule inventory).
 
 ```bash
 cargo build --release -p log-skimmer-server

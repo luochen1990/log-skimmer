@@ -171,7 +171,7 @@ The output is positioned as an "**index + summary**", not a log replacement — 
 
 Tool responses of the MCP server (`log-skimmer-mcp`, stdio) are a **consumer-side view** layered on top of this section's base protocol — unlike the CLI `--json`, which returns the engine's `SkimResult` directly (top level `file`/`input_lines`/`output_lines`/`stats`, blocks with fragments embedded), MCP skim returns a parallel array of block summaries + representative fragments. Successful results are JSON embedded in text content; input-validation failures are MCP `invalid_params` errors (structured and recoverable, not a crash). Zero-block semantics, two surfaces: CLI = stderr warning + exit 3 (above); MCP = **normal return** (not an error) + the `fallback` field present — the same blindness verdict expressed as a field.
 
-**skim response** (non-zero-block example; `fallback`/`advice` present only on zero blocks):
+**skim response** (non-zero-block example; `fallback`/`advice` present only on zero blocks, `stats.compression_*` omitted on zero blocks):
 
 ```json
 {
@@ -197,7 +197,7 @@ Tool responses of the MCP server (`log-skimmer-mcp`, stdio) are a **consumer-sid
 | `blocks[].out_lines` | Lines presented in the block (after noise removal) |
 | `blocks[].signature_lines` | Deduplicated count of the block's signature lines (each fragment's anchor line) |
 | `fragments` | Each block's **representative fragment** (not the full set; always carries the field set shown in the example above), one-to-one in the same order as `blocks` |
-| `stats` | `total_lines`/`out_lines`/`signature_lines` under the same criteria as the CLI; `compression_block`/`compression_signature` = dual-granularity compression ratios (0-1 decimals, four-digit precision). On zero blocks still output per the formula (compression = 1.0) — a different surface from the CLI's human-readable `n/a`; the zero-block verdict is judged by the presence of `fallback` |
+| `stats` | `total_lines`/`out_lines`/`signature_lines` under the same criteria as the CLI; `compression_block`/`compression_signature` = dual-granularity compression ratios (0-1 decimals, four-digit precision), **present only on non-zero blocks** — zero blocks means no output and hence no ratio, both fields omitted (same philosophy as the CLI stats-line `n/a`: refuse fake compression = 1.0 statistics); the zero-block verdict is judged by the presence of `fallback` |
 | `fallback` | **Present only on zero blocks**; value domain is the single value `"no-blocks"` — presence is itself the blindness verdict; the consumer unconditionally falls back to the rg baseline (verdict matrix) |
 | `advice` | **Present only on zero blocks**; fallback-advice copy (rg baseline command example + rule-contribution guidance), a human-readable hint, not a protocol-parsing target |
 

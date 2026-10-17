@@ -170,7 +170,7 @@ L4: build failed
 
 MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上的**消费方视图** — 与 CLI `--json` 直接返回引擎 `SkimResult` (顶层 `file`/`input_lines`/`output_lines`/`stats`, blocks 内嵌 fragments) 不同, MCP skim 返回块摘要 + 代表 fragment 的平行数组。成功结果为 text content 内嵌 JSON; 输入校验失败为 MCP `invalid_params` 错误 (结构化可恢复, 非 crash)。零块语义两面: CLI = stderr 警告 + exit 3 (上文); MCP = **正常返回** (非错误) + `fallback` 字段在场 — 同一失明判定的字段化表达。
 
-**skim 响应** (非零块示例; `fallback`/`advice` 仅零块时在场):
+**skim 响应** (非零块示例; `fallback`/`advice` 仅零块时在场, `stats.compression_*` 零块时省略):
 
 ```json
 {
@@ -196,7 +196,7 @@ MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上
 | `blocks[].out_lines` | 块内呈现行数 (noise 剔除后) |
 | `blocks[].signature_lines` | 块内签名行 (各 fragment 锚行) 去重计数 |
 | `fragments` | 每块**代表 fragment** (非全量; 恒带字段集同上示例), 与 `blocks` 同序一一对应 |
-| `stats` | `total_lines`/`out_lines`/`signature_lines` 同 CLI 口径; `compression_block`/`compression_signature` = 双粒度压缩比 (0-1 小数, 四位精度)。零块时仍按公式输出 (compression = 1.0) — 与 CLI 人类可读的 `n/a` 表达不同面, 零块判定以 `fallback` 在场为准 |
+| `stats` | `total_lines`/`out_lines`/`signature_lines` 同 CLI 口径; `compression_block`/`compression_signature` = 双粒度压缩比 (0-1 小数, 四位精度), **仅非零块时在场** — 零块时无输出即无压缩率, 两字段省略 (与 CLI 统计行 `n/a` 同一哲学: 拒绝 compression = 1.0 伪统计); 零块判定以 `fallback` 在场为准 |
 | `fallback` | **仅零块时在场**; 取值域单值 `"no-blocks"` — 在场性即失明判定, 消费方无条件回退 rg 基线 (判定矩阵) |
 | `advice` | **仅零块时在场**; 回退建议文案 (rg 基线命令示例 + 规则贡献指引), 人类可读提示, 非协议解析对象 |
 
