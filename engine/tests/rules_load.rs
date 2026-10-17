@@ -30,3 +30,17 @@ fn all_rules_load_with_unique_ids() {
         .collect();
     assert!(dups.is_empty(), "规则 id 重复: {dups:?}");
 }
+
+/// 空集防线: 目录不存在 / 目录存在但零 *.yaml 必须硬拒绝 (静默空集 = 引擎失明,
+/// L0 聚合侧表现为全样本 100% 压缩假象 — rules 仓 lint 路径分叉事故的教训)。
+#[test]
+fn empty_rules_dir_rejected() {
+    let e = log_skimmer::load_rules(std::path::Path::new("/nonexistent-rules-dir"))
+        .expect_err("不存在的规则目录必须 Err");
+    assert!(e.to_string().contains("规则目录不存在"), "got: {e}");
+
+    let empty = std::env::temp_dir().join("log-skimmer-empty-rules");
+    std::fs::create_dir_all(&empty).unwrap();
+    let e = log_skimmer::load_rules(&empty).expect_err("零 yaml 目录必须 Err");
+    assert!(e.to_string().contains("无 *.yaml"), "got: {e}");
+}

@@ -209,10 +209,24 @@ fn is_valid_id(id: &str) -> bool {
 
 /// 递归读取目录下全部 `*.yaml`, 解析 + 校验 + 编译 regex。
 pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
+    let mut errs = LoadErrors::default();
+    // 目录不存在 / 零规则 = 集体失明: 空规则集对任何日志输出零块, 在 L0 聚合侧表现
+    // 为全样本 100% 压缩的假象 (实测事故: rules 仓 lint 的 base 路径基准分叉, 不存在
+    // 的目录被静默当空集 → base 恒 100% → 伪 regression) — 拒绝而非静默。
+    if !dir.is_dir() {
+        errs.0.push(format!("{}: 规则目录不存在", dir.display()));
+        return Err(errs);
+    }
     let mut files = Vec::new();
     collect_yaml_files(dir, &mut files);
+    if files.is_empty() {
+        errs.0.push(format!(
+            "{}: 目录下无 *.yaml (规则集为空 = 引擎失明)",
+            dir.display()
+        ));
+        return Err(errs);
+    }
     files.sort();
-    let mut errs = LoadErrors::default();
     let mut rules = Vec::new();
     for path in &files {
         let rel = path.strip_prefix(dir).unwrap_or(path).display().to_string();
