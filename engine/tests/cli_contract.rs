@@ -204,3 +204,47 @@ fn l0_hidden_from_public_help() {
         "l0 子命令不应出现在公共帮助 Commands 区: {help_text}"
     );
 }
+
+// #38: hygiene 是内部发布链工具 (publish-stage 机械防线), 与 l0 (#16-B) 同款隐藏于
+// 公共帮助面; 但 hide ≠ 移除 — 子命令级帮助与解析路径保留 (justfile publish-stage
+// 直接调用不受影响)。断言钉住两面: 公共面不列 hygiene, 直接调用仍走 hygiene 解析。
+#[test]
+fn hygiene_hidden_from_public_help() {
+    let bin = env!("CARGO_BIN_EXE_log-skimmer");
+    // 面 1: 公共 --help 的 Commands 区无 hygiene 条目 (逐行断言, 与 l0 用例同法)
+    let help = Command::new(bin).arg("--help").output().unwrap();
+    assert!(help.status.success());
+    let help_text = String::from_utf8_lossy(&help.stdout);
+    assert!(
+        !help_text
+            .lines()
+            .any(|l| l.trim_start().starts_with("hygiene")),
+        "hygiene 子命令不应出现在公共帮助 Commands 区: {help_text}"
+    );
+    // 面 2: 只隐藏不移除 — 子命令级 --help 仍可用
+    let sub_help = Command::new(bin)
+        .args(["hygiene", "--help"])
+        .output()
+        .unwrap();
+    assert!(
+        sub_help.status.success(),
+        "hygiene --help 应仍可用 (hide ≠ 移除)"
+    );
+    assert!(
+        String::from_utf8_lossy(&sub_help.stdout).contains("--patterns"),
+        "hygiene 子命令级帮助应含 --patterns 参数面"
+    );
+    // 面 3: 直接调用仍走 hygiene 的 clap 解析 — 缺必选参数报 usage (exit 64),
+    // 而非 unrecognized subcommand (防 hide 语义被误改成移除)。
+    let bare = Command::new(bin).arg("hygiene").output().unwrap();
+    assert_eq!(bare.status.code(), Some(64));
+    let stderr = String::from_utf8_lossy(&bare.stderr);
+    assert!(
+        !stderr.contains("unrecognized subcommand"),
+        "hygiene 应仍被 clap 识别为子命令: {stderr}"
+    );
+    assert!(
+        stderr.contains("required arguments were not provided"),
+        "缺参错误应来自 hygiene 自身解析路径: {stderr}"
+    );
+}
