@@ -23,7 +23,7 @@
               jq # JSON 处理 (skim --json 输出消费)
               ripgrep # rg 基线对照与开发调试
               yq # YAML 处理储备 (规则集工具链)
-            ]);
+            ];
           };
         });
     };
