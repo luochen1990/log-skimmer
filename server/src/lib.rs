@@ -29,8 +29,7 @@ pub const MAX_WINDOW_LINES: usize = 200;
 /// 结构失明, 与 job 成败无关, 消费方无条件 fallback — 消费方只需检查
 /// `fallback` 字段存在即一行判定。
 pub const FALLBACK_NO_BLOCKS: &str = "no-blocks";
-pub const ADVICE_NO_BLOCKS: &str =
-    "零块=失明, 请回退 rg 基线 (如 rg -i 'error|fail|panic' <log>) 并考虑贡献新规则";
+pub const ADVICE_NO_BLOCKS: &str = "零块=失明, 请回退 rg 基线 (如 rg -i 'error|fail|panic' <log>) 并考虑贡献新规则: https://github.com/luochen1990/log-skimmer-rules";
 
 // ---------------------------------------------------------------------------
 // 规则集装载

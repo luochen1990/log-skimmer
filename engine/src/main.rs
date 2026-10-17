@@ -192,7 +192,7 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
     // 对该日志失明, 与 job 成败无关, 调用方应无条件回退 rg 基线。
     if result.blocks.is_empty() && result.input_lines > 0 {
         eprintln!(
-            "⚠ 零提取 — 规则集对该日志失明 (spec §0 召回优先); 建议回退 rg error|warn && tail 基线"
+            "⚠ 零提取 — 规则集对该日志失明 (spec §0 召回优先); 建议回退 rg error|warn && tail 基线; 新工具日志可贡献规则: https://github.com/luochen1990/log-skimmer-rules"
         );
         std::process::exit(3);
     }
