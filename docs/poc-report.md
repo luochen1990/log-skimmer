@@ -15,7 +15,7 @@
 | sst/opencode (GHA) | bun/eslint/playwright | 14 | 5 | GHA 时间戳前缀 + ANSI 色码 |
 | niri-wm/niri (GHA) | cargo/rustc/rust-test | 14 | 5 | 同上 |
 | nix-community/home-manager (GHA) | nix/git/nixfmt | 14 | 5 | 同上; 完整多行错误树 (最大 219 行) |
-| **lc-studio/nixos (Forgejo)** | nix/just/treefmt/nim/systemd | 7 | 3 | **agent-service 沙箱轮询回显** (`… [NmNns]` 前缀, 值树逐行打散, runner 尾部三连) |
+| **内部 nixos 仓 (Forgejo)** | nix/just/treefmt/nim/systemd | 7 | 3 | **agent-service 沙箱轮询回显** (`… [NmNns]` 前缀, 值树逐行打散, runner 尾部三连) |
 
 - 侧车 meta 全量含 `attempt` 与 `ci` 字段; **rerun 处置实证**: 1 个样本 attempt=3 且最终失败 → 按 attempt 结论保留为优质 failure 语料 (rerun-through 排除规则未触发, 语料无该形态)。
 - **三态实证**: 无 cancelled/skipped 结论样本 (Forgejo run 级取消在 job 层落为 failure+terminated 形态, 已收入); 18720 即 terminated 形态 — 按新口径它属 failure (有日志有结论), 其提取命中 3 块。

@@ -21,7 +21,7 @@ POC 回测语料: **4 个真实仓库、67 对成败样本 (49 失败 / 18 成�
 | anomalyco/opencode (原 sst/opencode, 2026-10 易主) | bun / eslint / playwright | GHA 时间戳前缀 + ANSI 色码 |
 | niri-wm/niri | cargo / rustc / rust-test | 同上 |
 | nix-community/home-manager | nix / git / nixfmt | 完整多行错误树 (最大 219 行) |
-| lc-studio/nixos | nix / just / treefmt / nim / systemd | Forgejo 沙箱轮询回显前缀 |
+| 内部 Forgejo 仓 (nixos 配置) | nix / just / treefmt / nim / systemd | Forgejo 沙箱轮询回显前缀 |
 
 核心结果: FN (失败完全漏检) 0/49; FP 0 行 vs 基线 230 行; 双粒度压缩率 — 块级 83.9%-98.9%, 签名行级 99.18%-99.73% (巨树场景收益最大: 219 行错误树在签名行级收敛为 1 行索引)。
 
@@ -31,7 +31,7 @@ POC 回测语料: **4 个真实仓库、67 对成败样本 (49 失败 / 18 成�
 
 | 仓 | 位置 | 定位 | 演进节奏 | 依赖 |
 | --- | --- | --- | --- | --- |
-| `lc-studio/log-skimmer` (dev) | forgejo 私有 | 内部快速迭代: 引擎 + L0 门禁脚本 + spec | 每日 | CI 消费 corpus + rules |
+| 内部 dev 仓 | Forgejo 私有 | 内部快速迭代: 引擎 + L0 门禁脚本 + spec | 每日 | CI 消费 corpus + rules |
 | `luochen1990/log-skimmer` (发布面) | GitHub public | 稳定版引擎发布 | 不定期手动同步 (`just publish`) | 零 (被 rules 仓 CI 消费) |
 | `luochen1990/log-skimmer-rules` | GitHub public | **规则库** — 项目核心资产, 社区维护 + Agent 辅助 | 社区 PR | CI 借发布面引擎 + corpus 做校验; 本体零依赖 |
 | `luochen1990/log-skimmer-corpus` | GitHub public | **语料库** — 回归语料, 源头, 自包含 | GHA weekly 自刷槽位 | **零依赖** |

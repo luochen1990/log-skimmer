@@ -119,7 +119,7 @@ L0 代理指标: FN 代理 = 0 (42/42 失败日志至少 1 个 signal 块, gh-an
 
 ## 6. Forgejo 本仓语料 (v2 增补, 2026-10-16)
 
-- 失败 7 + 成功 3 (pull_request), 落盘 lc-studio__nixos/, sidecar 含 attempt + ci: forgejo。
+- 失败 7 + 成功 3 (pull_request), 落盘内网 Forgejo 语料槽, sidecar 含 attempt + ci: forgejo。
 - 形态: agent-service 沙箱轮询回显 (`… [NmNns]` 前缀, 值树逐行打散) — 与 GHA 直出完全不同, 规则正则自承载适配 (spec A0)。
 - 新增规则 9 条 (6 signal + 3 noise): just-recipe-fail / nim-segv / nix-option-conflict / nix-deprecation-warning (首个 intent: warning) / treefmt-fail-on-change / forgejo-actions-job-failed (安全网) / systemd-ci-unit-fail + poll/fetch/drv 三条 noise。
 - 已知差异: Forgejo job logs 全量与 byte-range 接口个别行前缀不一致, 语料以 byte-range (可互验) 为准。
