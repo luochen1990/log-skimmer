@@ -2,7 +2,7 @@
 
 CI 日志高信噪比提取工具 — 以确定性规则集把失败的 CI 日志压缩成带坐标、带语义标注的高信噪比摘要，供 AI agent 消费。
 
-> 引擎与规则集已在 4 个真实仓库的语料上完成回测验证 (见下文数据), 并以 L0 门禁化语料回归守住质量基线; CLI 与 MCP server (`log-skimmer-mcp`) 双形态可用。
+> 引擎与规则集已在 3 个 GitHub 公开仓 + 1 个私有语料源共 67 对成败样本上完成回测验证 (见下文数据); CLI 与 MCP server (`log-skimmer-mcp`) 双形态可用。
 
 ## 项目动机
 
@@ -14,37 +14,33 @@ AI agent 排查 CI 失败时, 日志消费存在结构性困境:
 
 Log Skimmer 的解法是**学习型规则集 + 运行期纯正则逐行状态机**: 规则描述「各类工具的失败证据长什么样」(锚行 + 多行扩展), 引擎按规则提取出完整错误树并附加坐标与语义标注。LLM 只在未来学习期 (规则生成 Adapter) 参与, 读取期零 LLM、零网络、结果可复现。
 
-POC 回测语料: **4 个真实仓库、67 对成败样本 (49 失败 / 18 成功)、约 6 万行日志**, 覆盖 GitHub Actions 与 Forgejo Actions 两种 CI 平台:
+POC 回测语料: **3 个 GitHub 公开仓 + 1 个私有语料源, 67 对成败样本 (49 失败 / 18 成功)、约 6 万行日志**, 覆盖 GitHub Actions 与 Forgejo Actions 两种 CI 平台:
 
 | 仓库 | 工具栈 | 形态特征 |
 | --- | --- | --- |
 | anomalyco/opencode (原 sst/opencode, 2026-10 易主) | bun / eslint / playwright | GHA 时间戳前缀 + ANSI 色码 |
 | niri-wm/niri | cargo / rustc / rust-test | 同上 |
 | nix-community/home-manager | nix / git / nixfmt | 完整多行错误树 (最大 219 行) |
-| 内部 Forgejo 仓 (nixos 配置) | nix / just / treefmt / nim / systemd | Forgejo 沙箱轮询回显前缀 |
+| 私有语料源 (private corpus) | nix / just / treefmt / nim / systemd | Forgejo 沙箱轮询回显前缀 |
 
 核心结果: FN (失败完全漏检) 0/49; FP 0 行 vs 基线 230 行; 双粒度压缩率 — 块级 83.9%-98.9%, 签名行级 99.18%-99.73% (巨树场景收益最大: 219 行错误树在签名行级收敛为 1 行索引)。
 
 ## 仓库拓扑
 
-项目由四个仓组成, 依赖全部单向 (无环), 各有信任域与演进节奏:
+项目由三个公开仓组成, 依赖全部单向 (无环):
 
-| 仓 | 位置 | 定位 | 演进节奏 | 依赖 |
-| --- | --- | --- | --- | --- |
-| 内部 dev 仓 | Forgejo 私有 | 内部快速迭代: 引擎 + L0 门禁脚本 + spec | 每日 | CI 消费 corpus + rules |
-| `luochen1990/log-skimmer` (发布面) | GitHub public | 稳定版引擎发布 | 不定期手动同步 (`just publish`) | 零 (被 rules 仓 CI 消费) |
-| `luochen1990/log-skimmer-rules` | GitHub public | **规则库** — 项目核心资产, 社区维护 + Agent 辅助 | 社区 PR | CI 借发布面引擎 + corpus 做校验; 本体零依赖 |
-| `luochen1990/log-skimmer-corpus` | GitHub public | **语料库** — 回归语料, 源头, 自包含 | GHA weekly 自刷槽位 | **零依赖** |
+| 仓 | 定位 | 演进节奏 | 依赖 |
+| --- | --- | --- | --- |
+| `luochen1990/log-skimmer` (本仓) | **引擎** — CLI + MCP server | 不定期发布 | 零 (被 rules 仓 CI 消费) |
+| `luochen1990/log-skimmer-rules` | **规则库** — 项目核心资产, 社区维护 + Agent 辅助 | 社区 PR | 运行时单向依赖本仓引擎 |
+| `luochen1990/log-skimmer-corpus` | **语料库** — 回归语料, 源头, 自包含 | GHA weekly 自刷槽位 | **零依赖** |
 
 ```
-forgejo dev 仓 ──不定期手动同步──▶ GitHub 发布面
-                                      │ 引擎 (rules 仓 CI 校验用)
-                                      ▼
-GitHub rules 仓 ◀──运行时单向依赖── CLI (log-skimmer skim --rules)
-GitHub corpus 仓 ◀──CI 单向依赖──── dev 仓 L0 门禁 (语料+规则在场)
+rules 仓 ◀──运行时单向依赖── CLI (log-skimmer skim --rules)
+rules 仓 CI ──规则校验──▶ 本仓引擎 × corpus 语料 (master-vs-PR 规则双测)
 ```
 
-不变量: ① 依赖单向 — corpus 是源头 (零依赖, 被依赖), rules 只被消费, 无环; ② 信任域 — forgejo 侧私有 (内网语料可近), GitHub 侧 public (零内网数据); ③ L0 压缩率防退化不依赖基线文件 — PR CI **双测对比** (master 引擎 vs PR 引擎 × 同语料同规则), 规则与语料在双测中同侧, 漂移自动消去。
+不变量: 依赖单向 — corpus 是源头 (零依赖, 被依赖), rules 只被消费, 无环。
 
 ## 关键特性
 
@@ -112,14 +108,14 @@ opencode / Claude 等客户端配置示例 (command 形态):
 
 部署前提: 二进制旁须有规则集目录 (log-skimmer-rules 仓 clone), 或设 `LOG_SKIMMER_RULES` 指向它 (缺省探测编译期路径与可执行文件相邻路径, 均失败时 fail-fast 退出码 2)。单条日志上限 32MB, 超限报错并建议 `tail -c` 截取。
 
-开发验证 (CI 与本地同链: 直接调用 — 需 PATH 有 rust 工具链; 纯 nix 环境经 devShell):
+开发验证:
 
 ```bash
-just ci-merge              # CI 合入门禁: 语料获取 → fmt → clippy → test → L0 全语料门禁 (vm-nix 预装工具链直用)
+cargo test --workspace     # 单测: 引擎状态机公理 + 规则加载回归 + MCP stdio 冒烟
 nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt + clippy + test)
 ```
 
-回归语料双源: [log-skimmer-corpus](https://github.com/luochen1990/log-skimmer-corpus) (公开仓 CI 日志滚动快照, GHA weekly 自刷) + 私有内网实例日志按固定清单现场拉取 (数据不出内网), 首次跑门禁时自动获取。
+回归语料: [log-skimmer-corpus](https://github.com/luochen1990/log-skimmer-corpus) (公开仓 CI 日志滚动快照, GHA weekly 自刷)。
 
 ## 贡献指引
 
