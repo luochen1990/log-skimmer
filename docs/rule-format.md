@@ -28,7 +28,7 @@ patterns:                     # 状态机 pattern 链, ≥1 项 (见 §2)
     loop: true                 # 贪心重复消费
 kind: signal                  # signal (提取) | noise (标记噪音)
 # ---- 选填 (默认值如下) ----
-repo: null                    # scope: repo 时必填, "host/owner/repo" (oss-cache 同构, 如 github.com/sst/opencode; 多 CI 平台 host 消歧)
+repo: null                    # scope: repo 时必填, "host/owner/repo" (如 github.com/sst/opencode; 多 CI 平台 host 消歧)
 category: unknown             # 封闭枚举 10 值 (见下表); 省缺 = unknown (装载入口统一注入, 宁缺勿错)
 intent: failure               # failure|warning|info — 见下方语义表; noise 规则必须缺省
 confidence: medium            # high|medium|low (片段继承, 排序参考)
@@ -57,7 +57,7 @@ warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊�
 | patterns | 非空数组; 每项 regex 必填; loop 默认 false |
 | context.before/after | 0 ≤ 值 ≤ 10 |
 | kind/confidence/category | 枚举值; category 省缺视为 unknown (装载入口统一注入) |
-| repo | `host/owner/repo` 完整形态 (oss-cache 同构); 裸 `owner/repo` 缺 host 视为非法 |
+| repo | `host/owner/repo` 完整形态; 裸 `owner/repo` 缺 host 视为非法 |
 
 `category` 封闭枚举 (调研定稿, 见 docs/category-survey.md; 两域混合, 域归属仅作文档/WebPage 分组, 不进枚举值):
 
@@ -181,10 +181,10 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 
 ## 5. 样本与配对 (POC 约定)
 
-- 样本存放: `data/logs/<host>/<owner>/<repo>/<YYYY-MM-DD>/<run_id>-<job_id>-<job_name>-<conclusion>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, created_at, job_name, attempt, ci, fetched_at}` — **嵌套自然路径** (需求方裁决, 弃 `__` 扁平化: 机器遍历用递归 find 无成本, 人类可读性优先 — 日期/触发 job/成败进路径, 裸数字文件名不可读); `repo` 为 **`host/owner/repo` 完整形态** (oss-cache repo-id 同款, 元数据 SSOT 在 sidecar, 路径仅为可读性投影); conclusion 取 **job 级 result**; `created_at` (run 级) / `job_name` 取数时从 API 元数据写入; `job_name` 清洗规则: `/`与空格→`-`, 截 30 字符。
-- **语料独立仓 + 内网现场层 (需求方裁决, 2026-10-16)**: 语料不入主仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏。双源形态: ① GHA 侧 (公开仓) 三仓 14F+5S 滚动槽位存独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, **源头自包含零依赖** — GHA weekly 自刷槽位, 不构建引擎不算基线), 主仓 CI 经 `fetch-corpus.sh` 幂等拉取消费; ② **Forgejo 侧 (私有内网实例) 语料永不出内网** (隐私红线: 内网拓扑数据禁止进任何外网仓 — 2026-10-16 事故: 曾推 GitHub ~1h 后重写历史重建, 见 AGENTS.md), 主仓 `fetch-forgejo.sh` 按固定清单 (`data/forgejo-runs.json`, run_id + 不可变元数据固化) 现场拉取, 换样本走 PR 改清单。主仓只放拉取脚本与清单 (`fetch-corpus.sh`/`fetch-forgejo.sh`/`fetch-rules.sh`), `data/logs`/`data/rules` 是工作副本 (gitignored); L0 门禁的语料在场 ≥50 断言同时兜底获取失败 (兼容 rules 仓单源 CI)。规则集独立成仓 `github.com/luochen1990/log-skimmer-rules` (社区维护 + Agent 辅助, 规则 PR 的质量门禁在该仓 CI: 发布面引擎 × corpus 语料 × master-vs-PR 规则双测)。演进链: POC 不入仓 → M1 入仓 → 需求方否决 (腐坏论) → 独立仓+内网刷新 → 内网数据现场拉取 (隐私) → GHA 全闭环自刷新 (镜像进语料仓) → mirror 主仓判定器直取 → **四仓拓扑定稿 + 基线退役** (需求方裁决 2026-10-16: dev 仓/发布面/rules 仓/corpus 仓四仓单向依赖; 语料仓是源头自包含零依赖 — 基线与其无关; 压缩率防退化改 PR CI 双测对比: master vs PR 引擎 × 同语料同规则, 无基线文件无配对问题)。
+- 样本存放: `data/logs/<host>/<owner>/<repo>/<YYYY-MM-DD>/<run_id>-<job_id>-<job_name>-<conclusion>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, created_at, job_name, attempt, ci, fetched_at}` — **嵌套自然路径** (需求方裁决, 弃 `__` 扁平化: 机器遍历用递归 find 无成本, 人类可读性优先 — 日期/触发 job/成败进路径, 裸数字文件名不可读); `repo` 为 **`host/owner/repo` 完整形态** (元数据 SSOT 在 sidecar, 路径仅为可读性投影); conclusion 取 **job 级 result**; `created_at` (run 级) / `job_name` 取数时从 API 元数据写入; `job_name` 清洗规则: `/`与空格→`-`, 截 30 字符。
+- **语料独立仓 (双源, 需求方裁决, 2026-10-16)**: 语料不入引擎仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏。双源形态: ① GHA 侧 (公开仓) 滚动槽位存独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, **源头自包含零依赖** — GHA weekly 自刷槽位, 不构建引擎不算基线), 引擎仓 CI 经幂等拉取脚本消费; ② **私有语料源** (含敏感环境信息, 不公开分发)。`data/logs`/`data/rules` 是拉取脚本的工作副本 (gitignored); L0 门禁的语料在场 ≥50 断言同时兜底获取失败 (兼容 rules 仓单源 CI)。规则集独立成仓 `github.com/luochen1990/log-skimmer-rules` (社区维护 + Agent 辅助, 规则 PR 的质量门禁在该仓 CI: 发布面引擎 × corpus 语料 × master-vs-PR 规则双测)。压缩率防退化走 PR CI 双测对比: master vs PR 引擎 × 同语料同规则, 无基线文件无配对问题。
 - 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。
 
 ## 6. POC 明确不做
 
-MCP 服务 / Adapter (LLM 学习) / manifest 按需拉取 / WebPage / noise 前缀树优化 / 多字节行边界优化 / CI 集成。引擎 = 加载 + 扫描 + 输出 + 统计, 四件事。
+MCP 服务已交付; POC 明确不做: Adapter (LLM 学习) / manifest 按需拉取 / WebPage / noise 前缀树优化 / 多字节行边界优化 / CI 集成。引擎 = 加载 + 扫描 + 输出 + 统计, 四件事。
