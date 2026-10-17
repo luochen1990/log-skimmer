@@ -20,6 +20,13 @@ fn all_rules_load_with_unique_ids() {
         rules.len()
     );
 
+    // 隐藏路径跳过 (issue #8): .github/ 是仓级元数据而非规则 — fixture 镜像真实
+    // 规则仓布局 (.github/_template.yaml 在场), 装载结果不得含模板 id。
+    assert!(
+        !rules.iter().any(|r| r.id == "template-my-rule"),
+        "隐藏路径 (.github/) 内的模板不得被装载为生产规则"
+    );
+
     // id 全局唯一 (load_rules 已校验 Err 路径; 此处显式断言契约, 防 lib 内部实现演进松动)
     let mut ids: Vec<&str> = rules.iter().map(|r| r.id.as_str()).collect();
     ids.sort_unstable();

@@ -17,7 +17,9 @@ MIN_RULES=25 # 30 条现状留余量, 与 rules 仓 lint 的在场断言同源
 
 log() { printf '[fetch-rules %(%H:%M:%S)T] %s\n' -1 "$*" >&2; }
 
-count_rules() { find "$DEST" -name '*.yaml' ! -name '_template.yaml' 2>/dev/null | wc -l; }
+# ! -path '.github': 规则仓模板已迁 .github/ 隐藏路径 (issue #8), 引擎装载跳过;
+#   计数同步排除整个 .github/ — 防未来该目录出现其他 yaml 误计数 (与 rules 仓 lint.yml 同款加固)
+count_rules() { find "$DEST" -name '*.yaml' ! -name '_template.yaml' ! -path '*/.github/*' 2>/dev/null | wc -l; }
 
 if [ "${RULES_OFFLINE:-0}" = 1 ]; then
   log "RULES_OFFLINE=1, 跳过拉取"
