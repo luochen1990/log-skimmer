@@ -12,7 +12,7 @@ When an AI agent investigates CI failures, log consumption is structurally hard:
 
 - **Full logs are too large**: a single failed job easily spans thousands to tens of thousands of lines. Feeding it wholesale into context is expensive, and the key errors drown in noise.
 - **Keyword baselines produce many false positives**: the agent's fallback, `rg -i 'error|warn'`, treats the many harmless "warning" mentions in successful jobs as error signals. POC measurement: this baseline produced **230 lines of false positives** across 18 successful jobs (FP rate 100%, averaging 12.8 lines/job); Log Skimmer under the same criteria produced **0 lines**.
-- **Single-line regexes cannot capture error trees**: failure evidence from tools like nix/rustc is multi-line structure (the largest nix error tree in the POC corpus spans 219 lines). `rg` only echoes the isolated anchor line — enough to "glimpse" an error, not to "locate" it.
+- **Single-line regexes cannot capture error trees**: failure evidence from tools like nix/rustc is multi-line structure (the largest nix error tree in the POC corpus spans 219 lines). `rg` only echoes the isolated anchor line (the first line of an error tree, e.g. `error: ...`) — enough to "glimpse" an error, not to "locate" it.
 
 Log Skimmer's answer is a **learned rule set + a pure-regex, line-by-line state machine at runtime**: rules describe "what failure evidence from each tool looks like" (anchor line + multi-line extension), and the engine extracts complete error trees per those rules, attaching coordinates and semantic annotations. The LLM participates only in the future learning phase (rule-generation Adapter); the reading phase has zero LLM, zero network, and reproducible results.
 
@@ -25,7 +25,7 @@ POC backtesting corpus: **3 public GitHub repositories + 1 private corpus source
 | nix-community/home-manager | nix / git / nixfmt | Full multi-line error trees (largest: 219 lines) |
 | Private corpus source | nix / just / treefmt / nim / systemd | Forgejo sandbox polling echo prefix |
 
-Core results: FN (failure completely missed) 0/49; FP 0 lines vs the baseline's 230 lines; dual-granularity compression ratios — block-level 83.9%–98.9%, signature-line-level 99.18%–99.73% (giant trees benefit most: a 219-line error tree converges to a 1-line index at signature-line granularity).
+Core results: FN (failure completely missed) 0/49; FP 0 lines vs the baseline's 230 lines; dual-granularity compression ratios — block-level 83.9%–98.9%, signature-line-level (anchor lines only) 99.18%–99.73% (giant trees benefit most: a 219-line error tree converges to a 1-line index at signature-line granularity).
 
 ## Repository Topology
 

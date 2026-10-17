@@ -58,6 +58,7 @@ warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊�
 | patterns | 非空数组; 每项 regex 必填; loop 默认 false |
 | context.before/after | 0 ≤ 值 ≤ 10 |
 | kind/confidence/category | 枚举值; category 省缺视为 unknown (装载入口统一注入) |
+| intent | 枚举 `failure`/`warning`/`info`, 省缺 = failure; kind: noise 时必须缺省 |
 | repo | `host/owner/repo` 完整形态; 裸 `owner/repo` 缺 host 视为非法 |
 
 `category` 封闭枚举 (调研定稿, 见 docs/category-survey.md; 两域混合, 域归属仅作文档/WebPage 分组, 不进枚举值):
@@ -76,7 +77,6 @@ warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊�
 | `unknown` | 兜底 | 无法唯一判类 |
 
 打标纪律 (**宁缺勿错**): 错标污染查询语义 (agent 程序化过滤, 不可检测), unknown 只损失该规则自身的过滤价值。多因混合/类别超出枚举 (集合演化信号, PR 记录样例)/样例不足/L0 回测发现规则命中多类日志 → 打 unknown。unknown 占比长期 >40% 触发集合审视; unknown 升级具名走 PR 人工确认。flaky 是属性不是类别, 不进 category (未来独立维度)。
-| intent | `failure`(默认)/`warning`/`info`; **kind: noise 时必须缺省** |
 
 ## 2. 状态机语义 (公理 A1-A8)
 
@@ -85,6 +85,8 @@ warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊�
 **A1 独立扫描**: 每条规则维护独立状态机, 对日志逐行扫描; 规则间互不干扰。
 
 **A2 锚 (anchor)**: `patterns[0].regex` 匹配当前行 → **开块**, 消费该行, 进入扩展态。锚是开块的唯一途径。
+
+**锚定惯例**: 规则 regex 以 `^` 行首锚定是**书写惯例而非引擎强制** — 引擎按 A8 对 pattern 原样编译, 不注入 `^`; 未写 `^` 的 pattern 会命中行内任意位置。惯例的后果: 错误证据嵌在行中而非行首时 (如单行 JSON 形态的日志行 `{"level":"error",...}`), 锚定规则不会命中, 该日志可能零块走 fallback (§3)。已知证据恒嵌行中的工具, 由规则正则自行表达容忍 (与 A0 宿主前缀处理同法)。
 
 **A3 扩展 (贪心 + 有序透传)**: 开块后状态机持有一个**扩展指针** `p`, 初始指向 `patterns[1]`。对每一新行:
 
@@ -143,7 +145,7 @@ L4: build failed
 }
 ```
 
-- `start/end_line`: 合并块输出区间 hull (各成员 fragment 输出区间并集, 含 context 扩展; 1-based, 含端点)。
+- `start/end_line`: 合并块输出区间 hull (各成员 fragment 输出区间并集, 含 context 扩展; 1-based 含端点)。
 - fragment 的 `block` 是该规则自身消费区间 (无 context); `text` 含 context 扩展。
 - `output_lines` = 合并块总行数 (noise 剔除后) — **块级粒度**。
 - `signature_output_lines` = 各 fragment block 首行 (锚行/签名行, 去重行号) 计数 — **签名行级粒度**。压缩比按两档粒度分列统计 (两数字差异大, 验收线不可混谈)。
@@ -163,6 +165,46 @@ L4: build failed
 | 失败 | 非零 | 非零 | 正常 (失败侧安全网结构保证) |
 | 失败 | 非零 | 0 | **异常** — 已知边界: 日志截断 (runner 崩溃丢尾部失败信号) 或规则失明; 工具无 conclusion 无法自判, 消费方一行检查 `结论=failure 而 failure 块零 → 视同失明 → fallback` |
 - 人类可读输出 (默认): 块间 `---` 分隔, 块头 `[L120-L135] [failure/typecheck] rule1,rule2` (intent/category 取块代表 fragment — intent 优先级 failure > warning > info, 同级 confidence > 块内原序; 语义单点 engine `OutputBlock::representative`, MCP BlockSummary 同源), 后跟文本。
+
+### MCP tool 响应协议 (skim / read_around / list_rules)
+
+MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上的**消费方视图** — 与 CLI `--json` 直接返回引擎 `SkimResult` (顶层 `file`/`input_lines`/`output_lines`/`stats`, blocks 内嵌 fragments) 不同, MCP skim 返回块摘要 + 代表 fragment 的平行数组。成功结果为 text content 内嵌 JSON; 输入校验失败为 MCP `invalid_params` 错误 (结构化可恢复, 非 crash)。零块语义两面: CLI = stderr 警告 + exit 3 (上文); MCP = **正常返回** (非错误) + `fallback` 字段在场 — 同一失明判定的字段化表达。
+
+**skim 响应** (非零块示例; `fallback`/`advice` 仅零块时在场):
+
+```json
+{
+  "blocks": [
+    { "start_line": 3, "end_line": 3, "rules": ["cargo-could-not-compile"],
+      "intent": "failure", "category": "build", "out_lines": 1, "signature_lines": 1 }
+  ],
+  "fragments": [
+    { "rule": "cargo-could-not-compile", "kind": "signal", "intent": "failure",
+      "category": "build", "confidence": "high", "block": [3, 3], "out": [3, 3], "text": "..." }
+  ],
+  "stats": { "total_lines": 100, "out_lines": 1, "signature_lines": 1,
+             "compression_block": 0.99, "compression_signature": 0.99 }
+}
+```
+
+| 字段 | 定义 |
+| --- | --- |
+| `blocks` | 块摘要数组, **按 intent 优先级排序 (failure > warning > info, 同级按 start_line 升序)** — 消费方最关心的失败证据恒排最前。此重排仅发生在 MCP 视图层; 引擎输出层恒行序 (A7 约束引擎层, 不受影响) |
+| `blocks[].start_line` / `end_line` | 输出块区间 hull (含 context 扩展, 1-based 含端点) |
+| `blocks[].rules` | 块内命中规则 id 全集 (首次出现序去重) |
+| `blocks[].intent` / `category` | 代表 fragment 的 intent/category (语义单点 = `OutputBlock::representative`, 与 CLI 块头同源) |
+| `blocks[].out_lines` | 块内呈现行数 (noise 剔除后) |
+| `blocks[].signature_lines` | 块内签名行 (各 fragment 锚行) 去重计数 |
+| `fragments` | 每块**代表 fragment** (非全量; 恒带字段集同上示例), 与 `blocks` 同序一一对应 |
+| `stats` | `total_lines`/`out_lines`/`signature_lines` 同 CLI 口径; `compression_block`/`compression_signature` = 双粒度压缩比 (0-1 小数, 四位精度)。零块时仍按公式输出 (compression = 1.0) — 与 CLI 人类可读的 `n/a` 表达不同面, 零块判定以 `fallback` 在场为准 |
+| `fallback` | **仅零块时在场**; 取值域单值 `"no-blocks"` — 在场性即失明判定, 消费方无条件回退 rg 基线 (判定矩阵) |
+| `advice` | **仅零块时在场**; 回退建议文案 (rg 基线命令示例 + 规则贡献指引), 人类可读提示, 非协议解析对象 |
+
+skim 入参校验 (均 `invalid_params`): `log_text` 空或纯空白; `log_text` 超 32MB (建议 `tail -c` 预截取分段提交); `context` 超出 [0,10] (`context` 语义同上文 CLI `--context`)。
+
+**read_around 响应**: `{total_lines, window_start, window_end, truncated, note?, lines[]}` — `window_start`/`window_end` 为实际返回窗口 (末尾收缩与截断之后, 1-based 含端点); `truncated` = 是否因 200 行窗口上限截断 (`line_end` 超出日志末尾收缩到末行**不算**截断); `note` 仅截断时在场, 给出续读起点行号; `lines[]` 为带 `L{n}: ` 前缀的原文行。入参校验 (均 `invalid_params`): `log_text` 空或纯空白或超 32MB; `line_start < 1` 或 `line_start > line_end`; `line_start` 超出日志末行。
+
+**list_rules 响应**: 规则清单数组, 按 id 升序 (输出可预测, 与装载顺序解耦); 每条 `{id, tool, kind, intent, category, scope, repo}` — `intent` 在 kind: noise 时恒 `null` (signal 恒有效值), `repo` 仅 `scope: repo` 时非 `null`。
 
 ## 4. L0 统计口径 (POC)
 

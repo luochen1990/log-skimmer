@@ -59,6 +59,7 @@ Field constraints (validated at load time; violation = invalid rule set, rejecte
 | patterns | non-empty array; each item requires regex; loop defaults to false |
 | context.before/after | 0 ≤ value ≤ 10 |
 | kind/confidence/category | enum values; category omitted counts as unknown (injected uniformly at the load entry) |
+| intent | enum `failure`/`warning`/`info`, omitted = failure; must be omitted when kind: noise |
 | repo | full `host/owner/repo` form; a bare `owner/repo` lacking the host is invalid |
 
 Closed `category` enum (finalized by survey, see docs/category-survey.md; two mixed domains — domain membership is only for docs/WebPage grouping, not part of the enum values):
@@ -77,7 +78,6 @@ Closed `category` enum (finalized by survey, see docs/category-survey.md; two mi
 | `unknown` | Fallback | Cannot be uniquely categorized |
 
 Labeling discipline (**prefer missing over wrong**): mislabeling pollutes query semantics (agents filter programmatically; undetectable), while unknown only loses that one rule's filtering value. Use unknown when: multiple causes mixed / category outside the enum (a signal for set evolution — record samples in the PR) / insufficient samples / L0 backtesting finds a rule matching multiple categories. An unknown share persistently >40% triggers a set review; upgrading an unknown to a named category goes through PR with human confirmation. flaky is an attribute, not a category — it does not enter category (a separate dimension in the future).
-| intent | `failure` (default) / `warning` / `info`; **must be omitted when kind: noise** |
 
 ## 2. State Machine Semantics (Axioms A1–A8)
 
@@ -86,6 +86,8 @@ Labeling discipline (**prefer missing over wrong**): mislabeling pollutes query 
 **A1 independent scanning**: each rule maintains an independent state machine scanning the log line by line; rules do not interfere with each other.
 
 **A2 anchor**: `patterns[0].regex` matching the current line → **opens a block**, consumes that line, and enters the extension state. The anchor is the only way to open a block.
+
+**Anchoring convention**: anchoring a rule regex with `^` at line start is a **writing convention, not an engine enforcement** — the engine compiles the pattern verbatim per A8 and injects no `^`; a pattern written without `^` matches anywhere within the line. Consequence of the convention: when error evidence is embedded mid-line rather than at line start (e.g. a single-line-JSON-shaped log line `{"level":"error",...}`), an anchored rule will not match, and the log may end up zero-block into fallback (§3). For tools whose evidence is known to be always embedded mid-line, the rule regex expresses the tolerance itself (same approach as the A0 host-prefix handling).
 
 **A3 extension (greedy + ordered pass-through)**: after a block opens, the state machine holds an **extension pointer** `p`, initially pointing at `patterns[1]`. For each new line:
 
@@ -164,6 +166,46 @@ The output is positioned as an "**index + summary**", not a log replacement — 
 | Failure | non-zero | non-zero | Normal (structurally guaranteed by the failure-side safety net) |
 | Failure | non-zero | 0 | **Anomaly** — known boundaries: truncated logs (runner crash losing the tail failure signal) or rule blindness; without a conclusion the tool cannot self-judge — the consumer's one-line check: `conclusion=failure while failure blocks are zero → treat as blindness → fallback` |
 - Human-readable output (default): blocks separated by `---`, block header `[L120-L135] [failure/typecheck] rule1,rule2` (intent/category from the block's representative fragment — intent priority failure > warning > info, then confidence > in-block original order at equal level; single semantic source: engine `OutputBlock::representative`, same source for the MCP BlockSummary), followed by the text.
+
+### MCP Tool Response Protocol (skim / read_around / list_rules)
+
+Tool responses of the MCP server (`log-skimmer-mcp`, stdio) are a **consumer-side view** layered on top of this section's base protocol — unlike the CLI `--json`, which returns the engine's `SkimResult` directly (top level `file`/`input_lines`/`output_lines`/`stats`, blocks with fragments embedded), MCP skim returns a parallel array of block summaries + representative fragments. Successful results are JSON embedded in text content; input-validation failures are MCP `invalid_params` errors (structured and recoverable, not a crash). Zero-block semantics, two surfaces: CLI = stderr warning + exit 3 (above); MCP = **normal return** (not an error) + the `fallback` field present — the same blindness verdict expressed as a field.
+
+**skim response** (non-zero-block example; `fallback`/`advice` present only on zero blocks):
+
+```json
+{
+  "blocks": [
+    { "start_line": 3, "end_line": 3, "rules": ["cargo-could-not-compile"],
+      "intent": "failure", "category": "build", "out_lines": 1, "signature_lines": 1 }
+  ],
+  "fragments": [
+    { "rule": "cargo-could-not-compile", "kind": "signal", "intent": "failure",
+      "category": "build", "confidence": "high", "block": [3, 3], "out": [3, 3], "text": "..." }
+  ],
+  "stats": { "total_lines": 100, "out_lines": 1, "signature_lines": 1,
+             "compression_block": 0.99, "compression_signature": 0.99 }
+}
+```
+
+| Field | Definition |
+| --- | --- |
+| `blocks` | Array of block summaries, **sorted by intent priority (failure > warning > info, then ascending start_line at equal level)** — the failure evidence the consumer cares about most always comes first. This re-sorting happens only in the MCP view layer; the engine output layer is always in line order (A7 constrains the engine layer, unaffected) |
+| `blocks[].start_line` / `end_line` | The output-block range hull (context extension included, 1-based, inclusive) |
+| `blocks[].rules` | The full set of rule ids hit in the block (deduplicated in first-seen order) |
+| `blocks[].intent` / `category` | The representative fragment's intent/category (single semantic source = `OutputBlock::representative`, same source as the CLI block header) |
+| `blocks[].out_lines` | Lines presented in the block (after noise removal) |
+| `blocks[].signature_lines` | Deduplicated count of the block's signature lines (each fragment's anchor line) |
+| `fragments` | Each block's **representative fragment** (not the full set; always carries the field set shown in the example above), one-to-one in the same order as `blocks` |
+| `stats` | `total_lines`/`out_lines`/`signature_lines` under the same criteria as the CLI; `compression_block`/`compression_signature` = dual-granularity compression ratios (0-1 decimals, four-digit precision). On zero blocks still output per the formula (compression = 1.0) — a different surface from the CLI's human-readable `n/a`; the zero-block verdict is judged by the presence of `fallback` |
+| `fallback` | **Present only on zero blocks**; value domain is the single value `"no-blocks"` — presence is itself the blindness verdict; the consumer unconditionally falls back to the rg baseline (verdict matrix) |
+| `advice` | **Present only on zero blocks**; fallback-advice copy (rg baseline command example + rule-contribution guidance), a human-readable hint, not a protocol-parsing target |
+
+skim input validation (all `invalid_params`): `log_text` empty or whitespace-only; `log_text` over 32MB (pre-truncate with `tail -c` and submit in segments); `context` outside [0,10] (`context` has the same semantics as the CLI `--context` above).
+
+**read_around response**: `{total_lines, window_start, window_end, truncated, note?, lines[]}` — `window_start`/`window_end` are the actually returned window (after end-shrink and truncation, 1-based, inclusive); `truncated` = whether truncated by the 200-line window cap (`line_end` beyond the log's last line shrinking to the last line does **not** count as truncation); `note` present only on truncation, giving the line number to continue reading from; `lines[]` are the original lines prefixed with `L{n}: `. Input validation (all `invalid_params`): `log_text` empty, whitespace-only, or over 32MB; `line_start < 1` or `line_start > line_end`; `line_start` beyond the log's last line.
+
+**list_rules response**: an array of the rule inventory, sorted by id ascending (predictable output, decoupled from load order); each entry `{id, tool, kind, intent, category, scope, repo}` — `intent` is always `null` when kind: noise (always a valid value for signal), `repo` is non-`null` only when `scope: repo`.
 
 ## 4. L0 Statistics Criteria (POC)
 
