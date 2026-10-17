@@ -22,7 +22,8 @@ pub struct SkimParams {
     /// 全局覆盖 context 为 before=after=N, 取值 0-10; 缺省用各规则自带 context
     #[serde(default)]
     // 非 dead 标记: 向 inputSchema 发布 default: null 提示 (实测去掉会改变 tools/list 输出)
-    #[schemars(range(min = 0, max = 10))]
+    // 同界单源: 上界引用 engine 常量 (issue #28), schema 数值断言见 tests 内锁界用例
+    #[schemars(range(min = 0, max = log_skimmer::CONTEXT_MAX as i32))]
     pub context: Option<i32>,
 }
 
@@ -283,5 +284,24 @@ mod tests {
         for key in ["id", "tool", "kind", "intent", "category", "scope", "repo"] {
             assert!(first.get(key).is_some(), "缺字段 {key}");
         }
+    }
+
+    /// issue #28 锁界: SkimParams 生成的 inputSchema 中 context 数值约束
+    /// 与 engine CONTEXT_MAX 同界 — 属性宏展开即使退化为字面量 (被人为改回),
+    /// 此处以生成的 schema 数值断言兜底锁死。
+    #[test]
+    fn skim_params_schema_context_bound_matches_engine_const() {
+        let schema = serde_json::to_value(schemars::schema_for!(SkimParams)).unwrap();
+        let ctx = &schema["properties"]["context"];
+        assert_eq!(
+            ctx.get("minimum").and_then(serde_json::Value::as_i64),
+            Some(0),
+            "schema minimum 须为 0: {ctx}"
+        );
+        assert_eq!(
+            ctx.get("maximum").and_then(serde_json::Value::as_u64),
+            Some(log_skimmer::CONTEXT_MAX as u64),
+            "schema maximum 须与 CONTEXT_MAX 同界: {ctx}"
+        );
     }
 }

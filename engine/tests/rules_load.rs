@@ -51,3 +51,24 @@ fn empty_rules_dir_rejected() {
     let e = log_skimmer::load_rules(&empty).expect_err("零 yaml 目录必须 Err");
     assert!(e.to_string().contains("无 *.yaml"), "got: {e}");
 }
+
+/// 规则 context 字段上界跟随 engine 单源常量 (issue #28): 恰好 CONTEXT_MAX 合法,
+/// 超一档整集拒载 — 边界值从常量派生, 改常量即本测试边界同步变。
+#[test]
+fn rule_context_bound_follows_engine_const() {
+    let dir = std::env::temp_dir().join("log-skimmer-ctx-bound");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let rule_yaml = |n: u32| {
+        format!(
+            "id: t-x\ntitle: x\ntool: t\nscope: global\nkind: signal\ncontext: {{before: {n}, after: {n}}}\npatterns:\n  - regex: '^x'\n"
+        )
+    };
+    std::fs::write(dir.join("r.yaml"), rule_yaml(log_skimmer::CONTEXT_MAX)).unwrap();
+    log_skimmer::load_rules(&dir).unwrap_or_else(|e| panic!("context=CONTEXT_MAX 须合法: {e}"));
+
+    std::fs::write(dir.join("r.yaml"), rule_yaml(log_skimmer::CONTEXT_MAX + 1)).unwrap();
+    let e = log_skimmer::load_rules(&dir).expect_err("context 超上界必须整集拒载");
+    assert!(e.to_string().contains("context 超出"), "got: {e}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

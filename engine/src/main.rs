@@ -30,10 +30,11 @@ enum Cmd {
         /// 输出 JSON 协议 (默认人类可读)
         #[arg(long)]
         json: bool,
-        // 取值范围 SSOT: 与规则 context 字段及 MCP skim 参数同界 (spec §1);
+        // 取值范围同界单源: engine lib 常量 CONTEXT_MAX (spec §1; issue #28) —
+        // 与规则 context 字段及 MCP skim 参数共享, 漂移即编译错误;
         // 引用留在源码注释, 不进 help 文案 (用户可见文案去 spec 指针, issue #17)。
         /// 全局覆盖 context 为 before=N/after=N (默认按规则自带; 取值 0-10, 越界为用法错误)
-        #[arg(long, value_parser = clap::value_parser!(u32).range(0..=10))]
+        #[arg(long, value_parser = clap::value_parser!(u32).range(0..=log_skimmer::CONTEXT_MAX as i64))]
         context: Option<u32>,
     },
     /// L0 全语料回归门禁 (采集→汇总→判定; 退出码 0=pass / 1=fail / 2=语料或规则非法)
@@ -254,8 +255,10 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
 
 #[cfg(test)]
 mod tests {
-    //! `--context` 参数契约 (issue #11): 取值 0-10, 与 MCP skim 的 `context`
-    //! schema (server/src/mcp.rs) 同界; 越界在解析期即用法错误, 不进入执行路径。
+    //! `--context` 参数契约 (issue #11): 取值 0-CONTEXT_MAX, 与 MCP skim 的
+    //! `context` schema 同界 — 同界经 engine lib 单源常量 CONTEXT_MAX (issue #28),
+    //! 边界断言值均从常量派生 (改常量即测试边界同步变); 越界在解析期即用法错误,
+    //! 不进入执行路径。
 
     use super::*;
 
@@ -272,9 +275,10 @@ mod tests {
     #[test]
     fn context_out_of_range_is_usage_error() {
         // -1 两种拼写钉两条拒绝路径: 空格形态止于 clap 分词器 (unexpected
-        // argument), 等号形态才走 range 校验器 (invalid value ... not in 0..=10)。
+        // argument), 等号形态才走 range 校验器 (invalid value ... not in 上界内)。
+        let over = (log_skimmer::CONTEXT_MAX + 1).to_string();
         for bad in [
-            ["--context", "11"].as_slice(),
+            ["--context", over.as_str()].as_slice(),
             ["--context", "999"].as_slice(),
             ["--context", "-1"].as_slice(),
             ["--context=-1"].as_slice(),
@@ -286,7 +290,10 @@ mod tests {
     #[test]
     fn context_boundaries_and_default_pass() {
         assert_eq!(skim_context(&["--context", "0"]).unwrap(), Some(0));
-        assert_eq!(skim_context(&["--context", "10"]).unwrap(), Some(10));
+        assert_eq!(
+            skim_context(&["--context", &log_skimmer::CONTEXT_MAX.to_string()]).unwrap(),
+            Some(log_skimmer::CONTEXT_MAX)
+        );
         assert_eq!(skim_context(&[]).unwrap(), None);
     }
 }

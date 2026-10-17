@@ -127,6 +127,13 @@ impl fmt::Display for Category {
     }
 }
 
+/// context 取值上界 (含): spec §1 字段约束表 `context.before/after: 0 ≤ 值 ≤ 10`
+/// 是取值 SSOT, 本常量是其代码侧单源 (issue #28)。消费面三处同界引用:
+/// 规则加载校验 (下方 validate_rule) / CLI `--context` (main.rs clap range) /
+/// MCP skim `context` (server 运行期校验 + inputSchema) — 改本常量即三面同步,
+/// 锁界单测的边界值均从本常量派生。类型 u32 = Context 字段原生类型。
+pub const CONTEXT_MAX: u32 = 10;
+
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub struct Context {
     #[serde(default)]
@@ -383,7 +390,9 @@ fn validate_rule(rule: &mut Rule, rel: &str, errs: &mut LoadErrors) {
     if rule.kind == Kind::Noise && rule.intent.is_some() {
         errs.0.push(format!("{rel}: kind=noise 时 intent 必须缺省"));
     }
-    if rule.context.before > 10 || rule.context.after > 10 {
+    if rule.context.before > CONTEXT_MAX || rule.context.after > CONTEXT_MAX {
+        // 判定引用 CONTEXT_MAX 单源; 文案 "[0,10]" 是 spec 人话表述, 有意不随常量
+        // 动态化 (与 server/src/lib.rs skim_view 侧同款决策)。
         errs.0.push(format!("{rel}: context 超出 [0,10]"));
     }
     for (i, p) in rule.patterns.iter_mut().enumerate() {

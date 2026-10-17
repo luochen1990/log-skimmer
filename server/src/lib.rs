@@ -8,7 +8,7 @@
 //! 状态机与提取逻辑全部复用 engine lib (本层禁止复制实现, 只做包装聚合)。
 
 use log_skimmer::{
-    load_rules, override_context, skim, Category, Fragment, Intent, Kind, Rule, Scope,
+    load_rules, override_context, skim, Category, Fragment, Intent, Kind, Rule, Scope, CONTEXT_MAX,
 };
 use serde::Serialize;
 use std::collections::HashSet;
@@ -173,7 +173,9 @@ pub fn skim_view(
     if log_text.len() > MAX_LOG_BYTES {
         return Err(SkimInputError::Oversized(log_text.len()));
     }
-    if let Some(n) = context.filter(|n| !(0..=10).contains(n)) {
+    // 同界单源: 边界表达式从 engine CONTEXT_MAX 构造 (issue #28); i32 侧显式转型
+    // (负值天然落在区间外被拒)。文案 "0-10" 是 spec 人话表述, 不随常量动态化。
+    if let Some(n) = context.filter(|n| !(0..=CONTEXT_MAX as i32).contains(n)) {
         return Err(SkimInputError::InvalidContext(n));
     }
     let lines = log_skimmer::normalize_lines(log_text);
@@ -423,6 +425,26 @@ mod tests {
         assert_eq!(
             skim_view(&[], &big, None).unwrap_err(),
             SkimInputError::Oversized(big.len())
+        );
+    }
+
+    /// issue #28 锁界: 运行期校验的上下界从 engine CONTEXT_MAX 派生 —
+    /// 常量改动即边界断言同步变, 与 CLI `--context` 同界不再依赖注释约定。
+    /// (文案契约测试见上; 此处只锁判定边界。)
+    #[test]
+    fn skim_context_bound_tracks_engine_const() {
+        let max = log_skimmer::CONTEXT_MAX as i32;
+        // 上/下界值本身合法 (校验先于规则消费, 空规则集 → 零块形态 Ok)
+        assert!(skim_view(&[], "x", Some(0)).is_ok());
+        assert!(skim_view(&[], "x", Some(max)).is_ok());
+        // 超上界一档 / 负一档均拒
+        assert_eq!(
+            skim_view(&[], "x", Some(max + 1)).unwrap_err(),
+            SkimInputError::InvalidContext(max + 1)
+        );
+        assert_eq!(
+            skim_view(&[], "x", Some(-1)).unwrap_err(),
+            SkimInputError::InvalidContext(-1)
         );
     }
 
