@@ -1,0 +1,11 @@
+# 测试 fixture 规则: 成功侧 info 安全网 — spec §3「成功日志至少一条 info 是规则集义务」,
+# 镜像真实规则集的 runner 版本行规则; 亦作为 server 侧 blocks intent 优先级排序测试的 info 输入 (issue #8)。
+id: github-actions-runner-image-info
+title: GHA runner 镜像版本行 (环境快照)
+tool: github-actions
+scope: global
+category: infra
+patterns:
+  - regex: '^Runner Image: '
+kind: signal
+intent: info

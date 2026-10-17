@@ -108,13 +108,13 @@ impl SkimInputError {
     }
 }
 
-/// 输出块摘要 (按 block 升序): 消费方快速浏览层。
+/// 输出块摘要: 消费方快速浏览层 (intent 优先级序 — failure > warning > info, 同级按行序)。
 #[derive(Debug, Serialize)]
 pub struct BlockSummary {
     /// 输出块区间 hull (含 context 扩展, 1-based 含端点)。
     pub start_line: usize,
     pub end_line: usize,
-    /// 块内命中的规则 id 全集 (按命中序)。
+    /// 块内命中的规则 id 全集 (首次出现序去重, engine 侧语义)。
     pub rules: Vec<String>,
     /// 代表 fragment 的 intent (块内信息优先级最高者)。
     pub intent: Intent,
@@ -127,6 +127,7 @@ pub struct BlockSummary {
 }
 
 /// skim tool 输出 (消费方判定: `fallback` 字段存在即零块失明, 其余字段照常可用)。
+/// blocks 与 fragments 同序一一对应, 排序契约见 [skim_view] 头注释。
 #[derive(Debug, Serialize)]
 pub struct SkimOutput {
     pub blocks: Vec<BlockSummary>,
@@ -174,6 +175,8 @@ fn compression_ratio(total: usize, part: usize) -> f64 {
 }
 
 /// skim 核心包装: 复用 engine 纯函数, 聚合为消费方视图。
+/// 输出排序契约: blocks/fragments 按 intent 优先级 (failure > warning > info) 排列,
+/// 同级保持行序 — 排序发生在本视图层, 引擎输出层行序不变 (取舍详见函数体尾注释)。
 /// `context` 语义 = CLI `--context` 全局覆盖 (before=after=N, 引擎已支持)。
 pub fn skim_view(
     rules: &[Rule],
@@ -195,8 +198,8 @@ pub fn skim_view(
         Some(n) => skim("mcp", &override_context(rules, n as u32), &lines),
     };
 
-    let mut blocks = Vec::with_capacity(result.blocks.len());
-    let mut fragments = Vec::with_capacity(result.blocks.len());
+    // 块摘要与代表 fragment 成对组装, 末尾按 intent 优先级统一排序 (见下)。
+    let mut paired: Vec<(BlockSummary, Fragment)> = Vec::with_capacity(result.blocks.len());
     for b in &result.blocks {
         // 代表 fragment: intent 优先级 > confidence > 块内原序 (min_by_key 稳定取首个最优)
         let rep = b
@@ -215,17 +218,29 @@ pub fn skim_view(
             .map(|f| f.block.0)
             .collect::<HashSet<_>>()
             .len();
-        blocks.push(BlockSummary {
-            start_line: b.start_line,
-            end_line: b.end_line,
-            rules: b.rules.clone(),
-            intent: rep.intent,
-            category: rep.category,
-            out_lines,
-            signature_lines,
-        });
-        fragments.push(rep.clone());
+        paired.push((
+            BlockSummary {
+                start_line: b.start_line,
+                end_line: b.end_line,
+                rules: b.rules.clone(),
+                intent: rep.intent,
+                category: rep.category,
+                out_lines,
+                signature_lines,
+            },
+            rep.clone(),
+        ));
     }
+
+    // issue #8: blocks/fragments 按 intent 优先级排序 (failure > warning > info),
+    // 同级保持行序 (start_line 升序, 稳定) — 消费方最关心失败证据, 失败块须排 info 块前。
+    // 取舍记录: spec §2 A7「输出块按行序排列」约束的是引擎输出层 (SkimResult.blocks,
+    // 即 CLI 分节渲染与 CLI --json 的直接数据源), 该层保持行序不动 (a7 单测契约不变);
+    // 本层是 MCP JSON 元数据数组的组装点 (skim tool 消费面, issue #8 的观察面), 重排仅
+    // 发生在此。A7 第二子句「引擎不排序 fragment 内容」不受影响 — 排序只动数组元素序,
+    // 不动块内文本行序; L0 聚合是顺序无关计数, 压缩率数字不受影响。
+    paired.sort_by_key(|(b, _)| (intent_rank(b.intent), b.start_line));
+    let (blocks, fragments): (Vec<BlockSummary>, Vec<Fragment>) = paired.into_iter().unzip();
 
     let total = result.stats.input_lines;
     let stats = StatsView {
@@ -426,6 +441,30 @@ mod tests {
         assert_eq!(out.advice.as_deref(), Some(ADVICE_NO_BLOCKS));
         assert_eq!(out.stats.total_lines, 2);
         assert_eq!(out.stats.out_lines, 0);
+    }
+
+    /// issue #8: blocks/fragments 按 intent 优先级排序 (failure > warning > info),
+    /// 同级保持行序 — info 块在前 failure 块在后时, blocks[0] 须为 failure。
+    #[test]
+    fn skim_blocks_intent_priority_order() {
+        let rs = rules();
+        // info 块 (L1) 与 failure 块 (L3) 隔行不合并, 引擎行序 info 在前
+        let log = "Runner Image: ubuntu-24.04\nplain line\nerror: boom\n";
+        let out = skim_view(&rs, log, None).unwrap();
+        assert_eq!(out.blocks.len(), 2);
+        assert_eq!(out.blocks[0].intent, Intent::Failure, "failure 块排首");
+        assert_eq!(out.blocks[0].start_line, 3);
+        assert_eq!(out.blocks[1].intent, Intent::Info);
+        assert_eq!(out.blocks[1].start_line, 1);
+        assert_eq!(
+            out.fragments[0].rule, "nix-eval-error-tree",
+            "fragments 与 blocks 同序 (一一对应)"
+        );
+        // 同级保持行序: 两个 failure 块按 start_line 升序
+        let log2 = "error: first\nx\nerror: second\n";
+        let out2 = skim_view(&rs, log2, None).unwrap();
+        let starts: Vec<usize> = out2.blocks.iter().map(|b| b.start_line).collect();
+        assert_eq!(starts, vec![1, 3], "同 intent 块行序稳定");
     }
 
     #[test]
