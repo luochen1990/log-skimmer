@@ -30,8 +30,10 @@ enum Cmd {
         /// 输出 JSON 协议 (默认人类可读)
         #[arg(long)]
         json: bool,
-        /// 全局覆盖 context 为 before=N/after=N (默认按规则自带)
-        #[arg(long)]
+        // 取值范围 SSOT: 与规则 context 字段及 MCP skim 参数同界 (spec §1);
+        // 引用留在源码注释, 不进 help 文案 (用户可见文案去 spec 指针, issue #17)。
+        /// 全局覆盖 context 为 before=N/after=N (默认按规则自带; 取值 0-10, 越界为用法错误)
+        #[arg(long, value_parser = clap::value_parser!(u32).range(0..=10))]
         context: Option<u32>,
     },
     /// L0 全语料回归门禁 (采集→汇总→判定; 退出码 0=pass / 1=fail / 2=语料或规则非法)
@@ -233,5 +235,44 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
             "⚠ 零提取 — 规则集对该日志失明; 建议回退 rg error|warn && tail 基线; 新工具日志可贡献规则: https://github.com/luochen1990/log-skimmer-rules"
         );
         std::process::exit(3);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! `--context` 参数契约 (issue #11): 取值 0-10, 与 MCP skim 的 `context`
+    //! schema (server/src/mcp.rs) 同界; 越界在解析期即用法错误, 不进入执行路径。
+
+    use super::*;
+
+    /// 解析 skim 子命令并取 `--context` 值 (Err = clap 用法错误)。
+    fn skim_context(extra: &[&str]) -> Result<Option<u32>, clap::Error> {
+        let mut argv: Vec<&str> = vec!["log-skimmer", "skim", "x.log", "--rules", "r"];
+        argv.extend_from_slice(extra);
+        Cli::try_parse_from(argv).map(|cli| match cli.cmd {
+            Cmd::Skim { context, .. } => context,
+            _ => unreachable!("skim 子命令"),
+        })
+    }
+
+    #[test]
+    fn context_out_of_range_is_usage_error() {
+        // -1 两种拼写钉两条拒绝路径: 空格形态止于 clap 分词器 (unexpected
+        // argument), 等号形态才走 range 校验器 (invalid value ... not in 0..=10)。
+        for bad in [
+            ["--context", "11"].as_slice(),
+            ["--context", "999"].as_slice(),
+            ["--context", "-1"].as_slice(),
+            ["--context=-1"].as_slice(),
+        ] {
+            assert!(skim_context(bad).is_err(), "{bad:?} 须被拒绝");
+        }
+    }
+
+    #[test]
+    fn context_boundaries_and_default_pass() {
+        assert_eq!(skim_context(&["--context", "0"]).unwrap(), Some(0));
+        assert_eq!(skim_context(&["--context", "10"]).unwrap(), Some(10));
+        assert_eq!(skim_context(&[]).unwrap(), None);
     }
 }

@@ -146,7 +146,7 @@ L4: build failed
 - fragment 的 `block` 是该规则自身消费区间 (无 context); `text` 含 context 扩展。
 - `output_lines` = 合并块总行数 (noise 剔除后) — **块级粒度**。
 - `signature_output_lines` = 各 fragment block 首行 (锚行/签名行, 去重行号) 计数 — **签名行级粒度**。压缩比按两档粒度分列统计 (两数字差异大, 验收线不可混谈)。
-- CLI `--context N` (默认按规则自带 context): 显示层全局覆盖为 before=N/after=N, 纯机械按坐标切割, 不需规则参与。
+- CLI `--context N` (默认按规则自带 context): 显示层全局覆盖为 before=N/after=N, 纯机械按坐标切割, 不需规则参与; 取值 0 ≤ N ≤ 10 (与 §1 规则 `context` 字段、MCP skim `context` 参数同界), 越界为解析期用法错误。
 - CLI 流分离契约: 人类可读输出 (块内容、统计行及其前导空行) 整体走 stdout — `> file` 重定向完整保留输出成果; 错误与警告 (含零块警示) 走 stderr。`--json` 模式 stdout 为纯 JSON, 统计行等诊断走 stderr。
 - 空日志硬拒绝 (exit 2): 0 行日志是数据错误 (疑似下载截断), 不进入零块判定 — 与「空规则集硬拒绝」对称, 宁可显式失败不静默通过。exit 2 族 = 规则集非法 / 日志读取失败 / 日志为空。纯空白文件 (归一后 ≥1 行) 不属此类, 走零块判定; MCP `skim` 的入口语义不同 (参数校验): 空**或纯空白** log_text 一律参数错误拒绝。
 - 统计行压缩率: 零块场景显示 `n/a` (无输出即无压缩率, 拒绝 100.0% 伪统计); 其余数字照常输出。
