@@ -18,6 +18,11 @@
 //!   压缩率防退化 = 双测对比 (base summary 提供 per-repo 基准, 相对退化 >2% 判红;
 //!   未提供则单测模式显式声明 — 引擎仓传 base 引擎实测, 规则仓传 base 规则实测,
 //!   同语料下纯单变量归因)。
+//! 正向验证 (issue #19 B, 贡献闭环「规则确实工作」的信心来源): per_rule_hits
+//!   恒报告 (定义域=装载规则全集, 零命中即死规则); dead_rules 断言仅在该
+//!   规则集全部规则应在语料上生效时开启 (`--require-all-rules-hit`, rules 仓
+//!   CI 与贡献者本地; 本仓 ci-merge 默认不开 — 存量规则集在公开语料上有天然
+//!   零命中规则, 语料未覆盖的工具)。
 
 use crate::{load_rules, skim, Intent};
 use serde::{Deserialize, Serialize};
@@ -51,6 +56,9 @@ pub struct L0Sample {
     pub zero_block: u32,
     pub boundary_violations: usize,
     pub frags: Vec<FragRec>,
+    /// noise 规则闭块计数 (规则 id → 剔除区块数) — 正向验证域覆盖 noise 规则:
+    /// noise 不产 fragment, 其命中只能以剔除区块计 (lib SkimResult 旁路数据)。
+    pub noise_hits: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -92,9 +100,17 @@ fn walk_sidecars(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// 采集产物: 样本记录 × 装载规则全集 id — 后者是 per_rule_hits 的定义域,
+/// 零命中规则 (死规则) 只有对照装载清单才能显形 (issue #19 B)。
+#[derive(Debug, Clone)]
+pub struct Collected {
+    pub samples: Vec<L0Sample>,
+    pub rule_ids: Vec<String>,
+}
+
 /// 采集全语料: 规则单次加载, 逐样本 skim。非法规则集/日志读取失败 → Err (fail-fast,
 /// 门禁无兜底); 零块是正常记录 (违例判定在 gate — 结构承诺的失明信号)。
-pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Vec<L0Sample>, String> {
+pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String> {
     let rules = load_rules(rules_dir).map_err(|e| format!("规则集非法: {e}"))?;
     let mut sidecars = Vec::new();
     walk_sidecars(corpus_dir, &mut sidecars);
@@ -158,9 +174,13 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Vec<L0Sample>, Str
             zero_block: u32::from(r.blocks.is_empty()),
             boundary_violations: r.stats.boundary_violations.len(),
             frags,
+            noise_hits: r.noise_rule_hits,
         });
     }
-    Ok(samples)
+    Ok(Collected {
+        samples,
+        rule_ids: rules.iter().map(|r| r.id.clone()).collect(),
+    })
 }
 
 // ---- 汇总层 ----
@@ -247,9 +267,17 @@ pub struct Summary {
     pub totals: Agg,
     pub per_rule: BTreeMap<String, RuleAgg>,
     pub structural: Structural,
+    /// 每规则命中计数 (正向验证, issue #19 B): 定义域 = 装载规则全集;
+    /// signal = fragment 数 (存活 fragment — A6 下被 noise 全覆盖的 signal
+    /// 闭块被丢弃, 不计), noise = 剔除区块数; **全样本域** (含 excluded —
+    /// liveness 语义, 仅被 rerun 样本命中不是死规则)。serde(default): base
+    /// summary 产自旧引擎时无此字段, 判定侧只消费 PR 侧的值。
+    #[serde(default)]
+    pub per_rule_hits: BTreeMap<String, u64>,
 }
 
-pub fn summarize(all: &[L0Sample]) -> Summary {
+pub fn summarize(c: &Collected) -> Summary {
+    let all = &c.samples;
     let main: Vec<&L0Sample> = all.iter().filter(|s| !s.excluded).collect();
     let mut per_repo_conclusion = BTreeMap::new();
     let mut per_repo: BTreeMap<String, Vec<&L0Sample>> = BTreeMap::new();
@@ -301,12 +329,25 @@ pub fn summarize(all: &[L0Sample]) -> Summary {
         samples_total: all.len(),
         samples_excluded: all.iter().filter(|s| s.excluded).count(),
     };
+    // 正向验证: 装载全集补零 + 全样本域累计 (frags ∪ noise_hits, 二者按规则
+    // kind 天然不相交 — signal 不进 noise_hits, noise 不产 frags)。
+    let mut per_rule_hits: BTreeMap<String, u64> =
+        c.rule_ids.iter().map(|id| (id.clone(), 0)).collect();
+    for s in all {
+        for f in &s.frags {
+            *per_rule_hits.entry(f.rule.clone()).or_default() += 1;
+        }
+        for (id, n) in &s.noise_hits {
+            *per_rule_hits.entry(id.clone()).or_default() += n;
+        }
+    }
     Summary {
         per_repo_conclusion,
         per_repo,
         totals,
         per_rule,
         structural,
+        per_rule_hits,
     }
 }
 
@@ -346,10 +387,19 @@ pub struct Verdict {
 }
 
 /// 判定入口: 断言族 (全量语料) + 双测压缩率对比 (base 在场时)。
-pub fn gate(pr: &Summary, base: Option<&Summary>) -> Verdict {
+/// `require_all_rules_hit` = 正向验证断言 (issue #19 B): 开启时存在语料零命中
+/// 规则 (dead_rules) → fail。默认关闭 — verdict 语义不变; 该断言供规则集
+/// 全体规则均应在语料上生效的场景 (rules 仓 CI / 贡献者本地验证)。
+pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -> Verdict {
     let mut violations = Vec::new();
     let t = &pr.totals;
     let st = &pr.structural;
+    let dead_rules: Vec<String> = pr
+        .per_rule_hits
+        .iter()
+        .filter(|(_, h)| **h == 0)
+        .map(|(id, _)| id.clone())
+        .collect();
     if st.samples_total < MIN_SAMPLES {
         violations.push(Violation {
             kind: "corpus-missing",
@@ -395,6 +445,16 @@ pub fn gate(pr: &Summary, base: Option<&Summary>) -> Verdict {
             kind: "zero-block",
             note: "存在 skim 零块样本 — 规则集对该日志失明 (结构承诺)".into(),
             detail: None,
+        });
+    }
+    if require_all_rules_hit && !dead_rules.is_empty() {
+        violations.push(Violation {
+            kind: "dead-rules",
+            note: format!(
+                "存在语料零命中规则 {} 条 (正向验证: 拼错的正则不得全绿合入, issue #19)",
+                dead_rules.len()
+            ),
+            detail: Some(serde_json::json!(dead_rules)),
         });
     }
 
@@ -453,6 +513,8 @@ pub fn gate(pr: &Summary, base: Option<&Summary>) -> Verdict {
             "zero_blocks": st.zero_block, "boundary_violations": st.boundary_violations,
             "samples": st.samples_total,
             "comp_blk_pct": t.comp_blk_pct, "comp_sig_pct": t.comp_sig_pct,
+            "per_rule_hits": &pr.per_rule_hits,
+            "dead_rules": &dead_rules,
         }),
         violations,
         compression_compare: cmp,

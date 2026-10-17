@@ -1,0 +1,9 @@
+# 测试 fixture 规则 (l0 正向验证): noise 规则不产 fragment (产出是行剔除),
+# 命中 fixture 语料样本 1 的 `note:` 行 — 断言 noise 活性以剔除区块计数。
+id: note-noise
+title: "note: 噪音行 (l0 noise fixture)"
+tool: note
+scope: global
+patterns:
+  - regex: '^note:'
+kind: noise

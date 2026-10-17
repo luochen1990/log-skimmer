@@ -51,6 +51,11 @@ enum Cmd {
         /// 仅输出 summary JSON (实测交换用, 不判定)
         #[arg(long)]
         emit_summary: bool,
+        /// 正向验证: 存在语料零命中规则 (dead_rules) 时 fail (issue #19;
+        /// 默认关 — 存量规则集在公开语料上有天然零命中规则 (语料未覆盖的工具),
+        /// rules 仓 CI 与贡献者本地按需开; --emit-summary 优先于本开关, 不判定)
+        #[arg(long)]
+        require_all_rules_hit: bool,
     },
     /// 发布面卫生检查: 扫描目录内网模式 (publish 必经机械防线; 0=干净 / 1=命中 / 2=清单或目录非法)
     Hygiene {
@@ -82,7 +87,8 @@ fn main() {
             rules,
             base,
             emit_summary,
-        } => l0_cmd(corpus, rules, base, emit_summary),
+            require_all_rules_hit,
+        } => l0_cmd(corpus, rules, base, emit_summary, require_all_rules_hit),
         Cmd::Hygiene { patterns, dir } => hygiene_cmd(patterns, dir),
     }
 }
@@ -121,12 +127,18 @@ fn hygiene_cmd(patterns: PathBuf, dir: PathBuf) {
     std::process::exit(1);
 }
 
-fn l0_cmd(corpus: PathBuf, rules: PathBuf, base: Option<PathBuf>, emit_summary: bool) {
-    let samples = log_skimmer::l0::collect(&corpus, &rules).unwrap_or_else(|e| {
+fn l0_cmd(
+    corpus: PathBuf,
+    rules: PathBuf,
+    base: Option<PathBuf>,
+    emit_summary: bool,
+    require_all_rules_hit: bool,
+) {
+    let collected = log_skimmer::l0::collect(&corpus, &rules).unwrap_or_else(|e| {
         eprintln!("l0 采集失败: {e}");
         std::process::exit(2);
     });
-    let summary = log_skimmer::l0::summarize(&samples);
+    let summary = log_skimmer::l0::summarize(&collected);
     if emit_summary {
         println!("{}", serde_json::to_string_pretty(&summary).unwrap());
         return;
@@ -141,17 +153,18 @@ fn l0_cmd(corpus: PathBuf, rules: PathBuf, base: Option<PathBuf>, emit_summary: 
             std::process::exit(2);
         })
     });
-    let v = log_skimmer::l0::gate(&summary, base_summary.as_ref());
+    let v = log_skimmer::l0::gate(&summary, base_summary.as_ref(), require_all_rules_hit);
     println!("{}", serde_json::to_string_pretty(&v).unwrap());
     eprintln!(
-        "l0-gate: verdict={} FN={} FP率={:.2}% 零块={} 边界违例={} 压缩 blk={:.2}% sig={:.2}%",
+        "l0-gate: verdict={} FN={} FP率={:.2}% 零块={} 边界违例={} 压缩 blk={:.2}% sig={:.2}% 规则零命中={}",
         v.verdict,
         v.stats["fn"],
         v.stats["fp_rate_pct"],
         v.stats["zero_blocks"],
         v.stats["boundary_violations"],
         v.stats["comp_blk_pct"],
-        v.stats["comp_sig_pct"]
+        v.stats["comp_sig_pct"],
+        v.stats["dead_rules"].as_array().map_or(0, |a| a.len())
     );
     if v.verdict != "pass" {
         std::process::exit(1);

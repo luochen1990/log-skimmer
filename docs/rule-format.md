@@ -173,6 +173,8 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 | FP | **仅 `intent: failure` 规则**: success job 上产出的此类 fragment 计数 (CI 通过却被提取出失败证据 = 假阳性)。`intent: warning` 规则命中属预期, 单列「warning 命中」不计 FP。**FP 率 = failure-intent fragment 的 block 区间行数总和 / success 样本输入总行数** (验收线 ≤2%, 分母口径 SSOT — 工具被污染程度只在 success 样本上度量; 分子取 block 区间不含 context 扩展, 免重叠双计) |
 | FN 代理 | failure 家族 (failure/timed_out) job 日志中 `intent: failure` fragment 数为 0 的 job 计数 (完全漏检) — **验收线 = 0, 不变量** (召回优先, §0; 宁可覆盖过头牺牲压缩); 部分漏检需 LLM 对照 (POC 抽查雏形, 不自动化) |
 | 边界完整性 (机械) | fragment 的 block 尾行必须仍被该规则任一 pattern 匹配 (锚或扩展), 违例计数 (防 context 污染与实现 bug) |
+| 正向验证 (per_rule_hits) | **每规则命中计数, 定义域 = 装载规则全集**: signal 规则 = fragment 数, noise 规则 = 剔除区块数 (noise 不产 fragment, 其产出是行剔除); **全样本域** (含 rerun-through — liveness 语义: 仅被排除样本命中不是死规则, 与 FP/FN 的主指标域滤除不同)。报告恒输出; `dead_rules` = 命中数为 0 的规则子集 |
+| dead-rules 断言 (可选) | 门禁开启 `--require-all-rules-hit` 时 dead_rules 非空 → fail — **正向验证**: 拼错的正则不得全绿合入, 贡献者由此获得「规则确实工作」的信心。默认关闭; 存量全集在公开语料上存在天然零命中规则 (语料未覆盖的工具), 严格模式适用于「语料应覆盖全部规则」的场景 (如语料扩充后或定向规则子集), 新规则的单条定向验证以 per_rule_hits 计数 ≥1 为信号 |
 
 **cancelled/skipped 三态** (证据能力非对称):
 
@@ -186,7 +188,7 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 
 - 样本存放: `data/logs/<host>/<owner>/<repo>/<YYYY-MM-DD>/<run_id>-<job_id>-<job_name>-<conclusion>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, created_at, job_name, attempt, ci, fetched_at}` — **嵌套自然路径** (需求方裁决, 弃 `__` 扁平化: 机器遍历用递归 find 无成本, 人类可读性优先 — 日期/触发 job/成败进路径, 裸数字文件名不可读); `repo` 为 **`host/owner/repo` 完整形态** (元数据 SSOT 在 sidecar, 路径仅为可读性投影); conclusion 取 **job 级 result**; `created_at` (run 级) / `job_name` 取数时从 API 元数据写入; `job_name` 清洗规则: `/`与空格→`-`, 截 30 字符。
 - **语料独立仓 (双源, 需求方裁决, 2026-10-16)**: 语料不入引擎仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏。双源形态: ① GHA 侧 (公开仓) 滚动槽位存独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, **源头自包含零依赖** — GHA weekly 自刷槽位, 不构建引擎不算基线), 引擎仓 CI 经幂等拉取脚本消费; ② **私有语料源** (含敏感环境信息, 不公开分发)。`data/logs`/`data/rules` 是拉取脚本的工作副本 (gitignored); L0 门禁的语料在场 ≥50 断言同时兜底获取失败 (兼容 rules 仓单源 CI)。规则集独立成仓 `github.com/luochen1990/log-skimmer-rules` (社区维护 + Agent 辅助, 规则 PR 的质量门禁在该仓 CI: 发布面引擎 × corpus 语料 × master-vs-PR 规则双测)。压缩率防退化走 PR CI 双测对比: master vs PR 引擎 × 同语料同规则, 无基线文件无配对问题。
-- 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。
+- 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。**新工具暂无语料仓样本时** (语料未覆盖的工具, 如 pytest): 写 `# samples: self-provided`, 且 PR 必附最小样例日志 (能命中该规则的真实日志片段) — 样例经维护者审核后收进语料仓, 届时回填具体溯源; 溯源字段禁止悬空或编造。
 
 ## 6. POC 明确不做
 

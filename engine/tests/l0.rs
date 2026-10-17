@@ -2,6 +2,7 @@
 //! (bash/jq 时代零测试, 破坏验证全靠手工)。断言族语义见 engine/src/l0.rs 头注释。
 
 use log_skimmer::l0::{self, Agg, Summary};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 fn fixtures() -> PathBuf {
@@ -11,11 +12,17 @@ fn fixtures() -> PathBuf {
 /// 口径: 采集→汇总 三态/excluded/fp 分子分母/压缩率聚合 (fixture 小语料, 数字逐项断言)。
 #[test]
 fn collect_and_summarize_semantics() {
-    let samples = l0::collect(&fixtures().join("l0-corpus"), &fixtures().join("rules"))
+    let c = l0::collect(&fixtures().join("l0-corpus"), &fixtures().join("rules"))
         .expect("fixture 语料采集失败");
+    let samples = &c.samples;
     assert_eq!(samples.len(), 3, "3 个样本全在场 (sidecar+log 配对)");
+    assert_eq!(
+        c.rule_ids.len(),
+        4,
+        "装载规则全集随采集返回 (per_rule_hits 定义域)"
+    );
 
-    let s = l0::summarize(&samples);
+    let s = l0::summarize(&c);
     // excluded (attempt=2 success) 滤除主指标, 但全量统计仍计
     assert_eq!(s.structural.samples_total, 3);
     assert_eq!(s.structural.samples_excluded, 1);
@@ -53,7 +60,7 @@ fn collect_and_summarize_semantics() {
 #[test]
 fn gate_pass_on_compliant_summary() {
     let mut s = ok_summary();
-    let v = l0::gate(&s, None);
+    let v = l0::gate(&s, None, false);
     assert_eq!(v.verdict, "pass");
     assert!(v.violations.is_empty());
     assert!(!v.compression_compare.base_fail);
@@ -67,7 +74,7 @@ fn gate_pass_on_compliant_summary() {
 fn gate_fails_on_fn() {
     let mut s = ok_summary();
     s.totals.fn_samples = 1;
-    let v = l0::gate(&s, None);
+    let v = l0::gate(&s, None, false);
     assert_eq!(v.verdict, "fail");
     assert!(v.violations.iter().any(|x| x.kind == "fn"));
 }
@@ -77,7 +84,7 @@ fn gate_fails_on_fn() {
 fn gate_fails_on_fp_rate() {
     let mut s = ok_summary();
     s.totals.fp_rate_pct = l0::FP_MAX_PCT + 0.1;
-    let v = l0::gate(&s, None);
+    let v = l0::gate(&s, None, false);
     assert_eq!(v.verdict, "fail");
     assert!(v.violations.iter().any(|x| x.kind == "fp-rate"));
 }
@@ -87,7 +94,7 @@ fn gate_fails_on_fp_rate() {
 fn gate_fails_on_missing_corpus() {
     let mut s = ok_summary();
     s.structural.samples_total = l0::MIN_SAMPLES - 1;
-    let v = l0::gate(&s, None);
+    let v = l0::gate(&s, None, false);
     assert_eq!(v.verdict, "fail");
     assert!(v.violations.iter().any(|x| x.kind == "corpus-missing"));
 }
@@ -109,7 +116,7 @@ fn gate_dual_test_regression_and_drift() {
     // repo NEW 仅在 pr 侧 → drift notice, 不判红
     pr.per_repo
         .insert("github.com/r/new".into(), Agg::default());
-    let v = l0::gate(&pr, Some(&base));
+    let v = l0::gate(&pr, Some(&base), false);
     assert_eq!(v.compression_compare.mode, "双测对比");
     assert_eq!(v.compression_compare.regressions.len(), 1);
     assert_eq!(
@@ -134,9 +141,75 @@ fn gate_dual_test_improvement_passes() {
         .get_mut("github.com/r/kept")
         .unwrap()
         .comp_blk_pct = 98.0;
-    let v = l0::gate(&pr, Some(&base));
+    let v = l0::gate(&pr, Some(&base), false);
     assert_eq!(v.verdict, "pass");
     assert!(v.compression_compare.regressions.is_empty());
+}
+
+/// 正向验证口径 (issue #19 B): per_rule_hits 定义域 = 装载规则全集;
+/// signal = fragment 数 (全样本域, 含 excluded — 仅被 rerun 样本命中不是死规则),
+/// noise = 剔除区块数 (noise 不产 fragment), 零值 = 语料上未生效。
+#[test]
+fn per_rule_hits_counts_and_dead_rules() {
+    let c = l0::collect(
+        &fixtures().join("l0-corpus"),
+        &fixtures().join("l0-rules-hits"),
+    )
+    .expect("fixture 语料采集失败");
+    let s = l0::summarize(&c);
+    let want: BTreeMap<String, u64> = [
+        ("hits-error-anchor", 2u64), // 样本 1 (main) + 样本 3 (excluded) 各 1 锚
+        ("note-noise", 1),           // 样本 1 剔除 1 区块 (noise 无 fragment)
+        ("dead-never-match", 0),     // 恒不匹配 → 零命中补零在域
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), v))
+    .collect();
+    assert_eq!(
+        s.per_rule_hits, want,
+        "计数含 excluded 样本 (liveness), noise 以区块计, 死规则补零"
+    );
+}
+
+/// 判定: dead_rules 恒报告 (报告形态), 默认不判红 — verdict 语义不变 (issue #19)。
+#[test]
+fn gate_reports_dead_rules_without_failing_by_default() {
+    let mut s = ok_summary();
+    s.per_rule_hits.insert("alive-rule".into(), 3);
+    s.per_rule_hits.insert("dead-rule".into(), 0);
+    let v = l0::gate(&s, None, false);
+    assert_eq!(v.verdict, "pass", "默认开关下死规则不改变 verdict");
+    assert_eq!(
+        v.stats["dead_rules"],
+        serde_json::json!(["dead-rule"]),
+        "死规则列表恒进报告"
+    );
+    assert_eq!(v.stats["per_rule_hits"]["dead-rule"], 0);
+}
+
+/// 判定: --require-all-rules-hit 开启 → 死规则 fail 并列出; 全命中 → pass;
+/// 空域 (per_rule_hits 缺省, 如旧 base summary 形态) 视为无可断言。
+#[test]
+fn gate_require_all_rules_hit() {
+    let mut s = ok_summary();
+    s.per_rule_hits.insert("alive-rule".into(), 3);
+    s.per_rule_hits.insert("dead-rule".into(), 0);
+    let v = l0::gate(&s, None, true);
+    assert_eq!(v.verdict, "fail");
+    let viol = v
+        .violations
+        .iter()
+        .find(|x| x.kind == "dead-rules")
+        .expect("dead-rules violation 在场");
+    assert_eq!(viol.detail, Some(serde_json::json!(["dead-rule"])));
+
+    s.per_rule_hits.insert("dead-rule".into(), 1); // 复活
+    let v = l0::gate(&s, None, true);
+    assert_eq!(v.verdict, "pass");
+
+    // 空域 (per_rule_hits 缺省, 如旧 base summary 形态) → 无可断言
+    let v = l0::gate(&ok_summary(), None, true);
+    assert_eq!(v.verdict, "pass");
 }
 
 fn ok_summary() -> Summary {

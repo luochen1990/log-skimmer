@@ -10,7 +10,7 @@ pub mod l0;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 use std::path::Path;
 
@@ -238,9 +238,13 @@ pub struct SkimResult {
     pub output_lines: usize,
     pub blocks: Vec<OutputBlock>,
     pub stats: Stats,
-    /// noise 覆盖行集 (1-based) — 人类可读渲染用, 不进 JSON 协议。
+    /// noise 行集 (1-based) — 人类可读渲染用, 不进 JSON 协议。
     #[serde(skip)]
     pub noise_lines: HashSet<usize>,
+    /// noise 规则闭块计数 (规则 id → 剔除区块数) — L0 正向验证用 (issue #19):
+    /// noise 规则不产 fragment, 其「命中」只能以剔除区块计。不进 JSON 协议。
+    #[serde(skip)]
+    pub noise_rule_hits: BTreeMap<String, u64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -473,10 +477,12 @@ pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
     // 第一遍: 全部规则扫描。noise 行集先行完备 (A6 与规则数组顺序无关),
     // signal 闭块区间暂存, 第二遍再构造 fragment。
     let mut noise_lines: HashSet<usize> = HashSet::new();
+    let mut noise_rule_hits: BTreeMap<String, u64> = BTreeMap::new();
     let mut signal_work: Vec<(&Rule, Vec<(usize, usize)>)> = Vec::new();
     for rule in rules {
         let spans = scan_rule(rule, lines);
         if rule.kind == Kind::Noise {
+            noise_rule_hits.insert(rule.id.clone(), spans.len() as u64);
             for (s, e) in &spans {
                 for l in *s..=*e {
                     noise_lines.insert(l);
@@ -582,5 +588,6 @@ pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
         blocks,
         stats,
         noise_lines,
+        noise_rule_hits,
     }
 }

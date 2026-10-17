@@ -1,0 +1,10 @@
+# 测试 fixture 规则 (l0 正向验证): 锚恒不匹配 — 死规则, 断言 dead_rules 列出与
+# --require-all-rules-hit 的 fail 判定 (issue #19 B: 拼错的正则不得全绿合入)。
+id: dead-never-match
+title: 恒不匹配锚 (l0 dead fixture)
+tool: dead
+scope: global
+patterns:
+  - regex: '^__NEVER_MATCH__'
+kind: signal
+intent: failure

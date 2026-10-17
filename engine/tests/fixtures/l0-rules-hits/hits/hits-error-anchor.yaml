@@ -1,0 +1,10 @@
+# 测试 fixture 规则 (l0 正向验证): 命中 fixture 语料样本 1 与样本 3 (excluded) —
+# 两条 `error:` 行各产 1 fragment, 用于断言 per_rule_hits 全样本域 (liveness) 语义。
+id: hits-error-anchor
+title: "error: 锚行 (l0 hits fixture)"
+tool: hits
+scope: global
+patterns:
+  - regex: '^error:'
+kind: signal
+intent: failure
