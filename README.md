@@ -125,3 +125,7 @@ nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt +
 
 - 新增或修改规则: 到 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) 提 PR, 读仓内 README (规则贡献指南与打标纪律)。
 - 规则格式、状态机语义与输出协议的规范 SSOT: [docs/rule-format.md](docs/rule-format.md)。
+
+## License
+
+Apache-2.0 (引擎与服务, 见 [LICENSE](LICENSE)); 规则集独立仓 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) 同为 Apache-2.0。语料仓为公开 CI 日志样本集合, 不作授权声明 (上游各自许可)。

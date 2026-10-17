@@ -7,4 +7,4 @@ members = ["engine", "server"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "TBD"
+license = "Apache-2.0"

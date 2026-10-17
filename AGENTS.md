@@ -31,3 +31,7 @@
 - [x] 规则: 四语料各自主要错误类型覆盖 (25 signal + 4 noise 内含本仓 9 条), 全部通过加载校验
 - [x] 引擎: cargo test 15 用例全绿 (A0-A8 + intent/粒度/context), clippy clean
 - [x] L0 报告: docs/poc-report.md (v2, 双语料 + 基线对照 + intent 分层)
+
+## 工作区纪律
+
+- `/tmp/opencode/log-skimmer` 可能被多个并行 agent 会话共享 (子目录出现他人任务工作区, 如 `fix-*/`、`feat-*/`, 及 `ts.env` 等暂存文件)。提交一律**显式列路径** (`git add LICENSE Cargo.toml ...`), 禁止 `git add -A`/`git add .` — 曾把 7 个并行会话的嵌入仓库收进提交 (2026-10-17 事故, amend 剥离); 他人目录只绕行不清理。
