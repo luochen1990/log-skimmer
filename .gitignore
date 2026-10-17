@@ -1,4 +1,4 @@
-target/
+target*/ # 含 CI 双测独立编译目录 target-base/ (曾误提交 38MB 产物, FOD 引用 store 路径拒构建)
 # 语料是外部滚动资源 (语料仓 github.com/luochen1990/log-skimmer-corpus, CI 持续刷新保新鲜);
 # 外部仓工作副本 (fetch-corpus / fetch-rules 幂等拉取): 语料 + 规则集
 data/logs/
