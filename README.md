@@ -126,4 +126,6 @@ nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt +
 
 ## License
 
-Apache-2.0 (引擎与服务, 见 [LICENSE](LICENSE)); 规则集独立仓 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) 同为 Apache-2.0。语料仓为公开 CI 日志样本集合, 不作授权声明 (上游各自许可)。
+- 引擎与服务: Apache-2.0 (见 [LICENSE](LICENSE))。
+- 规则集 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules): CC0 1.0 (规则与文档, 无版权保留)。
+- 语料仓 [log-skimmer-corpus](https://github.com/luochen1990/log-skimmer-corpus): 仓内编排与元数据 CC0 1.0; 日志样本内容版权归原作者 (再分发口径见该仓 README)。
