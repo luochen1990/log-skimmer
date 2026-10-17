@@ -40,6 +40,7 @@ publish:
     set -euo pipefail
     remote_url="https://github.com/luochen1990/log-skimmer.git"
     git remote get-url github >/dev/null 2>&1 || git remote add github "$remote_url"
+    git fetch -q github master # 建立 lease 基准 (首次 publish 前远端可为孤立初始 commit)
     git push --force-with-lease github master:master
     echo "发布面已同步: github.com/luochen1990/log-skimmer master @ $(git rev-parse --short master)"
 

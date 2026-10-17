@@ -14,7 +14,7 @@
 //!   - 零块/边界违例全量统计 (不滤 excluded);
 //!   - 压缩率 blk/sig = 聚合行数比 (1-Σout/Σin), 非样本内率平均。
 //!
-//! 判定断言族: 语料在场 ≥60 / FN=0 / FP率≤2% / 边界违例=0 / 零块=0;
+//! 判定断言族: 语料在场 ≥50 / FN=0 / FP率≤2% / 边界违例=0 / 零块=0;
 //!   压缩率防退化 = 双测对比 (base summary 提供 per-repo 基准, 相对退化 >2% 判红;
 //!   未提供则单测模式显式声明 — 引擎仓传 base 引擎实测, 规则仓传 base 规则实测,
 //!   同语料下纯单变量归因)。
@@ -25,7 +25,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 // ---- 阈值 (判定 SSOT; 原 l0-gate.sh 头注释的职责迁移至此) ----
-pub const MIN_SAMPLES: usize = 60;
+/// 语料在场下限: 防空转假绿 (获取链路整体故障时拒判)。50 = 兼容单源环境
+/// (rules 仓 CI 仅 corpus 57 对; 主仓双源 67 对) — 防空转语义在 50 与 67 无差。
+pub const MIN_SAMPLES: usize = 50;
 pub const FP_MAX_PCT: f64 = 2.0;
 pub const REGRESSION_MAX_PCT: f64 = 2.0;
 
