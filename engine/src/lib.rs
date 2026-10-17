@@ -5,6 +5,7 @@
 //!
 //! 语义 SSOT: docs/rule-format.md — 实现与其冲突时以 spec 为准。
 
+pub mod hygiene;
 pub mod l0;
 
 use regex::Regex;

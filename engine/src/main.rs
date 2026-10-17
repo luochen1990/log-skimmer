@@ -41,6 +41,14 @@ enum Cmd {
         #[arg(long)]
         emit_summary: bool,
     },
+    /// 发布面卫生检查: 扫描目录内网模式 (publish 必经机械防线; 0=干净 / 1=命中 / 2=清单或目录非法)
+    Hygiene {
+        /// 内网模式清单文件 (一行一模式, # 注释; 内网专用件不随发布面, SSOT 见 AGENTS.md 公开镜像纪律)
+        #[arg(long)]
+        patterns: PathBuf,
+        /// 待扫描目录 (发布树根, 递归)
+        dir: PathBuf,
+    },
 }
 
 fn main() {
@@ -58,7 +66,42 @@ fn main() {
             base,
             emit_summary,
         } => l0_cmd(corpus, rules, base, emit_summary),
+        Cmd::Hygiene { patterns, dir } => hygiene_cmd(patterns, dir),
     }
+}
+
+fn hygiene_cmd(patterns: PathBuf, dir: PathBuf) {
+    let pats = log_skimmer::hygiene::load_patterns(&patterns).unwrap_or_else(|e| {
+        eprintln!("hygiene: 模式清单装载失败 — {e}");
+        std::process::exit(2);
+    });
+    if !dir.is_dir() {
+        eprintln!("hygiene: 目录不存在 {}", dir.display());
+        std::process::exit(2);
+    }
+    let hits = log_skimmer::hygiene::scan(&dir, &pats);
+    if hits.is_empty() {
+        println!(
+            "hygiene: 通过 — {} 项内网模式零命中 ({})",
+            pats.len(),
+            dir.display()
+        );
+        return;
+    }
+    eprintln!(
+        "hygiene: 内网模式命中 {} 处 — 禁止发布 (issue #18 机械防线; 修复: 排除清单 justfile publish-stage / 源头改写):",
+        hits.len()
+    );
+    for h in &hits {
+        eprintln!(
+            "  {}:{}: [{}] {}",
+            h.path.display(),
+            h.line,
+            h.pattern,
+            h.text
+        );
+    }
+    std::process::exit(1);
 }
 
 fn l0_cmd(corpus: PathBuf, rules: PathBuf, base: Option<PathBuf>, emit_summary: bool) {
