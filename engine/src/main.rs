@@ -1,11 +1,19 @@
 //! CLI 薄壳 (spec §3): `log-skimmer skim <log> --rules <dir> [--json]`。
 //! 职责边界: 参数解析 + 文件读取 + 调用纯核心 + 两种输出渲染; 无业务逻辑。
+//!
+//! 退出码契约 (SSOT 表 + 调用方行为见 README「退出码语义」): 0 正常完成 /
+//! 2 运行期数据错误 (规则集非法、日志读取失败) / 3 零块失明 / 64 解析期用法错误
+//! (BSD sysexits EX_USAGE; --help/--version 走 stdout 仍 0)。l0 判定码 0/1/2 是
+//! 内部 CI 契约 (解析成功后由 l0_cmd 运行期发出), 与解析期 64 正交。
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+/// BSD sysexits(3) EX_USAGE: 命令用法错误 (解析期), 与运行期数据错误 exit 2 分流。
+const EX_USAGE: i32 = 64;
+
 #[derive(Parser)]
-#[command(name = "log-skimmer", about = "CI 日志高信噪比提取 (POC)")]
+#[command(name = "log-skimmer", version, about = "CI 日志高信噪比提取 (POC)")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -53,7 +61,13 @@ enum Cmd {
 }
 
 fn main() {
-    let cli = Cli::parse();
+    // 用法错误独立 exit 64 (issue #15): e.print() 按错误 Kind 自动选流 —
+    // DisplayHelp/DisplayVersion 走 stdout 且 use_stderr()==false, 照常 exit 0;
+    // 其余解析期错误 (未知参数/非法值/缺必选) 走 stderr, exit 64。
+    let cli = Cli::try_parse().unwrap_or_else(|e| {
+        let _ = e.print();
+        std::process::exit(if e.use_stderr() { EX_USAGE } else { 0 });
+    });
     match cli.cmd {
         Cmd::Skim {
             log_file,

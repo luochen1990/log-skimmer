@@ -82,8 +82,9 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules --context 
 | 退出码 | 含义 | 调用方行为 |
 | --- | --- | --- |
 | 0 | 正常完成 | 消费输出 |
-| 2 | 规则集非法 (加载校验失败) / 日志读取失败 / 日志为空 (0 行, 疑似下载截断) | 修复数据后重试 |
+| 2 | 数据错误: 规则集非法 (加载校验失败) / 日志读取失败 / 日志为空 (0 行, 疑似下载截断) | 修复数据后重试 |
 | 3 | 零块失明 — 规则集对该日志无任何命中 | 无条件回退 `rg -i 'error|warn'` 基线 |
+| 64 | 用法错误 — 参数解析失败 (BSD sysexits `EX_USAGE`; `--help`/`--version` 仍 exit 0) | 检查命令拼写 (stderr 有 clap 输出), 修数据无济于事 |
 
 ### MCP server (agent 集成形态)
 
@@ -109,6 +110,8 @@ opencode / Claude 等客户端配置示例 (command 形态):
 ```
 
 部署前提: 二进制旁须有规则集目录 (log-skimmer-rules 仓 clone), 或设 `LOG_SKIMMER_RULES` 指向它 (缺省探测编译期路径与可执行文件相邻路径, 均失败时 fail-fast 退出码 2)。单条日志上限 32MB, 超限报错并建议 `tail -c` 截取。
+
+server 进程退出码不是 MCP 工具调用方契约 — 上表只约束 `log-skimmer` CLI: `log-skimmer-mcp` 启动期 exit 2 = 规则集装载失败 fail-fast (部署环境问题, 见上句), 排障应检查 stderr (MCP 协议只占 stdout, stderr 是日志通道), 修复数据或重试调用无济于事。
 
 开发验证:
 
