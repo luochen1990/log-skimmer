@@ -112,10 +112,15 @@ ci-periodic: corpus-fetch
     age=$(( $(date +%s) - $(date -d "$(git -C data/logs log -1 --format=%cI)" +%s) )); [ "$age" -lt $((8*86400)) ] || { echo "语料仓陈旧 ($((age/86400)) 天未刷新, GHA 刷新链疑似故障"; exit 1; }; echo "语料新鲜度 OK ($((age/86400)) 天)"
 
 # ci-merge — org 标准 CI P0 合入门禁契约:
-#   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (fmt→clippy→test→L0)。
+#   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (fmt→clippy→test→L0,
+#   check 内部步骤顺序不变)。
+#   rules-fetch 前置于 check: rules_load 测试消费 RULES_DIR env (CI job env 穿透指向
+#   持久缓存, check 先行则首跑缓存未建必红 — PR #40 run 19848 实证), 规则必须在场;
+#   这也是该 env 覆盖特性的设计意图 — CI 中 rules_load 升级为真实规则集回归
+#   (本地无 env 走 fixture, 零影响)。
 # CI runner (vm-nix) 契约: 预装工具链直用, 禁 nix develop (VM ro store + temproots
 # 无写权限, nix 求值必炸 — forgejo-runner-vm config 头注释; secret-guard 同模式)。
 # 本地开发: 系统无 rust 时 `nix develop -c just check` 进 devShell (flake.nix)。
 ci-merge: _ci-merge
 
-_ci-merge: check corpus-fetch rules-fetch l0-gate
+_ci-merge: rules-fetch check corpus-fetch l0-gate
