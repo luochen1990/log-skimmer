@@ -65,10 +65,12 @@ git clone --depth 1 https://github.com/luochen1990/log-skimmer-rules /path/to/ru
 两种输出形态:
 
 ```bash
-# 人类可读 (默认): 块间 --- 分隔, 块头带行号坐标与命中规则, 尾行输出压缩统计
+# 人类可读 (默认): 块间 --- 分隔, 块头带行号坐标、intent/category 与命中规则, 尾行输出压缩统计
+# (人类可读输出整体走 stdout, `> out.txt` 重定向完整保留; 错误/警告才走 stderr)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 
 # JSON 协议 (--json): 块/fragment 结构化坐标与元数据 + L0 统计, 供 agent 程序化消费
+# (stdout 纯 JSON, 统计行等诊断走 stderr)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --json
 
 # --context N: 全局覆盖上下文扩展为前 N 行 / 后 N 行 (默认按规则自带)
@@ -80,7 +82,7 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules --context 
 | 退出码 | 含义 | 调用方行为 |
 | --- | --- | --- |
 | 0 | 正常完成 | 消费输出 |
-| 2 | 规则集非法 (加载校验失败) 或日志读取失败 | 修复规则 / 日志后重试 |
+| 2 | 规则集非法 (加载校验失败) / 日志读取失败 / 日志为空 (0 行, 疑似下载截断) | 修复数据后重试 |
 | 3 | 零块失明 — 规则集对该日志无任何命中 | 无条件回退 `rg -i 'error|warn'` 基线 |
 
 ### MCP server (agent 集成形态)

@@ -101,7 +101,7 @@ impl SkimInputError {
             SkimInputError::Empty => "log_text 为空或纯空白, 无可扫描内容".into(),
             SkimInputError::Oversized(n) => oversized_msg(*n),
             SkimInputError::InvalidContext(n) => {
-                format!("context 须在 0-10 内 (spec §1), 收到 {n}")
+                format!("context 须在 0-10 内, 收到 {n}")
             }
         }
     }
@@ -399,6 +399,12 @@ mod tests {
             skim_view(&rs, "x", Some(-1)).unwrap_err(),
             SkimInputError::InvalidContext(-1)
         );
+        // #17: 错误消息自明, 不含内部 spec 章节指针
+        let err = skim_view(&rs, "x", Some(11)).unwrap_err();
+        assert_eq!(err, SkimInputError::InvalidContext(11));
+        let msg = err.message();
+        assert!(msg.contains("context 须在 0-10 内, 收到 11"), "{msg}");
+        assert!(!msg.contains("spec §"), "{msg}");
         let big = "x".repeat(MAX_LOG_BYTES + 1);
         assert_eq!(
             skim_view(&rs, &big, None).unwrap_err(),

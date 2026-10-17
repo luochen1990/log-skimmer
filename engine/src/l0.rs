@@ -369,7 +369,7 @@ pub fn gate(pr: &Summary, base: Option<&Summary>) -> Verdict {
             .collect();
         violations.push(Violation {
             kind: "fn",
-            note: "失败样本零 failure-intent fragment (完全漏检, spec §0 召回优先不变量)".into(),
+            note: "失败样本零 failure-intent fragment (完全漏检, 召回优先不变量)".into(),
             detail: Some(serde_json::Value::Array(detail)),
         });
     }
@@ -386,7 +386,7 @@ pub fn gate(pr: &Summary, base: Option<&Summary>) -> Verdict {
     if st.boundary_violations > 0 {
         violations.push(Violation {
             kind: "boundary",
-            note: "context before/after 越界 [0,10] (spec §1)".into(),
+            note: "context before/after 越界 [0,10]".into(),
             detail: None,
         });
     }

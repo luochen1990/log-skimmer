@@ -147,6 +147,9 @@ L4: build failed
 - `output_lines` = 合并块总行数 (noise 剔除后) — **块级粒度**。
 - `signature_output_lines` = 各 fragment block 首行 (锚行/签名行, 去重行号) 计数 — **签名行级粒度**。压缩比按两档粒度分列统计 (两数字差异大, 验收线不可混谈)。
 - CLI `--context N` (默认按规则自带 context): 显示层全局覆盖为 before=N/after=N, 纯机械按坐标切割, 不需规则参与。
+- CLI 流分离契约: 人类可读输出 (块内容、统计行及其前导空行) 整体走 stdout — `> file` 重定向完整保留输出成果; 错误与警告 (含零块警示) 走 stderr。`--json` 模式 stdout 为纯 JSON, 统计行等诊断走 stderr。
+- 空日志硬拒绝 (exit 2): 0 行日志是数据错误 (疑似下载截断), 不进入零块判定 — 与「空规则集硬拒绝」对称, 宁可显式失败不静默通过。exit 2 族 = 规则集非法 / 日志读取失败 / 日志为空。纯空白文件 (归一后 ≥1 行) 不属此类, 走零块判定; MCP `skim` 的入口语义不同 (参数校验): 空**或纯空白** log_text 一律参数错误拒绝。
+- 统计行压缩率: 零块场景显示 `n/a` (无输出即无压缩率, 拒绝 100.0% 伪统计); 其余数字照常输出。
 - CLI 零块警示 (**无条件**, spec §0「召回优先」的运行时配套): 「任何真实 CI 日志 skim 非零」是规则集的**结构承诺**, 由双侧安全网兑现 — 失败侧 (CI 平台 annotation/runner 失败信号规则) + 成功侧 (平台环境 info 规则, 如 runner 版本行; 成功日志至少一条 info 是规则集义务而非建议)。零块 = 规则集对该日志**失明**, 与 job 成败无关 → stderr 醒目警告 + **退出码 3**, 调用方无条件回退 rg 基线。不需要调用方传入任何预期元数据 — 判定完全内生于规则集的覆盖承诺。
 
 **消费方判定矩阵** (agent 使用契约; warning/info 与成败无关, 不参与判定):
@@ -158,7 +161,7 @@ L4: build failed
 | 成功 | 非零 | 非零 | FP (后果轻: 多几行噪音; 验收线容忍, 无须 fallback) |
 | 失败 | 非零 | 非零 | 正常 (失败侧安全网结构保证) |
 | 失败 | 非零 | 0 | **异常** — 已知边界: 日志截断 (runner 崩溃丢尾部失败信号) 或规则失明; 工具无 conclusion 无法自判, 消费方一行检查 `结论=failure 而 failure 块零 → 视同失明 → fallback` |
-- 人类可读输出 (默认): 块间 `---` 分隔, 块头 `[L120-L135] rule1,rule2`, 后跟文本。
+- 人类可读输出 (默认): 块间 `---` 分隔, 块头 `[L120-L135] [failure/typecheck] rule1,rule2` (intent/category 取块代表 fragment — intent 优先级 failure > warning > info, 同级 confidence > 块内原序; 语义单点 engine `OutputBlock::representative`, MCP BlockSummary 同源), 后跟文本。
 
 ## 4. L0 统计口径 (POC)
 
