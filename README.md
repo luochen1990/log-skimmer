@@ -147,6 +147,34 @@ nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt +
 - 新增或修改规则: 到 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) 提 PR, 读仓内 README (规则贡献指南与打标纪律)。
 - 规则格式、状态机语义与输出协议的规范 SSOT: [docs/rule-format.md](docs/rule-format.md)。
 
+### 贡献者本地验证 (纯公开件)
+
+规则贡献的完整本地验证只需三个公开仓, 无需任何私有凭据:
+
+```bash
+# ① 三件套: 引擎 (本仓) + 公开语料仓 + 规则仓 fork (改动在 fork 分支上做)
+cargo build --release
+git clone --depth 1 https://github.com/luochen1990/log-skimmer-corpus /path/to/corpus
+git clone --depth 1 https://github.com/luochen1990/log-skimmer-rules /path/to/rules
+
+# ② 快验: 单样本 skim (退出码 3 = 规则集对该日志零命中; 单规则是否命中以 ③ 的
+#    per_rule_hits 归因为准)
+target/release/log-skimmer skim failed-job.log --rules /path/to/rules
+
+# ③ 全量门禁: 全语料回归 (FN=0 / FP率≤2% / 零块=0) + 每规则命中报告 per_rule_hits。
+#    新规则的正向通过信号: 在 per_rule_hits 中计数 ≥1 (即不在 dead_rules 列表)。
+target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
+
+# ④ 严格模式 (可选): 存在语料零命中规则即 fail。注意现有规则集含公开语料暂无
+#    样本的天然零命中工具 (见 dead_rules 列表), 全量开启会列出它们 — 严格模式
+#    适用于「语料应覆盖全部规则」的场景; 对新规则的定向验证以 ③ 的信号为准。
+target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --require-all-rules-hit
+```
+
+新工具规则 PR 请附最小样例日志 (溯源写法见规范 §5 `samples: self-provided` 约定)。
+
+注: 开发仓内部的 `just ci-merge` 全链含内网语料拉取段, 属内网维护者路径 (公开克隆形态不含该 recipe); 社区贡献者走上述公开件路径即可完成等价的规则质量验证。
+
 ## License
 
 - 引擎与服务: Apache-2.0 (见 [LICENSE](LICENSE))。
