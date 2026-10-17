@@ -79,7 +79,7 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --json
 
 # --context N: globally override context extension to N lines before / N lines after
-# (default: each rule's own context)
+# (default: each rule's own context; valid range 0-10, out-of-range is a usage error)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --context 3
 ```
 
@@ -88,33 +88,56 @@ Exit code semantics (caller contract):
 | Exit code | Meaning | Caller action |
 | --- | --- | --- |
 | 0 | Completed normally | Consume the output |
-| 2 | Invalid rule set (load-time validation failed) / log read failure / empty log (0 lines, likely a truncated download) | Fix the data, then retry |
+| 2 | Data error: invalid rule set (load-time validation failed) / log read failure / empty log (0 lines, likely a truncated download) | Fix the data, then retry |
 | 3 | Zero-block blindness — the rule set matched nothing in this log | Unconditionally fall back to the `rg -i 'error\|warn'` baseline |
+| 64 | Usage error — argument parsing failed (BSD sysexits `EX_USAGE`; `--help`/`--version` still exit 0) | Check the command spelling (clap output on stderr); fixing data won't help |
 
 ### MCP Server (agent integration form)
 
-`log-skimmer-mcp` exposes three tools over stdio transport: `skim(log_text, context?)` (extract blocks + fragment summaries + compression stats; on zero blocks it returns `fallback: "no-blocks"` with fallback-advice fields instead of an error) / `read_around(log_text, line_start, line_end)` (fetch an original-text window by coordinates, capped at 200 lines per call) / `list_rules()` (the loaded rule inventory).
+`log-skimmer-mcp` exposes three tools over stdio transport: `skim(log_text, context?)` (extract blocks + fragment summaries + compression stats; context range 0-10, out-of-range reports invalid_params; on zero blocks it returns `fallback: "no-blocks"` with fallback-advice fields instead of an error) / `read_around(log_text, line_start, line_end)` (fetch an original-text window by coordinates, capped at 200 lines per call) / `list_rules()` (the loaded rule inventory).
 
 ```bash
 cargo build --release -p log-skimmer-server
 # artifact: target/release/log-skimmer-mcp (stdio transport)
 ```
 
-Example client config for opencode / Claude (command form):
+Example client config — opencode (`mcp` section of `opencode.json`; environment variables via the `environment` field):
 
 ```json
 {
-  "local": {
+  "mcp": {
     "log-skimmer": {
       "type": "local",
       "command": ["/path/to/log-skimmer-mcp"],
+      "environment": { "LOG_SKIMMER_RULES": "/path/to/log-skimmer-rules" },
       "enabled": true
     }
   }
 }
 ```
 
-Deployment prerequisite: a rule set directory (a clone of the log-skimmer-rules repo) must sit next to the binary, or `LOG_SKIMMER_RULES` must point to it (by default, a compile-time path and paths adjacent to the executable are probed; if all fail, it fails fast with exit code 2). Per-log input is capped at 32MB; beyond the limit it errors and suggests truncating with `tail -c`.
+Claude Desktop (`mcpServers` section of `claude_desktop_config.json`; environment variables via the `env` key):
+
+```json
+{
+  "mcpServers": {
+    "log-skimmer": {
+      "command": "/path/to/log-skimmer-mcp",
+      "env": { "LOG_SKIMMER_RULES": "/path/to/log-skimmer-rules" }
+    }
+  }
+}
+```
+
+Rule set resolution (resolved once at startup; a missing directory / no `*.yaml` / load-time validation failure all fail fast with exit code 2):
+
+1. The **rule set directory** pointed to by the `LOG_SKIMMER_RULES` environment variable (a clone of the log-skimmer-rules repo, containing `*.yaml`) — if set, it is adopted unconditionally with no fallback probing (an invalid directory fails fast); the standard deployment means when the rule set doesn't sit next to the binary;
+2. Default probing — from the executable's directory, try adjacent `rules/` → `../rules/` → `../../rules/` in order (the first that is a directory wins; covers both the "rules next to bin" deployment layout and the cargo `target/{debug,release}/` build layout);
+3. A source-tree fixture path embedded at compile time — a dev/unit-test fallback, usually absent after deployment.
+
+Input cap (**MCP side only**): a single `log_text` above 32MB reports invalid_params and suggests truncating with `tail -c` and submitting in segments; CLI file input (`skim <log>`) has no such limit.
+
+The server process's exit code is not part of the MCP tool-caller contract — the table above only constrains the `log-skimmer` CLI: a `log-skimmer-mcp` startup exit 2 = rule set load failure, fail-fast (a deployment-environment problem, see above); troubleshoot via stderr (the MCP protocol only occupies stdout; stderr is the log channel) — fixing data or retrying the call won't help.
 
 Development verification:
 
@@ -129,6 +152,36 @@ Regression corpus: [log-skimmer-corpus](https://github.com/luochen1990/log-skimm
 
 - To add or modify rules: open a PR in [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) and read that repo's README (rule contribution guide and labeling discipline).
 - Normative SSOT for the rule format, state-machine semantics, and output protocol: [docs/rule-format.md](docs/rule-format.md) (Chinese; see the non-normative English translation in [docs/rule-format.en.md](docs/rule-format.en.md)).
+
+### Contributor local verification (public artifacts only)
+
+Complete local verification of a rule contribution needs only the three public repos — no private credentials:
+
+```bash
+# ① The trio: engine (this repo) + public corpus repo + rules repo fork (do your work on a fork branch)
+cargo build --release
+git clone --depth 1 https://github.com/luochen1990/log-skimmer-corpus /path/to/corpus
+git clone --depth 1 https://github.com/luochen1990/log-skimmer-rules /path/to/rules
+
+# ② Quick check: single-sample skim (exit code 3 = the rule set matched nothing in that log;
+#    whether a specific rule matched is attributed by ③'s per_rule_hits)
+target/release/log-skimmer skim failed-job.log --rules /path/to/rules
+
+# ③ Full gate: whole-corpus regression (FN=0 / FP rate ≤2% / zero-blocks=0) + per-rule hit report
+#    (per_rule_hits). Positive signal for a new rule: count ≥1 in per_rule_hits
+#    (i.e. absent from the dead_rules list).
+target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
+
+# ④ Strict mode (optional): fail if any rule has zero hits across the corpus. Note the current
+#    rule set contains tools with no samples in the public corpus yet (see the dead_rules list),
+#    so a full strict run will list them — strict mode suits "corpus should cover all rules"
+#    scenarios; for targeted verification of a new rule, the signal in ③ is authoritative.
+target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --require-all-rules-hit
+```
+
+Please attach a minimal sample log to PRs for new tool rules (provenance convention: spec §5 `samples: self-provided`).
+
+Note: the dev repo's internal `just ci-merge` full chain includes a private corpus fetching stage — that is the intranet maintainers' path (a public clone does not contain that recipe); community contributors complete equivalent rule quality verification via the public-artifact path above.
 
 ## License
 

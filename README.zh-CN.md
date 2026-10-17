@@ -75,7 +75,7 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 # (stdout 纯 JSON, 统计行等诊断走 stderr)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --json
 
-# --context N: 全局覆盖上下文扩展为前 N 行 / 后 N 行 (默认按规则自带)
+# --context N: 全局覆盖上下文扩展为前 N 行 / 后 N 行 (默认按规则自带; 取值 0-10, 越界为用法错误)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --context 3
 ```
 
@@ -84,8 +84,9 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules --context 
 | 退出码 | 含义 | 调用方行为 |
 | --- | --- | --- |
 | 0 | 正常完成 | 消费输出 |
-| 2 | 规则集非法 (加载校验失败) / 日志读取失败 / 日志为空 (0 行, 疑似下载截断) | 修复数据后重试 |
+| 2 | 数据错误: 规则集非法 (加载校验失败) / 日志读取失败 / 日志为空 (0 行, 疑似下载截断) | 修复数据后重试 |
 | 3 | 零块失明 — 规则集对该日志无任何命中 | 无条件回退 `rg -i 'error\|warn'` 基线 |
+| 64 | 用法错误 — 参数解析失败 (BSD sysexits `EX_USAGE`; `--help`/`--version` 仍 exit 0) | 检查命令拼写 (stderr 有 clap 输出), 修数据无济于事 |
 
 ### MCP server (agent 集成形态)
 
@@ -96,21 +97,43 @@ cargo build --release -p log-skimmer-server
 # 产物: target/release/log-skimmer-mcp (stdio transport)
 ```
 
-opencode / Claude 等客户端配置示例 (command 形态):
+客户端配置示例 — opencode (`opencode.json` 的 `mcp` 段; 环境变量经 `environment` 字段传):
 
 ```json
 {
-  "local": {
+  "mcp": {
     "log-skimmer": {
       "type": "local",
       "command": ["/path/to/log-skimmer-mcp"],
+      "environment": { "LOG_SKIMMER_RULES": "/path/to/log-skimmer-rules" },
       "enabled": true
     }
   }
 }
 ```
 
-部署前提: 二进制旁须有规则集目录 (log-skimmer-rules 仓 clone), 或设 `LOG_SKIMMER_RULES` 指向它 (缺省探测编译期路径与可执行文件相邻路径, 均失败时 fail-fast 退出码 2)。单条日志上限 32MB, 超限报错并建议 `tail -c` 截取。
+Claude Desktop (`claude_desktop_config.json` 的 `mcpServers` 段; 环境变量经 `env` 键传):
+
+```json
+{
+  "mcpServers": {
+    "log-skimmer": {
+      "command": "/path/to/log-skimmer-mcp",
+      "env": { "LOG_SKIMMER_RULES": "/path/to/log-skimmer-rules" }
+    }
+  }
+}
+```
+
+规则集定位 (启动时一次性解析, 目录不存在 / 无 `*.yaml` / 加载校验失败均 fail-fast 退出码 2):
+
+1. 环境变量 `LOG_SKIMMER_RULES` 指向的**规则集目录** (log-skimmer-rules 仓的 clone, 含 `*.yaml`) — 已设置即采用、不回落后续探测 (指向无效目录直接 fail-fast), 规则集不在二进制旁时的标准部署手段;
+2. 缺省探测 — 可执行文件所在目录依次尝试相邻的 `rules/` → `../rules/` → `../../rules/` (首个为目录者生效; 覆盖「rules 与 bin 同级」部署布局与 cargo `target/{debug,release}/` 构建布局);
+3. 编译时嵌入的本仓源码树 fixture 路径 — 开发/单测形态兜底, 部署后通常不存在。
+
+输入上限 (**仅 MCP 侧**): 单条 `log_text` 超过 32MB 报 invalid_params 并建议 `tail -c` 截取后分段提交; CLI 文件输入 (`skim <log>`) 无此限制。
+
+server 进程退出码不是 MCP 工具调用方契约 — 上表只约束 `log-skimmer` CLI: `log-skimmer-mcp` 启动期 exit 2 = 规则集装载失败 fail-fast (部署环境问题, 见上句), 排障应检查 stderr (MCP 协议只占 stdout, stderr 是日志通道), 修复数据或重试调用无济于事。
 
 开发验证:
 
@@ -125,6 +148,34 @@ nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt +
 
 - 新增或修改规则: 到 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) 提 PR, 读仓内 README (规则贡献指南与打标纪律)。
 - 规则格式、状态机语义与输出协议的规范 SSOT: [docs/rule-format.md](docs/rule-format.md)。
+
+### 贡献者本地验证 (纯公开件)
+
+规则贡献的完整本地验证只需三个公开仓, 无需任何私有凭据:
+
+```bash
+# ① 三件套: 引擎 (本仓) + 公开语料仓 + 规则仓 fork (改动在 fork 分支上做)
+cargo build --release
+git clone --depth 1 https://github.com/luochen1990/log-skimmer-corpus /path/to/corpus
+git clone --depth 1 https://github.com/luochen1990/log-skimmer-rules /path/to/rules
+
+# ② 快验: 单样本 skim (退出码 3 = 规则集对该日志零命中; 单规则是否命中以 ③ 的
+#    per_rule_hits 归因为准)
+target/release/log-skimmer skim failed-job.log --rules /path/to/rules
+
+# ③ 全量门禁: 全语料回归 (FN=0 / FP率≤2% / 零块=0) + 每规则命中报告 per_rule_hits。
+#    新规则的正向通过信号: 在 per_rule_hits 中计数 ≥1 (即不在 dead_rules 列表)。
+target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
+
+# ④ 严格模式 (可选): 存在语料零命中规则即 fail。注意现有规则集含公开语料暂无
+#    样本的天然零命中工具 (见 dead_rules 列表), 全量开启会列出它们 — 严格模式
+#    适用于「语料应覆盖全部规则」的场景; 对新规则的定向验证以 ③ 的信号为准。
+target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --require-all-rules-hit
+```
+
+新工具规则 PR 请附最小样例日志 (溯源写法见规范 §5 `samples: self-provided` 约定)。
+
+注: 开发仓内部的 `just ci-merge` 全链含内网语料拉取段, 属内网维护者路径 (公开克隆形态不含该 recipe); 社区贡献者走上述公开件路径即可完成等价的规则质量验证。
 
 ## License
 
