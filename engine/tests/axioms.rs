@@ -260,6 +260,87 @@ fn load_validation_errors() {
     assert!(err.0.iter().any(|e| e.contains("patterns 为空")));
 }
 
+// 加载校验 (issue #14 A): scope=repo 时 repo 须 `host/owner/repo` 完整形态
+// (spec §1: 裸 owner/repo 缺 host 视为非法) — 裸两段/单段/空段/多余段均整体拒载。
+#[test]
+fn load_validation_repo_form() {
+    for bad in [
+        "sst/opencode",  // 裸两段 (缺 host) — issue MRE 形态
+        "opencode",      // 单段
+        "sst//opencode", // 空中段
+        "sst/opencode/", // 空尾段
+        "/sst/opencode", // 空首段
+        "a/b/c/d",       // 多余段
+    ] {
+        let dir = std::env::temp_dir().join("ls-test-repo-form");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("t")).unwrap();
+        std::fs::write(
+            dir.join("t/bad.yaml"),
+            format!("id: t-bad\ntitle: b\ntool: t\nscope: repo\nrepo: {bad}\nkind: signal\npatterns:\n  - regex: '^a'\n"),
+        )
+        .unwrap();
+        let err = load_rules(&dir).unwrap_err();
+        let msg = err
+            .0
+            .iter()
+            .find(|e| e.contains("repo 形态非法"))
+            .unwrap_or_else(|| panic!("repo={bad:?} 须报形态非法, got: {err}"));
+        assert!(msg.contains("t/bad.yaml"), "报错带源文件: {msg}");
+        assert!(msg.contains(bad), "报错带非法值: {msg}");
+    }
+
+    // 完整形态回归: 不误伤合法规则。
+    let dir = std::env::temp_dir().join("ls-test-repo-form-ok");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("t")).unwrap();
+    std::fs::write(
+        dir.join("t/ok.yaml"),
+        "id: t-ok\ntitle: o\ntool: t\nscope: repo\nrepo: github.com/sst/opencode\nkind: signal\npatterns:\n  - regex: '^a'\n",
+    )
+    .unwrap();
+    load_rules(&dir).expect("完整形态 host/owner/repo 须放行");
+}
+
+// 加载校验 (issue #14 B): id 重复报错须并列两个冲突源文件 — 多文件规则仓
+// 里只报 id 字符串等于让人肉 grep 定位。
+#[test]
+fn load_validation_duplicate_id_reports_both_files() {
+    let dir = std::env::temp_dir().join("ls-test-dup-files");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("t")).unwrap();
+    let yaml = "title: d\ntool: t\nscope: repo\nrepo: github.com/x/y\nkind: signal\npatterns:\n  - regex: '^a'\n";
+    std::fs::write(dir.join("t/a.yaml"), format!("id: t-dup\n{yaml}")).unwrap();
+    std::fs::write(dir.join("t/b.yaml"), format!("id: t-dup\n{yaml}")).unwrap();
+    let err = load_rules(&dir).unwrap_err();
+    let msg = err
+        .0
+        .iter()
+        .find(|e| e.contains("id 重复"))
+        .unwrap_or_else(|| panic!("须报 id 重复, got: {err}"));
+    assert!(msg.contains("t/a.yaml"), "报错带文件1: {msg}");
+    assert!(msg.contains("t/b.yaml"), "报错带文件2: {msg}");
+    assert!(msg.contains(" vs "), "两文件并列呈现: {msg}");
+}
+
+// 3+ 重复 id 的锚定语义: 每个后续出现各报一条, 且均以首见 (字典序最小) 文件为锚 —
+// 该语义是报错可 grep 性的契约面, 防未来重构悄悄换成 last-seen / 逐对报错。
+#[test]
+fn load_validation_triple_duplicate_anchors_first_file() {
+    let dir = std::env::temp_dir().join("ls-test-dup3-files");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("t")).unwrap();
+    let yaml = "title: d\ntool: t\nscope: global\nkind: signal\npatterns:\n  - regex: '^a'\n";
+    for f in ["a.yaml", "b.yaml", "c.yaml"] {
+        std::fs::write(dir.join(format!("t/{f}")), format!("id: t-x\n{yaml}")).unwrap();
+    }
+    let err = load_rules(&dir).unwrap_err();
+    let dups: Vec<&String> = err.0.iter().filter(|e| e.contains("id 重复")).collect();
+    assert_eq!(dups.len(), 2, "三处重复报两条: {err}");
+    assert_eq!(dups[0], "id 重复: t-x (t/a.yaml vs t/b.yaml)");
+    assert_eq!(dups[1], "id 重复: t-x (t/a.yaml vs t/c.yaml)");
+}
+
 // 端到端: 锚 + loop + context + noise 组合。
 #[test]
 fn e2e_anchor_loop_context_noise() {

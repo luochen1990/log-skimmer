@@ -10,7 +10,7 @@ pub mod l0;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::Path;
 
@@ -209,6 +209,13 @@ fn is_valid_id(id: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
+/// repo 字段形态 (spec §1): `host/owner/repo` 完整形态 (oss-cache 同构) —
+/// 恰好三段且均非空; 裸 `owner/repo` 缺 host 视为非法。
+fn is_full_repo_form(repo: &str) -> bool {
+    let parts: Vec<&str> = repo.split('/').collect();
+    parts.len() == 3 && parts.iter().all(|p| !p.is_empty())
+}
+
 /// 递归读取目录下全部 `*.yaml`, 解析 + 校验 + 编译 regex。
 pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
     let mut errs = LoadErrors::default();
@@ -230,6 +237,7 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
     }
     files.sort();
     let mut rules = Vec::new();
+    let mut seen: HashMap<String, String> = HashMap::new(); // id → 首见源文件 (重复检测)
     for path in &files {
         let rel = path.strip_prefix(dir).unwrap_or(path).display().to_string();
         let raw = match std::fs::read_to_string(path) {
@@ -242,16 +250,17 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
         match serde_yaml::from_str::<Rule>(&raw) {
             Ok(mut rule) => {
                 validate_rule(&mut rule, &rel, &mut errs);
+                // id 全局唯一: 报错并列首见文件与冲突文件 (issue #14 B — 只报 id
+                // 字符串在多文件规则仓里等于让人肉 grep 定位)。
+                if let Some(first) = seen.get(&rule.id) {
+                    errs.0
+                        .push(format!("id 重复: {} ({first} vs {rel})", rule.id));
+                } else {
+                    seen.insert(rule.id.clone(), rel.clone());
+                }
                 rules.push(rule);
             }
             Err(e) => errs.0.push(format!("{rel}: YAML/字段解析失败: {e}")),
-        }
-    }
-    // id 全局唯一
-    let mut seen = HashSet::new();
-    for r in &rules {
-        if !seen.insert(r.id.clone()) {
-            errs.0.push(format!("id 重复: {}", r.id));
         }
     }
     if errs.0.is_empty() {
@@ -298,6 +307,9 @@ fn validate_rule(rule: &mut Rule, rel: &str, errs: &mut LoadErrors) {
     }
     match (rule.scope, &rule.repo) {
         (Scope::Repo, None) => errs.0.push(format!("{rel}: scope=repo 但缺 repo 字段")),
+        (Scope::Repo, Some(repo)) if !is_full_repo_form(repo) => errs.0.push(format!(
+            "{rel}: repo 形态非法 (须 host/owner/repo 三段非空): {repo}"
+        )),
         (Scope::Global, Some(_)) => errs.0.push(format!("{rel}: scope=global 但 repo 非 null")),
         _ => {}
     }
