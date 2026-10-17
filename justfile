@@ -55,19 +55,25 @@ publish-stage:
     fi
     rm -rf "$dir" && mkdir -p "$dir"
     git archive master | tar -x -C "$dir"
-    # 内网专用件排除清单 (issue #18; 每项理由):
+    # 内网/开发面专用件排除清单 (issue #18; 每项理由):
     #   AGENTS.md                — 内网维护者文档 (域名/网段/主机名/runner 契约/凭据叙述)
-    #   scripts/fetch-forgejo.sh — 内网语料拉取 (域名/org/API 路径, issue 主件)
-    #   data/forgejo-runs.json   — 内网 run 固定清单 (org/repo + run 元数据)
-    #   data/intranet-patterns.txt — 卫生检查内网模式清单 (内网端点情报本体)
+    #   data/                    — 内网清单族 (forgejo run 固定清单 / 卫生模式清单 / POC 样本溯源)
     #   docs/category-survey.md  — 立项调研 (内网 issue 引用 + 内网网段示例)
     #   .forgejo/                — 内网 CI 编排 (runner 标签/secret 名/持久卷路径)
     #   poc-dag.md               — POC 过程工件 (自述不入正式仓, 含内网建仓叙述)
-    rm -rf "$dir/AGENTS.md" "$dir/scripts/fetch-forgejo.sh" "$dir/data/forgejo-runs.json" \
-        "$dir/data/intranet-patterns.txt" "$dir/docs/category-survey.md" \
-        "$dir/.forgejo" "$dir/poc-dag.md"
-    # 不变量: 发布树文件集 ≡ master git 树 − 上述排除清单 (tracked-but-ignored
-    # 断言已在上方把守前提)
+    #   .cargo/                  — 国内镜像 source replacement (不绑架海外用户构建源)
+    #   scripts 内网门禁族       — fetch-forgejo/fetch-corpus/fetch-rules/l0-run/l0-base
+    #                             (内网语料拉取与 L0 门禁编排; fetch-logs.sh 保留 —
+    #                              语料仓滚动执行器的公开同步源, 零内网内容)
+    # dev justfile 同为开发面专用件 (CI/发布 recipe + 内网叙述), 发布树由精简版覆盖:
+    #   scripts/release/justfile — 发布面专用 (check/rules-load), cp 至发布树根。
+    rm -rf "$dir/AGENTS.md" "$dir/data" "$dir/docs/category-survey.md" "$dir/.forgejo" \
+        "$dir/poc-dag.md" "$dir/.cargo" "$dir/scripts/release" \
+        "$dir/scripts/fetch-forgejo.sh" "$dir/scripts/fetch-corpus.sh" \
+        "$dir/scripts/fetch-rules.sh" "$dir/scripts/l0-run.sh" "$dir/scripts/l0-base.sh"
+    cp scripts/release/justfile "$dir/justfile"
+    # 不变量: 发布树文件集 ≡ master git 树 − 上述排除清单 + 精简 justfile 覆盖
+    # (tracked-but-ignored 断言已在上方把守前提)
     cargo build --release -q -p log-skimmer
     "${CARGO_TARGET_DIR:-target}/release/log-skimmer" hygiene --patterns data/intranet-patterns.txt "$dir"
     echo "发布树就绪: $dir (hygiene 通过)"

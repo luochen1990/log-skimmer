@@ -1,6 +1,6 @@
-# 职责: devShell — 本地与 CI (vm-nix runner) 统一的开发环境入口。
-# 只提供 devShells output, 不做 package/checks (M1 阶段构建走 cargo, CI 门禁走 just ci-merge);
-# CI runner 无系统 cargo, 门禁链经 `nix develop --command just _ci-merge` 进入本环境。
+# 职责: devShell — 本地开发环境入口 (公开贡献者可用; 系统无 rust 工具链时
+# 经 `nix develop -c just check` 进入本环境)。只提供 devShells output,
+# 不做 package/checks (构建走 cargo, 质量循环走 justfile)。
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
@@ -18,13 +18,12 @@
               cargo
               clippy
               rustfmt
-              # 门禁链与脚本依赖
-              just # 任务入口 (ci-merge 契约宿主)
-              jq # l0-collect/summarize/gate 全链
+              # 开发辅助: 任务入口 + 日志/规则集调试工具链
+              just # 任务入口 (check/rules-load)
+              jq # JSON 处理 (skim --json 输出消费)
               ripgrep # rg 基线对照与开发调试
               yq # YAML 处理储备 (规则集工具链)
-            ];
-            # crates 镜像 SSOT 在 .cargo/config.toml (source replacement, 本地/devShell/CI 同源)
+            ]);
           };
         });
     };
