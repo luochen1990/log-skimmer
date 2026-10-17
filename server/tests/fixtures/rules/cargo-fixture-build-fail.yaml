@@ -1,0 +1,14 @@
+# server 测试最小 fixture (issue #3); 解耦 rationale 与真规则集兜底说明见
+# server/src/lib.rs 的 fixture_rules_dir 注释。
+# 刻意与 generic-fixture-error-line 在 "^error: could not compile" 行重叠命中:
+# 保留合并块 + 代表 fragment 选择 (failure/high 压 failure/medium) 的断言覆盖面。
+id: cargo-fixture-build-fail
+title: server fixture — cargo 编译失败汇总行
+tool: cargo
+scope: global
+category: build
+confidence: high
+intent: failure
+patterns:
+  - regex: '^error: could not compile '
+kind: signal

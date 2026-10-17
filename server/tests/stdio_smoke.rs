@@ -3,17 +3,24 @@
 //! 职责边界: 只验证协议链路与响应形态, 语义正确性由 src 内 fixture 单测覆盖。
 //!
 //! 大文本验证 (CI 日志单条数百 KB 量级): `stdio_big_log_e2e` 默认忽略,
-//! 以 env 门控触发 (语料已入仓, 见 docs/rule-format.md §5; 仓内最大样本 niri 1.4MB):
+//! 以 env 门控触发 (语料在独立语料仓, 经 just corpus-fetch 拉取; 最大样本 niri 1.4MB):
 //! `LOG_SKIMMER_E2E_LOG=<大日志路径> cargo test -p log-skimmer-server --test stdio_smoke -- --ignored`
 
 use std::io::{BufWriter, Read, Write};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 const PROTOCOL_VERSION: &str = "2025-06-18";
 
 fn spawn_server() -> std::process::Child {
     // CARGO_BIN_EXE_*: cargo 自动先构建 bin 并注入路径 (集成测试标准形态)
+    // 规则集解耦 (issue #3): 显式 env 指向 server 测试最小 fixture — 子进程默认
+    // 装载路径的编译期兜底指向 engine fixture 规则集 (镜像真规则仓, 会演进), 会把
+    // 规则演进耦合进协议链路断言; env 是生产解析链最高优先级, 顺带覆盖该分支。
+    // (路径表达式与 crate 内 fixture_rules_dir 同源, 集成测试在 crate 外不可见)
+    let rules_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules");
     Command::new(env!("CARGO_BIN_EXE_log-skimmer-mcp"))
+        .env("LOG_SKIMMER_RULES", &rules_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null()) // 启动日志走 stderr, 不参与协议断言
@@ -140,7 +147,7 @@ fn stdio_smoke_handshake_list_and_skim() {
         .iter()
         .map(|x| x.as_str().unwrap())
         .collect();
-    assert!(rules0.contains(&"cargo-could-not-compile"));
+    assert!(rules0.contains(&"cargo-fixture-build-fail"));
     assert!(payload.get("fallback").is_none());
 }
 
@@ -201,9 +208,13 @@ fn stdio_smoke_read_around_and_list_rules() {
 }
 
 /// 大日志全链路: 验证 rmcp stdio 传输对 CI 级大文本 (数百 KB~MB) 无截断/超时。
-/// 语料不入 git, env 门控: LOG_SKIMMER_E2E_LOG 指向本地大日志 (如语料库最大样本
-/// github.com__niri-wm__niri/38707552842-116330622870.log, ~1.36MB)。
+/// 语料在独立语料仓 (经 just corpus-fetch 拉到 data/logs), env 门控:
+/// LOG_SKIMMER_E2E_LOG 指向本地大日志 (如语料库最大样本
+/// data/logs/github.com/niri-wm/niri/<日期>/38707552842-116330622870-Dependabot-success.log,
+/// ~1.36MB; 路径相对仓根, 而 cargo 测试进程 cwd 是 server/ — 建议传绝对路径)。
 /// 2026-10-16 实测结论: 1.36MB 请求/响应全链路完整 (记录于 M2 报告)。
+/// 断言面是传输完整性与响应结构, 不断言命中 — 真实语料行首带时间戳/ANSI 码,
+/// 是否命中取决于装载规则集的锚容忍度 (规则集性质, 非 transport 义务, issue #3)。
 #[test]
 #[ignore = "需真实大语料: LOG_SKIMMER_E2E_LOG=<路径> cargo test -p log-skimmer-server --test stdio_smoke -- --ignored"]
 fn stdio_big_log_e2e() {
@@ -241,9 +252,15 @@ fn stdio_big_log_e2e() {
     let payload: serde_json::Value =
         serde_json::from_str(text).expect("大文本响应完整可解析 (无截断)");
     let blocks = payload["blocks"].as_array().expect("blocks");
-    assert!(!blocks.is_empty(), "大样本应命中双侧安全网");
+    // 结构不变量 (与命中无关, 恒可断言): 非零块 ⇔ 无 fallback 字段 — 大文本路径上
+    // 钉住 skim 输出契约的互斥性 (零块侧顺带覆盖 fallback 形态)。
+    assert_eq!(
+        blocks.is_empty(),
+        payload.get("fallback").is_some(),
+        "blocks 非空 ⇔ 无 fallback (大文本响应结构自洽)"
+    );
     eprintln!(
-        "大文本 e2e: 请求 {} 字节, 响应命中 {} 块 / {} 签名行, total_lines {}",
+        "大文本 e2e: 请求 {} 字节, 响应 {} 块 / {} 签名行, total_lines {}",
         log_text.len(),
         blocks.len(),
         payload["stats"]["signature_lines"],

@@ -1,0 +1,11 @@
+# server 测试最小 fixture (issue #3): 成功侧 info 安全网 — intent 排序用例的 info 侧输入
+# (镜像真规则集的 runner 版本行规则形态)。
+id: github-actions-fixture-runner-info
+title: server fixture — GHA runner 镜像版本行 (环境快照)
+tool: github-actions
+scope: global
+category: infra
+intent: info
+patterns:
+  - regex: '^Runner Image: '
+kind: signal

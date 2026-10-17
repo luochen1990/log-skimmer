@@ -1,0 +1,10 @@
+# server 测试最小 fixture (issue #3): 通用 error 行 — intent 排序用例的 failure 侧输入。
+# confidence 保持缺省 medium: 在与 cargo-fixture-build-fail 的重叠行上不抢代表 fragment。
+id: generic-fixture-error-line
+title: server fixture — 通用 error 行
+tool: generic
+scope: global
+intent: failure
+patterns:
+  - regex: '^error: '
+kind: signal

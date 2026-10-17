@@ -370,51 +370,60 @@ pub fn list_rules_view(rules: &[Rule]) -> Vec<RuleView> {
 // 单测 (纯函数层; 协议包装与 stdio 链路测试见 mcp.rs 与 tests/)
 // ---------------------------------------------------------------------------
 
+/// server 行为单测的最小 fixture 规则集目录 (4 条已知 regex)。
+/// 解耦目的 (issue #3): 行为断言 (fallback 形态/排序/完备性) 的命中前提在本仓
+/// 测试目录内局部可判定, 不随共享规则集 (engine/tests/fixtures/rules, 镜像真规则
+/// 仓布局, 会演进) 漂移; 真规则集装载面由 real_ruleset_loads_via_production_path
+/// 集成用例兜底。stdio_smoke (crate 外) 经 LOG_SKIMMER_RULES env 指向同一目录。
+#[cfg(test)]
+pub(crate) fn fixture_rules_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules")
+}
+
+/// 装载最小 fixture 规则集 (经生产装载函数, 与部署同链路)。
+#[cfg(test)]
+pub(crate) fn fixture_rules() -> Vec<Rule> {
+    load_ruleset_at(&fixture_rules_dir()).expect("server fixture 规则集装载成功")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn rules() -> Vec<Rule> {
-        load_ruleset_at(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../engine/tests/fixtures/rules")
-                .as_path(),
-        )
-        .expect("fixture 规则集装载成功")
-    }
-
     #[test]
     fn skim_input_validation() {
-        let rs = rules();
-        assert_eq!(skim_view(&rs, "", None).unwrap_err(), SkimInputError::Empty);
+        // 输入校验先于规则消费 — 空规则集即可钉住该性质
+        assert_eq!(skim_view(&[], "", None).unwrap_err(), SkimInputError::Empty);
         assert_eq!(
-            skim_view(&rs, "  \n\t \n", None).unwrap_err(),
+            skim_view(&[], "  \n\t \n", None).unwrap_err(),
             SkimInputError::Empty
         );
         assert_eq!(
-            skim_view(&rs, "x", Some(11)).unwrap_err(),
+            skim_view(&[], "x", Some(11)).unwrap_err(),
             SkimInputError::InvalidContext(11)
         );
         assert_eq!(
-            skim_view(&rs, "x", Some(-1)).unwrap_err(),
+            skim_view(&[], "x", Some(-1)).unwrap_err(),
             SkimInputError::InvalidContext(-1)
         );
         // #17: 错误消息自明, 不含内部 spec 章节指针
-        let err = skim_view(&rs, "x", Some(11)).unwrap_err();
+        let err = skim_view(&[], "x", Some(11)).unwrap_err();
         assert_eq!(err, SkimInputError::InvalidContext(11));
         let msg = err.message();
         assert!(msg.contains("context 须在 0-10 内, 收到 11"), "{msg}");
         assert!(!msg.contains("spec §"), "{msg}");
         let big = "x".repeat(MAX_LOG_BYTES + 1);
         assert_eq!(
-            skim_view(&rs, &big, None).unwrap_err(),
+            skim_view(&[], &big, None).unwrap_err(),
             SkimInputError::Oversized(big.len())
         );
     }
 
+    /// 零块前提的局部可判定性: fixture 4 条 regex 均不命中该文本 (issue #3 —
+    /// 不再依赖「共享规则集全集中无规则命中」这一随规则演进的性质)。
     #[test]
     fn skim_zero_blocks_fallback_shape() {
-        let rs = rules();
+        let rs = fixture_rules();
         let out = skim_view(&rs, "nothing matchable here\nplain text\n", None).unwrap();
         assert!(out.blocks.is_empty());
         assert!(out.fragments.is_empty());
@@ -428,7 +437,7 @@ mod tests {
     /// 同级保持行序 — info 块在前 failure 块在后时, blocks[0] 须为 failure。
     #[test]
     fn skim_blocks_intent_priority_order() {
-        let rs = rules();
+        let rs = fixture_rules();
         // info 块 (L1) 与 failure 块 (L3) 隔行不合并, 引擎行序 info 在前
         let log = "Runner Image: ubuntu-24.04\nplain line\nerror: boom\n";
         let out = skim_view(&rs, log, None).unwrap();
@@ -438,7 +447,7 @@ mod tests {
         assert_eq!(out.blocks[1].intent, Intent::Info);
         assert_eq!(out.blocks[1].start_line, 1);
         assert_eq!(
-            out.fragments[0].rule, "nix-eval-error-tree",
+            out.fragments[0].rule, "generic-fixture-error-line",
             "fragments 与 blocks 同序 (一一对应)"
         );
         // 同级保持行序: 两个 failure 块按 start_line 升序
@@ -448,22 +457,28 @@ mod tests {
         assert_eq!(starts, vec![1, 3], "同 intent 块行序稳定");
     }
 
+    /// 命中形态: 合并块 (cargo+generic 双规则同锚行) + 代表 fragment 选择
+    /// (failure/high 压 failure/medium) — fixture 刻意保留的重叠覆盖面。
     #[test]
     fn skim_hit_shapes_blocks_and_fragments() {
-        let rs = rules();
+        let rs = fixture_rules();
         let log =
             "cargo build\nerror: could not compile `demo` (bin \"demo\") due to 1 previous error\n";
         let out = skim_view(&rs, log, None).unwrap();
         assert!(!out.blocks.is_empty());
         assert_eq!(out.blocks.len(), out.fragments.len());
         let b = &out.blocks[0];
-        assert!(b.rules.contains(&"cargo-could-not-compile".to_string()));
+        assert_eq!(
+            b.rules,
+            vec!["cargo-fixture-build-fail", "generic-fixture-error-line"],
+            "同锚行双规则合并进单块 (A5)"
+        );
         assert_eq!(b.intent, Intent::Failure);
         assert_eq!(b.category, Category::Build);
         assert!(b.out_lines >= 1);
         assert!(b.signature_lines >= 1);
         let f = &out.fragments[0];
-        assert_eq!(f.rule, "cargo-could-not-compile");
+        assert_eq!(f.rule, "cargo-fixture-build-fail");
         assert!(f.text.contains("could not compile"));
         assert_eq!(out.stats.total_lines, 2);
         // 块级 out_lines 求和可大于全局 out_lines: A5 合并按 block 区间判定, 而块级
@@ -545,19 +560,34 @@ mod tests {
 
     #[test]
     fn list_rules_view_sorted_and_complete() {
-        let views = list_rules_view(&rules());
-        assert!(
-            views.len() >= 2,
-            "fixture 规则集基线 (真实规则集规模由 l0 链把守)"
-        );
+        let views = list_rules_view(&fixture_rules());
+        // fixture 恒等集 (精确断言防 fixture 静默漂移; 排序在断言中同步验证)
         let ids: Vec<&str> = views.iter().map(|v| v.id.as_str()).collect();
-        let mut sorted = ids.clone();
-        sorted.sort();
-        assert_eq!(ids, sorted, "按 id 升序");
+        assert_eq!(
+            ids,
+            vec![
+                "cargo-fixture-build-fail",
+                "generic-fixture-error-line",
+                "github-actions-fixture-group-noise",
+                "github-actions-fixture-runner-info",
+            ],
+            "按 id 升序且与 fixture 全集一致"
+        );
         for v in &views {
             assert!(v.id.starts_with(&format!("{}-", v.tool)));
-            // noise 无 intent / signal 恒有有效 intent (spec §1)
+            // noise 无 intent / signal 恒有有效 intent (spec §1); noise 规则在场使该断言非空转
             assert_eq!(v.intent.is_none(), v.kind == Kind::Noise);
         }
+    }
+
+    /// 真规则集集成兜底 (issue #3 双侧安全网 server 侧): 走生产装载路径
+    /// (resolve_rules_dir 编译期默认 → engine/tests/fixtures/rules, 镜像真规则仓
+    /// 布局) 装载完整规则集 — 共享规则集布局演进破坏 server 装载面时在此红,
+    /// 归因单一。只断言装载面, 不断言具体规则 (规则语义回归由 L0 门禁 + engine
+    /// 侧 rules_load 把守, 规则改名不再波及 server 行为测试)。
+    #[test]
+    fn real_ruleset_loads_via_production_path() {
+        let rs = load_ruleset_at(&resolve_rules_dir()).expect("生产路径装载真规则集失败");
+        assert!(rs.len() >= 2, "真规则集异常稀少 ({})", rs.len());
     }
 }

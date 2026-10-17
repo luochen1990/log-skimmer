@@ -125,16 +125,9 @@ pub async fn serve(rules: Vec<Rule>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     fn server() -> SkimServer {
-        let rules = crate::load_ruleset_at(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../engine/tests/fixtures/rules")
-                .as_path(),
-        )
-        .expect("fixture 规则集装载成功");
-        SkimServer::new(rules)
+        SkimServer::new(crate::fixture_rules())
     }
 
     /// 从 CallToolResult 提取内嵌 JSON (text content 形态)。
@@ -167,7 +160,7 @@ mod tests {
             .iter()
             .map(|x| x.as_str().unwrap())
             .collect();
-        assert!(rules0.contains(&"cargo-could-not-compile"));
+        assert!(rules0.contains(&"cargo-fixture-build-fail"));
         assert_eq!(blocks[0]["intent"], "failure");
         assert_eq!(v["stats"]["total_lines"], 2);
         assert!(v.get("fallback").is_none(), "非零块无 fallback 字段");

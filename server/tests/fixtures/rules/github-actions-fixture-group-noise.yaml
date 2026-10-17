@@ -1,0 +1,9 @@
+# server 测试最小 fixture (issue #3): noise 规则 — list_rules 的 noise→intent null
+# 断言非空转; 模式不命中任何行为用例日志 (noise 剔除只发生在块输出区间内)。
+id: github-actions-fixture-group-noise
+title: server fixture — GHA group 折叠标记 (噪音行)
+tool: github-actions
+scope: global
+patterns:
+  - regex: '^::group::'
+kind: noise
