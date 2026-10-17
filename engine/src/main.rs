@@ -59,7 +59,7 @@ enum Cmd {
     },
     /// 发布面卫生检查: 扫描目录内网模式 (publish 必经机械防线; 0=干净 / 1=命中 / 2=清单或目录非法)
     Hygiene {
-        /// 内网模式清单文件 (一行一模式, # 注释; 内网专用件不随发布面, SSOT 见 AGENTS.md 公开镜像纪律)
+        /// 内网模式清单文件 (一行一模式, # 注释; 内网专用件不随发布面, 排除口径 SSOT 见 justfile publish-stage)
         #[arg(long)]
         patterns: PathBuf,
         /// 待扫描目录 (发布树根, 递归)
