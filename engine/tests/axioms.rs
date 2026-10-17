@@ -511,3 +511,66 @@ fn a0_normalize_lines() {
     assert_eq!(log_skimmer::normalize_lines(""), Vec::<String>::new());
     assert_eq!(log_skimmer::normalize_lines("a\n\n"), vec!["a", ""]);
 }
+
+// Display 名与 serde 序列化名恒一致 (issue #16): CLI 人类可读块头的 intent/category
+// 与 JSON 协议共用同一套名字, 防手写 match 与 serde rename 漂移。
+#[test]
+fn display_names_match_serde() {
+    for i in [
+        log_skimmer::Intent::Failure,
+        log_skimmer::Intent::Warning,
+        log_skimmer::Intent::Info,
+    ] {
+        assert_eq!(serde_json::to_string(&i).unwrap(), format!("\"{i}\""));
+    }
+    for c in [
+        log_skimmer::Category::Fmt,
+        log_skimmer::Category::Lint,
+        log_skimmer::Category::Typecheck,
+        log_skimmer::Category::Build,
+        log_skimmer::Category::Test,
+        log_skimmer::Category::Security,
+        log_skimmer::Category::Deps,
+        log_skimmer::Category::Infra,
+        log_skimmer::Category::Config,
+        log_skimmer::Category::Unknown,
+    ] {
+        assert_eq!(serde_json::to_string(&c).unwrap(), format!("\"{c}\""));
+    }
+}
+
+// 块代表 fragment 的 confidence tie-break (issue #16): 同 intent 混合 confidence
+// 的合并块, representative 取 confidence 更高者 (与 intent 维度正交的第二优先级)。
+#[test]
+fn representative_confidence_tiebreak() {
+    let low = rules(
+        "id: t-low\ntitle: l\ntool: t\nscope: global\nkind: signal\ncategory: test\nconfidence: low\npatterns:\n  - regex: '^ERR'\n",
+    );
+    let high = rules(
+        "id: t-high\ntitle: h\ntool: t\nscope: global\nkind: signal\ncategory: lint\nconfidence: high\npatterns:\n  - regex: '^ERR'\n",
+    );
+    // 同锚行双命中 → 两 fragment 合并一块; low 规则在前, representative 仍应取 high
+    let res = skim("-", &flat(&[low, high]), &lines(&["ERR x"]));
+    let rep = res.blocks[0].representative();
+    assert_eq!(rep.rule, "t-high");
+    assert_eq!(rep.confidence, Confidence::High);
+    assert_eq!(rep.category, Category::Lint);
+}
+
+// 块代表 fragment 同键 (intent+confidence 全同) 取块内原序首个 — min_by_key 的
+// 文档化保证; 锁死防止未来改写为手写循环/max_by 而破坏稳定性。
+#[test]
+fn representative_same_key_takes_first() {
+    let a = rules(
+        "id: t-aa\ntitle: a\ntool: t\nscope: global\nkind: signal\ncategory: test\npatterns:\n  - regex: '^ERR'\n",
+    );
+    let b = rules(
+        "id: t-bb\ntitle: b\ntool: t\nscope: global\nkind: signal\ncategory: lint\npatterns:\n  - regex: '^ERR'\n",
+    );
+    let res = skim("-", &flat(&[a, b]), &lines(&["ERR x"]));
+    let rep = res.blocks[0].representative();
+    assert_eq!(
+        rep.rule, res.blocks[0].fragments[0].rule,
+        "同键取块内原序首个"
+    );
+}

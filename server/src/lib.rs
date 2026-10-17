@@ -8,7 +8,7 @@
 //! 状态机与提取逻辑全部复用 engine lib (本层禁止复制实现, 只做包装聚合)。
 
 use log_skimmer::{
-    load_rules, override_context, skim, Category, Confidence, Fragment, Intent, Kind, Rule, Scope,
+    load_rules, override_context, skim, Category, Fragment, Intent, Kind, Rule, Scope,
 };
 use serde::Serialize;
 use std::collections::HashSet;
@@ -150,24 +150,6 @@ pub struct StatsView {
     pub compression_signature: f64,
 }
 
-/// intent 信息优先级 (代表 fragment 选择与块摘要取值依据):
-/// failure (失败证据) > warning (问题倾向) > info (环境快照)。
-fn intent_rank(i: Intent) -> u8 {
-    match i {
-        Intent::Failure => 0,
-        Intent::Warning => 1,
-        Intent::Info => 2,
-    }
-}
-
-fn confidence_rank(c: Confidence) -> u8 {
-    match c {
-        Confidence::High => 0,
-        Confidence::Medium => 1,
-        Confidence::Low => 2,
-    }
-}
-
 fn compression_ratio(total: usize, part: usize) -> f64 {
     // total ≥ 1 由调用方保证 (空输入已在参数校验拒绝)
     ((1.0 - part as f64 / total as f64) * 10000.0).round() / 10000.0
@@ -200,14 +182,8 @@ pub fn skim_view(
     // 块摘要与代表 fragment 成对组装, 末尾按 intent 优先级统一排序 (见下)。
     let mut paired: Vec<(BlockSummary, Fragment)> = Vec::with_capacity(result.blocks.len());
     for b in &result.blocks {
-        // 代表 fragment: intent 优先级 > confidence > 块内原序 (min_by_key 稳定取首个最优)
-        let rep = b
-            .fragments
-            .iter()
-            .enumerate()
-            .min_by_key(|(i, f)| (intent_rank(f.intent), confidence_rank(f.confidence), *i))
-            .map(|(_, f)| f)
-            .expect("输出块恒有 ≥1 fragment (engine A5 聚合不变量)");
+        // 代表 fragment: engine 单点语义 (intent > confidence > 块内原序, 稳定取首个最优)
+        let rep = b.representative();
         let out_lines = (b.start_line..=b.end_line)
             .filter(|l| !result.noise_lines.contains(l))
             .count();
@@ -238,7 +214,7 @@ pub fn skim_view(
     // 本层是 MCP JSON 元数据数组的组装点 (skim tool 消费面, issue #8 的观察面), 重排仅
     // 发生在此。A7 第二子句「引擎不排序 fragment 内容」不受影响 — 排序只动数组元素序,
     // 不动块内文本行序; L0 聚合是顺序无关计数, 压缩率数字不受影响。
-    paired.sort_by_key(|(b, _)| (intent_rank(b.intent), b.start_line));
+    paired.sort_by_key(|(b, _)| (log_skimmer::intent_rank(b.intent), b.start_line));
     let (blocks, fragments): (Vec<BlockSummary>, Vec<Fragment>) = paired.into_iter().unzip();
 
     let total = result.stats.input_lines;

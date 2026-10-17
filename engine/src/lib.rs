@@ -54,6 +54,36 @@ pub enum Intent {
     Info,
 }
 
+// Display 与 serde 序列化名恒一致 (display_names_match_serde 单测锁死) —
+// CLI 人类可读块头与 JSON 协议共用同一套名字。
+impl fmt::Display for Intent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Intent::Failure => "failure",
+            Intent::Warning => "warning",
+            Intent::Info => "info",
+        })
+    }
+}
+
+/// intent 信息优先级: failure (失败证据) > warning (问题倾向) > info (环境快照)。
+/// 块头代表 fragment 选择 (CLI 人类可读) 与 MCP 视图排序共用的单点定义。
+pub fn intent_rank(i: Intent) -> u8 {
+    match i {
+        Intent::Failure => 0,
+        Intent::Warning => 1,
+        Intent::Info => 2,
+    }
+}
+
+fn confidence_rank(c: Confidence) -> u8 {
+    match c {
+        Confidence::High => 0,
+        Confidence::Medium => 1,
+        Confidence::Low => 2,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Confidence {
@@ -77,6 +107,24 @@ pub enum Category {
     Config,
     #[default]
     Unknown, // 省缺注入 (宁缺勿错)
+}
+
+// Display 与 serde 序列化名恒一致 (display_names_match_serde 单测锁死)。
+impl fmt::Display for Category {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Category::Fmt => "fmt",
+            Category::Lint => "lint",
+            Category::Typecheck => "typecheck",
+            Category::Build => "build",
+            Category::Test => "test",
+            Category::Security => "security",
+            Category::Deps => "deps",
+            Category::Infra => "infra",
+            Category::Config => "config",
+            Category::Unknown => "unknown",
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
@@ -150,6 +198,18 @@ pub struct OutputBlock {
     /// 块内命中规则 id 全集, 首次出现序去重 (同规则多锚行合并进同块只记一次)。
     pub rules: Vec<String>,
     pub fragments: Vec<Fragment>,
+}
+
+impl OutputBlock {
+    /// 块代表 fragment: intent 优先级 > confidence, 同键取块内原序首个 (min_by_key 文档保证)。
+    /// CLI 人类可读块头与 MCP BlockSummary 的 intent/category 取值共用此单点语义
+    /// (混合 intent 合并块显示最高信息优先级一侧)。
+    pub fn representative(&self) -> &Fragment {
+        self.fragments
+            .iter()
+            .min_by_key(|f| (intent_rank(f.intent), confidence_rank(f.confidence)))
+            .expect("输出块恒有 ≥1 fragment (A5 聚合不变量)")
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
