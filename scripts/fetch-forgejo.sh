@@ -34,11 +34,14 @@ while IFS=$'\t' read -r run_id job_id; do
   base="${run_id}-${job_id}-$(jq -r .job_name <<<"$m")-$(jq -r .conclusion <<<"$m")"
   log_file="$dest_dir/$base.log"
   sidecar="$dest_dir/$base.log.json"
-  # 在场判定 = 日志非空 ∧ sidecar 存在 ∧ sidecar 是合法 JSON。
+  # 在场判定 = 日志非空 ∧ sidecar 存在 ∧ sidecar 是单文档合法 JSON。
   # sidecar 校验是自愈入口: 持久缓存卷被并发 run 共享, 旧版裸 `>` 写 sidecar 在
-  # 竞态下产生 JSON+JSON 拼接 (run 19654 形态: l0 采集 "trailing characters"),
+  # 竞态下产生 JSON+JSON 拼接 (run 19654/19715 形态: l0 采集 "trailing characters"),
   # 损坏对按缺席处理 → 重拉修复, 无需人工清缓存。
-  if [ -s "$log_file" ] && jq -e . "$sidecar" >/dev/null 2>&1; then n=$((n+1)); continue; fi
+  # -Rs+fromjson = 单文档严格解析: `jq -e .` 是流式多文档解析, 对拼接 JSON 不报错
+  # (run 19715 实证: 在场检查放行了坏 sidecar, l0 采集才暴露) — 与 l0 的
+  # serde_json::from_str 同口径。
+  if [ -s "$log_file" ] && jq -Rs 'fromjson | type == "object"' "$sidecar" >/dev/null 2>&1; then n=$((n+1)); continue; fi
   # 惰性凭据: 全在场幂等跳过场景零凭据可跑; 真拉时才要求 token
   if [ "$need_token" = 1 ]; then
     echo "缺 FORGEJO_API_TOKEN (读 lc-studio/nixos actions 的 PAT; 已在场 $n 对跳过拉取)" >&2
