@@ -149,6 +149,39 @@ fn a5_merge_overlap_and_adjacent() {
     assert_eq!(res4.blocks.len(), 2, "block 隔 1 行不合并");
 }
 
+// A5 推论 (issue #8): 同规则多锚行合并进同块时, blocks[].rules 去重保序 (首次出现序)。
+#[test]
+fn a5_block_rules_dedupe_on_merge() {
+    // 单规则三连锚: 相邻块 A5 合一, fragments 逐条保留, rules 只记一次
+    let rs = rules(
+        "id: t-d\ntitle: d\ntool: t\nscope: global\nkind: signal\npatterns:\n  - regex: '^E'\n",
+    );
+    let res = skim("-", &rs, &lines(&["E1", "E2", "E3"]));
+    assert_eq!(res.blocks.len(), 1, "相邻锚行块 A5 合一");
+    assert_eq!(
+        res.blocks[0].fragments.len(),
+        3,
+        "fragment 逐条保留 (坐标去重只在 rules 元数据)"
+    );
+    assert_eq!(
+        res.blocks[0].rules,
+        vec!["t-d"],
+        "同规则多锚行 → rules 唯一"
+    );
+    // 混合规则交错: rules 取首次出现序 (t-d 在 L1, t-o 在 L2, L3 的 t-d 不再追加)
+    let rs2 = [
+        rules(
+            "id: t-d\ntitle: d\ntool: t\nscope: global\nkind: signal\npatterns:\n  - regex: '^E'\n",
+        ),
+        rules(
+            "id: t-o\ntitle: o\ntool: t\nscope: global\nkind: signal\npatterns:\n  - regex: '^O'\n",
+        ),
+    ];
+    let res2 = skim("-", &flat(&rs2), &lines(&["E1", "O2", "E3"]));
+    assert_eq!(res2.blocks.len(), 1);
+    assert_eq!(res2.blocks[0].rules, vec!["t-d", "t-o"], "首次出现序去重");
+}
+
 // A6 noise 剔除: noise 覆盖行从 signal 呈现中剔除; signal 全覆盖则丢弃。
 #[test]
 fn a6_noise_dedup() {

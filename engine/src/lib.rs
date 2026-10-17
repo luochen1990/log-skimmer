@@ -146,6 +146,7 @@ impl Fragment {
 pub struct OutputBlock {
     pub start_line: usize,
     pub end_line: usize,
+    /// 块内命中规则 id 全集, 首次出现序去重 (同规则多锚行合并进同块只记一次)。
     pub rules: Vec<String>,
     pub fragments: Vec<Fragment>,
 }
@@ -464,7 +465,11 @@ pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
             let b = blocks.last_mut().unwrap();
             b.end_line = b.end_line.max(f.out.1);
             b.start_line = b.start_line.min(f.out.0);
-            b.rules.push(f.rule.clone());
+            // 同规则多锚行合并进同块只记一次 (issue #8: 逐条重复列出是展示噪音);
+            // contains 线扫即首次出现序保真 — 块内规则数是个位数, 无需哈希集
+            if !b.rules.contains(&f.rule) {
+                b.rules.push(f.rule.clone());
+            }
             b.fragments.push(f);
         } else {
             blocks.push(OutputBlock {
