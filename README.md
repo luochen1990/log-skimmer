@@ -20,7 +20,7 @@ POC backtesting corpus: **3 public GitHub repositories + 1 private corpus source
 
 | Repository | Toolchain | Log shape |
 | --- | --- | --- |
-| anomalyco/opencode (formerly sst/opencode, ownership changed 2026-10) | bun / eslint / playwright | GHA timestamp prefix + ANSI color codes |
+| anomalyco/opencode (formerly sst/opencode, ownership changed 2026-10) | bun / eslint / playwright (slots rotate weekly; 0 samples in the current public snapshot) | GHA timestamp prefix + ANSI color codes |
 | niri-wm/niri | cargo / rustc / rust-test | Same as above |
 | nix-community/home-manager | nix / git / nixfmt | Full multi-line error trees (largest: 219 lines) |
 | Private corpus source | nix / just / treefmt / nim / systemd | Forgejo sandbox polling echo prefix |
@@ -195,6 +195,8 @@ target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --
 ```
 
 Note on exit codes (l0): a missing corpus dir or zero paired samples is a data error (exit 2 — fix the environment/fetch); running ③ on a hand-assembled mini corpus (<50 paired samples) fails the presence assertion by design (exit 1) — for targeted verification read `per_rule_hits` instead. Samples are `*.log` + same-name `*.log.json` pairs; unpaired orphans are warned on stderr and skipped (not counted).
+
+Corpus accounting: the public corpus repo currently holds 57 paired samples; the README's backtest figure of 67 = 57 public + 10 from the private source (slots rotate weekly, so the pass/fail mix drifts with each snapshot).
 
 Please attach a minimal sample log to PRs for new tool rules (provenance convention: spec §5 `samples: self-provided`).
 

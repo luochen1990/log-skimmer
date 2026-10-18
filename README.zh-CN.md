@@ -20,7 +20,7 @@ POC 回测语料: **3 个 GitHub 公开仓 + 1 个私有语料源, 67 对成败�
 
 | 仓库 | 工具栈 | 形态特征 |
 | --- | --- | --- |
-| anomalyco/opencode (原 sst/opencode, 2026-10 易主) | bun / eslint / playwright | GHA 时间戳前缀 + ANSI 色码 |
+| anomalyco/opencode (原 sst/opencode, 2026-10 易主) | bun / eslint / playwright (槽位每周轮换, 当前公开快照 0 样本) | GHA 时间戳前缀 + ANSI 色码 |
 | niri-wm/niri | cargo / rustc / rust-test | 同上 |
 | nix-community/home-manager | nix / git / nixfmt | 完整多行错误树 (最大 219 行) |
 | 私有语料源 (private corpus) | nix / just / treefmt / nim / systemd | Forgejo 沙箱轮询回显前缀 |
@@ -187,6 +187,8 @@ target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --
 ```
 
 l0 退出码说明: 语料目录不存在或零配对样本属数据错误 (exit 2, 修环境/取数链路); 以自组小语料 (<50 配对样本) 跑 ③ 会命中语料在场断言而 fail (exit 1) — 定向验证请以 per_rule_hits 为信号。样本 = `*.log` + 同名 `*.log.json` 配对, 单侧缺失的孤儿样本在 stderr 警告并跳过 (不计数)。
+
+语料口径: 公开语料仓当前 57 对配对样本; README 回测口径的 67 对 = 57 公开 + 10 私有源 (槽位每周轮换, 成败分布随快照浮动)。
 
 新工具规则 PR 请附最小样例日志 (溯源写法见规范 §5 `samples: self-provided` 约定)。
 
