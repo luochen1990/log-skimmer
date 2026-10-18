@@ -156,7 +156,9 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
     if !corpus_dir.is_dir() {
         return Err(format!("语料目录不存在: {}", corpus_dir.display()));
     }
-    let rules = load_rules(rules_dir).map_err(|e| format!("规则集非法: {e}"))?;
+    // LoadErrors Display 自带 "规则集非法 (N 处):" 前缀, 直接透传 — 不得再包
+    // 同名前缀 (会叠成 "规则集非法: 规则集非法 (1 处):", issue #73b)。
+    let rules = load_rules(rules_dir).map_err(|e| e.to_string())?;
     let (mut logs, mut sidecars) = (Vec::new(), Vec::new());
     walk_corpus_files(corpus_dir, &mut logs, &mut sidecars);
     let log_set: HashSet<String> = logs.iter().map(|p| p.display().to_string()).collect();

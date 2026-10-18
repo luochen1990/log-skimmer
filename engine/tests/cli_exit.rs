@@ -341,3 +341,37 @@ fn l0_small_corpus_fails_exit_1_with_targeted_note() {
         "note 应指向定向验证正向信号: {stdout}"
     );
 }
+
+// #73b: l0 规则集非法 stderr 前缀不得叠成「l0 采集失败: 规则集非法: 规则集非法
+// (1 处):」— collect 曾在 LoadErrors Display 自带前缀 ("规则集非法 (N 处):") 外
+// 再包一层同名前缀; 三个变体 (目录不存在/空目录无 yaml/坏 yaml) 全走同一
+// Display, 一并钉单层。
+#[test]
+fn l0_invalid_rules_stderr_single_prefix() {
+    let tmp = std::env::temp_dir().join("ls-cli-exit-l0-rules-73b");
+    let _ = std::fs::remove_dir_all(&tmp);
+    let (empty, bad) = (tmp.join("empty"), tmp.join("bad"));
+    std::fs::create_dir_all(&empty).unwrap();
+    std::fs::create_dir_all(&bad).unwrap();
+    std::fs::write(bad.join("bad.yaml"), "id: x\nintent: bogus\n").unwrap();
+    let corpus = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/l0-corpus");
+    for rules in [
+        "/nonexistent-rules-73b",
+        empty.to_str().unwrap(),
+        bad.to_str().unwrap(),
+    ] {
+        let (code, _, stderr) = run(&["l0", "--corpus", corpus, "--rules", rules]);
+        assert_eq!(
+            code, 2,
+            "规则集非法是采集层数据错误, rules={rules}, stderr:\n{stderr}"
+        );
+        assert!(
+            !stderr.contains("规则集非法: 规则集非法"),
+            "前缀不得连续重复: {stderr}"
+        );
+        assert!(
+            stderr.contains("规则集非法 ("),
+            "单层前缀 (N 处形态) 仍须在场: {stderr}"
+        );
+    }
+}
