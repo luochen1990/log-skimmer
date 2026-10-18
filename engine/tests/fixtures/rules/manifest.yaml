@@ -1,0 +1,5 @@
+# 规则集 manifest 示范 (spec §1.M, issue #59): 集级可选文件, 声明本规则集的
+# 格式版本。无此文件的规则集照常装载 (向后兼容窗口); format_version 超出引擎
+# 支持版本时引擎拒载 (exit 2)。min_engine_version (选填) 此处省略 —
+# 版本协商各分支的契约测试见 engine/tests/manifest.rs。
+format_version: 1

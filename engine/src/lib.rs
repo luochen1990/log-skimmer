@@ -7,6 +7,7 @@
 
 pub mod hygiene;
 pub mod l0;
+pub mod manifest;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,9 @@ use std::path::Path;
 // ---------------------------------------------------------------------------
 
 /// 单个 pattern: 正则原文 + 编译产物 + loop 标志。
+/// deny_unknown_fields (spec §1.M): 未知字段拒载, 防 pattern 级字段静默偏移。
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Pattern {
     pub regex: String,
     /// 贪心重复消费标志 (YAML 键 `loop`, Rust 关键字故重命名)。
@@ -134,7 +137,9 @@ impl fmt::Display for Category {
 /// 锁界单测的边界值均从本常量派生。类型 u32 = Context 字段原生类型。
 pub const CONTEXT_MAX: u32 = 10;
 
+/// context 输出边界扩展 (spec §1)。deny_unknown_fields: 同 Rule 契约。
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Context {
     #[serde(default)]
     pub before: u32,
@@ -143,7 +148,10 @@ pub struct Context {
 }
 
 /// 一条规则 (spec §1)。加载期校验后 compiled 就绪。
+/// deny_unknown_fields (spec §1.M, issue #59): 未知字段从「静默忽略」变「显式拒载」
+/// — 静默偏移 (规则语义已变而提取结果无感知漂移) 比拒载更危险; 新字段随引擎支持引入。
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rule {
     pub id: String,
     pub title: String,
@@ -162,8 +170,9 @@ pub struct Rule {
     pub confidence: Confidence,
     #[serde(default)]
     pub context: Context,
-    // structured-hint / attribution: spec 保留字段, POC 不消费, 但须容忍存在。
-    #[serde(default)]
+    // structured-hint / attribution: spec 保留字段, POC 不消费, 但须容忍存在
+    // (YAML 键为连字符形态 structured-hint — deny_unknown_fields 下须 rename 对齐)。
+    #[serde(default, rename = "structured-hint")]
     pub structured_hint: Option<serde_yaml::Value>,
     #[serde(default)]
     pub attribution: Option<serde_yaml::Value>,
@@ -306,8 +315,14 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
         }
         return Err(errs);
     }
+    // manifest 版本协商 (spec §1.M): 集级可选文件, 兼容性违例 = 规则集非法,
+    // 整体拒载 (exit 2 族); 无 manifest 的规则集 (现存全部) 照常装载。
+    manifest::check(dir, env!("CARGO_PKG_VERSION")).map_err(|e| LoadErrors(vec![e]))?;
     let mut files = Vec::new();
     collect_yaml_files(dir, &mut files);
+    // manifest 保留名不作为规则解析 (spec §1.M — 根目录集级文件)。
+    let manifest_path = dir.join(manifest::MANIFEST_FILENAME);
+    files.retain(|p| *p != manifest_path);
     if files.is_empty() {
         errs.0.push(format!(
             "{}: 目录下无 *.yaml (规则集为空 = 引擎失明)",

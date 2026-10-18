@@ -1,0 +1,4 @@
+# 规则集 manifest 示范 (spec §1.M, issue #59): 与 engine/tests/fixtures/rules
+# 同款集级版本声明 — server 侧 fixture 经 env 装载 (stdio 冒烟), 顺带覆盖
+# 「有 manifest 且版本匹配 → 正常装载」的 server 装载链分支。
+format_version: 1
