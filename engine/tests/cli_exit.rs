@@ -222,6 +222,28 @@ fn empty_rules_value_gets_dedicated_copy() {
     }
 }
 
+// #73a 推广回归钉: 空串专属文案泛化到 l0/hygiene 路径参数 —
+// l0 --rules / l0 --corpus / hygiene --patterns 同样不得冒充缺值文案。
+#[test]
+fn empty_path_values_get_dedicated_copy_across_subcommands() {
+    for form in [
+        vec!["l0", "--corpus", "x", "--rules", ""],
+        vec!["l0", "--corpus", "", "--rules", "x"],
+        vec!["hygiene", "--patterns", "", "dir"],
+    ] {
+        let (code, _, stderr) = run(&form);
+        assert_eq!(
+            code, 64,
+            "空串是解析期用法错误, form={form:?}, stderr:\n{stderr}"
+        );
+        assert!(stderr.contains("不能为空串"), "form={form:?}: {stderr}");
+        assert!(
+            !stderr.contains("but none was supplied"),
+            "form={form:?}: {stderr}"
+        );
+    }
+}
+
 // #73a 回归钉: 真缺值 (后面跟已知 flag) 的原有正确文案不因空串修复而漂移 —
 // 空串拦截挂 value parser 层, 缺值发生在值抵达 parser 之前 (clap verify_num_args)。
 #[test]

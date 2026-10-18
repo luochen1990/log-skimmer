@@ -16,18 +16,22 @@ use std::path::{Path, PathBuf};
 /// BSD sysexits(3) EX_USAGE: 命令用法错误 (解析期), 与运行期数据错误 exit 2 分流。
 const EX_USAGE: i32 = 64;
 
-/// `--rules` 值解析器 (issue #73a): 原生 PathBufValueParser 对空串短路报空
+/// 路径参数空串值解析器 (issue #73a): 原生 PathBufValueParser 对空串短路报空
 /// invalid_value, 渲染层对空值统一渲染 "a value is required ... but none was
 /// supplied" — 与真缺值 (clap verify_num_args 路径) 逐字节同文案, 与「用户
 /// 提供了空串」的事实不符 (不可分诊)。inner 换不拒空串的 OsStringValueParser
 /// (OsStr 直通, 非 UTF-8 路径行为不变) 再 try_map: 空串 → 专属文案 (风格对齐
 /// MCP 侧 env 空串先例 "LOG_SKIMMER_RULES 为空串"), 非空路径行为零变化; 真缺值
 /// 发生在值抵达 parser 之前, 文案不受影响 (回归钉: cli_exit.rs
-/// rules_missing_value_keeps_missing_copy)。
-fn non_empty_rules_dir() -> impl clap::builder::TypedValueParser<Value = PathBuf> {
-    clap::builder::OsStringValueParser::new().try_map(|s: OsString| {
+/// rules_missing_value_keeps_missing_copy)。三入口共用 (推广回归钉:
+/// empty_path_values_get_dedicated_copy_across_subcommands)。
+fn non_empty_arg(
+    label: &'static str,
+    hint: &'static str,
+) -> impl clap::builder::TypedValueParser<Value = PathBuf> {
+    clap::builder::OsStringValueParser::new().try_map(move |s: OsString| {
         if s.is_empty() {
-            return Err(String::from("--rules 不能为空串 (须为规则集目录)"));
+            return Err(format!("{label} 不能为空串 ({hint})"));
         }
         Ok(PathBuf::from(s))
     })
@@ -46,8 +50,8 @@ enum Cmd {
     Skim {
         /// 日志文件 (只接受一个; 多文件须分别调用), `-` 表示 stdin (Unix 管道惯例)
         log_file: PathBuf,
-        /// 规则目录 (递归加载 *.yaml; 空串有专属报错, 见 non_empty_rules_dir — issue #73a)
-        #[arg(long, value_parser = non_empty_rules_dir())]
+        /// 规则目录 (递归加载 *.yaml; 空串有专属报错, 见 non_empty_arg — issue #73a)
+        #[arg(long, value_parser = non_empty_arg("--rules", "须为规则集目录"))]
         rules: PathBuf,
         /// 输出 JSON 协议 (默认人类可读)
         #[arg(long)]
@@ -69,10 +73,10 @@ enum Cmd {
     // 帮助面; 可见性口径与 hygiene (#38) 互补 — 公开工具可见 / 内部发布链工具隐藏。
     L0 {
         /// 语料根目录 (递归; 样本 = *.log + 同名 *.log.json 配对, 单侧缺失的孤儿样本 stderr 警告并跳过)
-        #[arg(long)]
+        #[arg(long, value_parser = non_empty_arg("--corpus", "须为语料根目录"))]
         corpus: PathBuf,
-        /// 规则目录
-        #[arg(long)]
+        /// 规则目录 (空串专属报错同 skim --rules — issue #73a 推广)
+        #[arg(long, value_parser = non_empty_arg("--rules", "须为规则集目录"))]
         rules: PathBuf,
         /// base 侧 summary JSON (双测压缩率对比; 缺省单测模式)
         #[arg(long)]
@@ -90,7 +94,7 @@ enum Cmd {
     #[command(hide = true)] // 内部发布链工具, 不占公共帮助面 (issue #38; 与 l0 同款)
     Hygiene {
         /// 内网模式清单文件 (一行一模式, # 注释; 内网专用件不随发布面, 排除口径 SSOT 见 justfile publish-stage)
-        #[arg(long)]
+        #[arg(long, value_parser = non_empty_arg("--patterns", "须为模式清单文件"))]
         patterns: PathBuf,
         /// 待扫描目录 (发布树根, 递归)
         dir: PathBuf,
