@@ -77,6 +77,9 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules --json
 
 # --context N: 全局覆盖上下文扩展为前 N 行 / 后 N 行 (默认按规则自带; 取值 0-10, 越界为用法错误)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --context 3
+
+# `-` 从 stdin 读日志 (管道排障高频路径): 拉取 CI 日志直接进 skim, 免落盘
+curl -sL <ci-log-url> | target/release/log-skimmer skim - --rules /path/to/rules
 ```
 
 退出码语义 (调用方契约):

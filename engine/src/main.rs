@@ -8,7 +8,8 @@
 //! (语料目录不存在/零配对样本/规则集非法, issue #44), 与解析期 64 正交。
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 /// BSD sysexits(3) EX_USAGE: 命令用法错误 (解析期), 与运行期数据错误 exit 2 分流。
 const EX_USAGE: i32 = 64;
@@ -24,6 +25,7 @@ struct Cli {
 enum Cmd {
     /// 扫描日志, 输出提取块
     Skim {
+        /// 日志文件 (只接受一个; 多文件须分别调用), `-` 表示 stdin (Unix 管道惯例)
         log_file: PathBuf,
         /// 规则目录 (递归加载 *.yaml)
         #[arg(long)]
@@ -205,10 +207,24 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
             std::process::exit(2);
         }
     };
-    let raw = std::fs::read_to_string(&log_file).unwrap_or_else(|e| {
-        eprintln!("读取日志失败 {}: {e}", log_file.display());
-        std::process::exit(2);
-    });
+    // #53 Unix 管道惯例: LOG_FILE 为 `-` 时读 stdin (32MB 上限仅 MCP 侧, CLI 文件
+    // 输入无此限制 — stdin 与文件路径同口径); 读取失败报错标注来源是 stdin,
+    // 不把 `-` 当文件名报「不存在」误导排障方向。
+    let raw = if log_file == Path::new("-") {
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .unwrap_or_else(|e| {
+                eprintln!("读取日志失败 (stdin): {e}");
+                std::process::exit(2);
+            });
+        buf
+    } else {
+        std::fs::read_to_string(&log_file).unwrap_or_else(|e| {
+            eprintln!("读取日志失败 {}: {e}", log_file.display());
+            std::process::exit(2);
+        })
+    };
     // 行归一: 去 \r (CRLF), 保内容; 尾部空行不计 (A0, engine lib SSOT)。
     let lines = log_skimmer::normalize_lines(&raw);
     // 空日志硬拒绝 (issue #13): 0 行 = 疑似下载截断的数据错误, 不进入零块判定

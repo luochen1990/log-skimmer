@@ -81,6 +81,9 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules --json
 # --context N: globally override context extension to N lines before / N lines after
 # (default: each rule's own context; valid range 0-10, out-of-range is a usage error)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --context 3
+
+# `-` reads the log from stdin (the frequent pipe path for CI triage — no temp file needed)
+curl -sL <ci-log-url> | target/release/log-skimmer skim - --rules /path/to/rules
 ```
 
 Exit code semantics (caller contract):

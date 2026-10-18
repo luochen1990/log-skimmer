@@ -2,8 +2,9 @@
 //! 真进程形态 (CARGO_BIN_EXE): 断言对象是 main.rs 渲染层 (用户可见面), 纯函数层已由
 //! axioms.rs 覆盖 — 此处只锁「调用方契约」, 不重复引擎语义断言。
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 /// failure 规则 (intent 缺省默认 failure, category=test)。
 const RULE_FAILURE: &str = "id: t-hit\ntitle: h\ntool: t\nscope: global\nkind: signal\ncategory: test\npatterns:\n  - regex: '^ERR'\n";
@@ -56,6 +57,92 @@ fn empty_log_rejected_exit_2() {
         !stderr.contains("失明"),
         "空日志是数据错误, 不进入零块 (exit 3) 判定; stderr: {stderr}"
     );
+}
+
+// #53: Unix 管道惯例 — LOG_FILE 为 `-` 时读 stdin (`curl <log-url> | skim -` 是
+// CI 排障高频路径); 与文件路径共用同一后续管线 (归一/空日志拒绝/零块判定)。
+#[test]
+fn stdin_dash_reads_pipe() {
+    let (rules, _) = fixture("stdin53", &[RULE_FAILURE], "unused.log\n");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_log-skimmer"))
+        .args(["skim", "-", "--rules", rules.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn log-skimmer 失败");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin piped")
+        .write_all(b"ERR from pipe\n")
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert_eq!(out.status.code(), Some(0), "stdin 命中应正常退出");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("--- [L1-L1] [failure/test] t-hit"),
+        "管道内容应被提取: {stdout}"
+    );
+}
+
+// #53: stdin 读到 EOF (0 字节) = 空日志, 走既有空日志硬拒绝 (exit 2 数据错误族),
+// 不因 stdin 路径而获得特殊语义。
+#[test]
+fn stdin_dash_empty_is_data_error() {
+    let (rules, _) = fixture("stdin53e", &[RULE_FAILURE], "unused.log\n");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_log-skimmer"))
+        .args(["skim", "-", "--rules", rules.to_str().unwrap()])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn log-skimmer 失败");
+    drop(child.stdin.take()); // 立即关写端 → 子进程读到 EOF
+    let out = child.wait_with_output().unwrap();
+    assert_eq!(out.status.code(), Some(2), "stdin 空输入是数据错误族");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("日志为空 (0 行)"), "stderr: {stderr}");
+}
+
+// #53: stdin 读取失败 (非 UTF-8 字节流) 报错语义与文件路径一致 — exit 2 +
+// 「读取日志失败」文案, 标注来源是 stdin 而非误导性的路径名 `-`。
+#[test]
+fn stdin_dash_invalid_utf8_is_read_failure() {
+    let (rules, _) = fixture("stdin53u", &[RULE_FAILURE], "unused.log\n");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_log-skimmer"))
+        .args(["skim", "-", "--rules", rules.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn log-skimmer 失败");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin piped")
+        .write_all(&[0xff, 0xfe, b'\n'])
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert_eq!(out.status.code(), Some(2), "stdin 读取失败是数据错误族");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("读取日志失败 (stdin)"), "stderr: {stderr}");
+    assert!(
+        !stderr.contains("No such file"),
+        "不得再把 `-` 当文件名报不存在: {stderr}"
+    );
+}
+
+// #53 + #52a: `--help` 的 <LOG_FILE> 参数说明标注 stdin 惯例与单文件约束。
+#[test]
+fn help_documents_stdin_and_single_file() {
+    let help = Command::new(env!("CARGO_BIN_EXE_log-skimmer"))
+        .args(["skim", "--help"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&help.stdout);
+    assert!(text.contains("LOG_FILE"), "参数名应出现: {text}");
+    assert!(text.contains("stdin"), "应说明 `-` 表示 stdin: {text}");
+    assert!(text.contains("只接受一个"), "应说明单文件约束: {text}");
 }
 
 // #10: 人类模式统计行连同前导空行与块内容同走 stdout — `> out.txt` 完整保留输出成果;
