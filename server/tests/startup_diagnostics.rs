@@ -128,11 +128,14 @@ fn startup_stderr(exe: &Path, env_rules: Option<&Path>) -> String {
     stderr
 }
 
-/// 拷贝真实 bin 到自持沙箱 `<tmp>/log-skimmer-startup-{tag}/x/bin/mcp`, 返回
+/// 拷贝真实 bin 到自持沙箱 `<tmp>/log-skimmer-startup-{tag}-{pid}/x/bin/mcp`, 返回
 /// (bin 路径, 沙箱根)。三级探测路径 (bin 旁 rules / x/rules / 沙箱根 rules)
 /// 全部落在沙箱内 — 命中与否完全由测试铺设决定, 与原 bin 位置/系统布局无关。
+/// 隔离性双维度: 进程内各测试由 tag 区分; 跨进程由 pid 区分 (issue #66 —
+/// 固定路径下并发测试进程的 fs::copy 写句柄与对方 exec 重叠 → ETXTBSY)。
 fn sandbox(tag: &str) -> (PathBuf, PathBuf) {
-    let root = std::env::temp_dir().join(format!("log-skimmer-startup-{tag}"));
+    let root =
+        std::env::temp_dir().join(format!("log-skimmer-startup-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("x/bin")).unwrap();
     let exe = root.join("x/bin/mcp");
