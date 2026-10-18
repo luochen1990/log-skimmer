@@ -496,7 +496,9 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
     if st.boundary_violations > 0 {
         violations.push(Violation {
             kind: "boundary",
-            note: "context before/after 越界 [0,10]".into(),
+            note: "block 尾行未被该规则任一 pattern 匹配 (A4 边界完整性哨兵, \
+                   按构造恒真 — 非零 = 引擎 bug)"
+                .into(),
             detail: None,
         });
     }
