@@ -194,10 +194,11 @@ fn merged_block_header_takes_failure_representative() {
     );
 }
 
-// #16-B: l0 是内部 CI 工具, 隐藏于公共帮助面 (命令本身保留可用)。
-// 逐行断言 Commands 区无 l0 条目 (整文子串匹配会对偶然出现的 "l0" 子串误红)。
+// #45: l0 是公开门禁工具 (公开 README 贡献教程 ③④ 与规则仓 CI 依赖) → 进公共
+// 帮助面 (可见性口径: 公开工具可见 / 内部发布链工具隐藏, 与 hygiene 的 #38 对称)。
+// 逐行断言 Commands 区有 l0 条目 (整文子串匹配会对偶然出现的 "l0" 子串误绿)。
 #[test]
-fn l0_hidden_from_public_help() {
+fn l0_listed_in_public_help() {
     let help = Command::new(env!("CARGO_BIN_EXE_log-skimmer"))
         .arg("--help")
         .output()
@@ -205,8 +206,8 @@ fn l0_hidden_from_public_help() {
     assert!(help.status.success());
     let help_text = String::from_utf8_lossy(&help.stdout);
     assert!(
-        !help_text.lines().any(|l| l.trim_start().starts_with("l0")),
-        "l0 子命令不应出现在公共帮助 Commands 区: {help_text}"
+        help_text.lines().any(|l| l.trim_start().starts_with("l0")),
+        "l0 子命令应出现在公共帮助 Commands 区: {help_text}"
     );
 }
 
@@ -226,7 +227,13 @@ fn l0_orphan_sample_warned_and_skipped() {
     .unwrap();
     std::fs::write(dir.join("b.log"), "##[error]orphan\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_log-skimmer"))
-        .args(["l0", "--corpus", dir.to_str().unwrap(), "--rules", fixtures_rules()])
+        .args([
+            "l0",
+            "--corpus",
+            dir.to_str().unwrap(),
+            "--rules",
+            fixtures_rules(),
+        ])
         .output()
         .unwrap();
     assert_eq!(
@@ -241,8 +248,8 @@ fn l0_orphan_sample_warned_and_skipped() {
         "警告应含缺侧与跳过语义: {stderr}"
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let v: serde_json::Value =
-        serde_json::from_str(&stdout).unwrap_or_else(|e| panic!("stdout 应为 verdict JSON ({e}): {stdout}"));
+    let v: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("stdout 应为 verdict JSON ({e}): {stdout}"));
     assert_eq!(v["stats"]["samples"], 1, "孤儿不计数: {stdout}");
 }
 
@@ -262,8 +269,9 @@ fn l0_help_documents_pairing_semantics() {
     );
 }
 
-// #38: hygiene 是内部发布链工具 (publish-stage 机械防线), 与 l0 (#16-B) 同款隐藏于
-// 公共帮助面; 但 hide ≠ 移除 — 子命令级帮助与解析路径保留 (justfile publish-stage
+// #38: hygiene 是内部发布链工具 (publish-stage 机械防线), 保持隐藏于公共帮助面
+// (可见性口径见 l0_listed_in_public_help: 公开工具可见 / 内部工具隐藏, issue #45);
+// 但 hide ≠ 移除 — 子命令级帮助与解析路径保留 (justfile publish-stage
 // 直接调用不受影响)。断言钉住两面: 公共面不列 hygiene, 直接调用仍走 hygiene 解析。
 #[test]
 fn hygiene_hidden_from_public_help() {
