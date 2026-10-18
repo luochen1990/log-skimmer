@@ -284,6 +284,54 @@ fn stdio_param_error_channel_unified() {
     assert!(ok.get("error").is_none(), "错误不影响后续正常调用: {ok}");
 }
 
+/// issue #72(b): 未 initialize 先发请求 → JSON-RPC `-32002` "Server not initialized"。
+/// rmcp 3.5.1 pre-init 闸门 (service/server.rs serve_initialize) 对无 draft _meta 的
+/// 请求回 `-32602` 且文案误导 ("request _meta is missing or has malformed required
+/// fields") — 实际问题是时序 (未握手), 不是参数。协议层以 transport 装饰器拦截
+/// (src/transport_gate.rs)。会话须存活: 误发请求后正常握手仍可完成、后续调用照常成功。
+#[test]
+fn stdio_pre_init_request_rejected_32002_session_alive() {
+    let mut child = spawn_server();
+    let requests = [
+        // 握手前先误发 tools/list (经典生命周期客户端形态: 无 _meta);
+        // id 独立编号避开 handshake_reqs 内置的 initialize id=1
+        vec![req(9, "tools/list", serde_json::json!({}))],
+        handshake_reqs(), // initialize (id=1) + initialized notification
+        vec![req(2, "tools/list", serde_json::json!({}))],
+    ]
+    .concat();
+    let (out, status) = roundtrip(&mut child, &requests);
+    assert!(status.success(), "拒绝 pre-init 请求不 crash: {status}");
+    let responses = parse_jsonl(&out);
+    assert_eq!(responses.len(), 3, "3 请求各 1 响应 (notification 无响应)");
+
+    let early = by_id(&responses, 9);
+    assert_eq!(
+        early["error"]["code"].as_i64(),
+        Some(-32002),
+        "pre-init 请求须 -32002: {early}"
+    );
+    assert!(
+        early["error"]["message"]
+            .as_str()
+            .expect("错误信息")
+            .contains("not initialized"),
+        "文案点名未初始化: {early}"
+    );
+    assert!(early.get("result").is_none(), "走 error 通道: {early}");
+
+    let init = by_id(&responses, 1);
+    assert!(
+        init["result"]["serverInfo"]["name"].is_string(),
+        "会话存活: 误发请求后 initialize 照常成功"
+    );
+    let later = by_id(&responses, 2);
+    assert!(
+        later.get("error").is_none(),
+        "初始化后同方法照常成功: {later}"
+    );
+}
+
 /// issue #49: initialize serverInfo 是产品身份 (log-skimmer-mcp + crate 版本),
 /// 非 rmcp 默认注入的 SDK 身份 ("rmcp"/"3.5.1")。附带锁定能力面不因修复扩张 (#50 前置)。
 #[test]

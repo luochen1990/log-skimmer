@@ -15,6 +15,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub mod mcp;
+pub mod transport_gate;
 
 /// 单次调用的日志大小硬上限 (字节)。
 /// rmcp stdio transport 为逐行 JSON, 框架层无帧上限; 2026-10-16 实测 1.36MB 语料

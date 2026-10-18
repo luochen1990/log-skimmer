@@ -13,8 +13,8 @@ use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::*;
 use rmcp::service::{MaybeSendFuture, RequestContext};
 use rmcp::{
-    schemars, tool, tool_handler, tool_router, transport::stdio, ErrorData as McpError, RoleServer,
-    ServerHandler, ServiceExt,
+    schemars, tool, tool_handler, tool_router, ErrorData as McpError, RoleServer, ServerHandler,
+    ServiceExt,
 };
 use serde::Deserialize;
 use std::future::Future;
@@ -192,11 +192,13 @@ impl ServerHandler for SkimServer {
     }
 }
 
-/// 运行 MCP server (stdio transport)。返回 Err 仅限 serve 层故障;
+/// 运行 MCP server (stdio transport, 读侧带初始化闸门 — issue #72b:
+/// 未 initialize 先发请求回 `-32002` 而非 rmcp 默认的误导性 `-32602`,
+/// 见 [transport_gate] 模块头)。返回 Err 仅限 serve 层故障;
 /// 规则装载 fail-fast 在 main 完成 (启动前)。
 pub async fn serve(rules: Vec<Rule>) -> Result<(), String> {
     let service = SkimServer::new(rules)
-        .serve(stdio())
+        .serve(crate::transport_gate::gated_stdio())
         .await
         .map_err(|e| format!("MCP server 启动失败: {e:?}"))?;
     service
