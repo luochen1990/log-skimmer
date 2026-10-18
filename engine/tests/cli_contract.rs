@@ -255,6 +255,43 @@ fn user_visible_output_has_no_spec_refs() {
     );
 }
 
+// #51: 零块警示文案分流 (判定与退出码不动, 仍 exit 3): 归一后全为空白行 =
+// 退化输入 → 指向日志源排障; 非退化输入 → 维持规则失明导向 (rg 回退 + 贡献规则)。
+#[test]
+fn zero_block_blank_log_advice_branches_on_input() {
+    // 分支一: 纯空白日志 (退化输入) — 不再断言「规则集失明」误导排障方向
+    let (rules, log) = fixture("blank51", &[RULE_FAILURE], "\n   \n\t\n");
+    let out = run_skim(&rules, &log, &[]);
+    assert_eq!(out.status.code(), Some(3), "纯空白仍走零块判定 exit 3");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("纯空白"), "退化输入文案: {stderr}");
+    assert!(
+        stderr.contains("日志源"),
+        "应指向日志源排障 (疑下载截断/空跑): {stderr}"
+    );
+    assert!(
+        !stderr.contains("失明") && !stderr.contains("贡献规则"),
+        "纯空白非规则失明, 不得给失明导向文案: {stderr}"
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("input 3 lines -> output 0 lines (n/a compression)"),
+        "统计行照常: {stdout}"
+    );
+
+    // 分支二: 非退化输入零块 — 维持既有失明导向文案 (回退基线 + 贡献规则)
+    let (rules, log) = fixture("blind51", &[RULE_FAILURE], "nothing matchable\nok\n");
+    let out = run_skim(&rules, &log, &[]);
+    assert_eq!(out.status.code(), Some(3));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("失明"), "stderr: {stderr}");
+    assert!(stderr.contains("贡献规则"), "stderr: {stderr}");
+    assert!(
+        !stderr.contains("纯空白"),
+        "非空白输入不得给退化输入文案: {stderr}"
+    );
+}
+
 // #16-A: 人类可读块头携带代表 fragment 的 intent/category。
 #[test]
 fn block_header_carries_intent_category() {

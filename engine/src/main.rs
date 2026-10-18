@@ -285,10 +285,19 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
     // 零块警示 (无条件): 「任何真实 CI 日志 skim 非零」是规则集的结构承诺
     // (失败侧 annotation/runner 安全网 + 成功侧 runner 版本 info 规则) — 零块 = 规则集
     // 对该日志失明, 与 job 成败无关, 调用方应无条件回退 rg 基线。
+    // #51 文案分流 (判定与退出码不动): 归一后全为空白行 = 退化输入 (疑下载截断/
+    // 空跑), 警示指向日志源排障 — 与规则失明不同因, 不同文案 (spec §3)。
     if zero_blocks {
-        eprintln!(
-            "⚠ 零提取 — 规则集对该日志失明; 建议回退 rg error|warn && tail 基线; 新工具日志可贡献规则: https://github.com/luochen1990/log-skimmer-rules"
-        );
+        let all_blank = lines.iter().all(|l| l.trim().is_empty());
+        let advice = if all_blank {
+            format!(
+                "⚠ 零提取 — 日志内容为纯空白 ({} 行均为空白行): 疑似下载截断或空跑, 请检查日志源",
+                lines.len()
+            )
+        } else {
+            "⚠ 零提取 — 规则集对该日志失明; 建议回退 rg error|warn && tail 基线; 新工具日志可贡献规则: https://github.com/luochen1990/log-skimmer-rules".to_string()
+        };
+        eprintln!("{advice}");
         std::process::exit(3);
     }
 }
