@@ -1,16 +1,19 @@
 //! MCP 协议层 (rmcp 3.x): tool 注册 / 参数结构约束 / 结果包装。
 //!
 //! 职责边界: 仅做协议转换 — 参数用宏结构体约束 (优于自由文档约定), 业务与
-//! 校验全部委托 lib 纯函数 (可单测); 输入校验错误转 MCP `invalid_params`
-//! (结构化错误, 非 crash), 成功结果为 text content 内嵌 JSON。
+//! 校验全部委托 lib 纯函数 (可单测); 输入校验错误 (值域错 + 类型错/缺字段)
+//! 统一转 MCP `invalid_params` JSON-RPC 错误 (结构化错误, 非 crash, issue #48),
+//! 成功结果为 text content 内嵌 JSON。
 
 use crate::{list_rules_view, read_around_view, skim_view};
 use log_skimmer::Rule;
 use rmcp::handler::server::router::tool::ToolRouter;
+use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::*;
+use rmcp::service::RequestContext;
 use rmcp::{
-    schemars, tool, tool_handler, tool_router, transport::stdio, ErrorData as McpError,
+    schemars, tool, tool_handler, tool_router, transport::stdio, ErrorData as McpError, RoleServer,
     ServerHandler, ServiceExt,
 };
 use serde::Deserialize;
@@ -92,15 +95,56 @@ impl SkimServer {
     }
 }
 
+/// rmcp 参数反序列化失败错误的 message 前缀 — rmcp 3.x 私有常量
+/// `TOOL_ARGUMENT_DESERIALIZATION_ERROR_PREFIX` 的镜像 (handler/server/router/tool.rs):
+/// rmcp 以「前缀匹配 + INVALID_PARAMS」识别反序列化错误并**降级**为
+/// `result.isError=true` 正常响应 (英文文案), 与值域错的 JSON-RPC `-32602` 双通道
+/// (issue #48)。本层用同一前缀识别降级响应并还原为错误通道。
+/// 该前缀在 rmcp 侧由其自带测试锁定; 若上游变更, 本仓 e2e 断言
+/// (tests/stdio_smoke.rs `stdio_param_error_channel_unified`) 升级时转红暴露。
+const RMCP_ARG_DESER_ERROR_PREFIX: &str = "failed to deserialize parameters:";
+
+/// 把 rmcp 降级的参数反序列化错误还原为 JSON-RPC `-32602` (issue #48):
+/// 识别 `isError=true` 且首 text content 带上述前缀的响应, 重组为
+/// 中文框架文案 + serde 细节透传; 其余响应原样放行 (本仓 tool 逻辑
+/// 恒走 `Err` 或成功, 不产 isError=true, 故仅 rmcp 降级路径可命中)。
+fn reraise_argument_error(resp: CallToolResponse) -> Result<CallToolResponse, McpError> {
+    let detail = match &resp {
+        CallToolResponse::Complete(r) if r.is_error == Some(true) => r
+            .content
+            .first()
+            .and_then(|c| c.as_text())
+            .and_then(|t| t.text.strip_prefix(RMCP_ARG_DESER_ERROR_PREFIX))
+            .map(|d| d.trim().to_string()),
+        _ => None,
+    };
+    match detail {
+        Some(d) => Err(McpError::invalid_params(format!("参数格式非法: {d}"), None)),
+        None => Ok(resp),
+    }
+}
+
 #[tool_handler]
 impl ServerHandler for SkimServer {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
             "log-skimmer: CI 日志高信噪比提取。tools: skim (结构化提取, 零块=fallback 失明警示), \
-                 read_around (按块坐标取原文窗口), list_rules (规则覆盖面)。消费方判定矩阵 \
-                 (docs/rule-format.md §3): skim 零块=失明, 无条件回退 rg; job 已知失败而 \
-                 failure-intent 块为零=视同失明回退; warning/info 与成败判定无关。",
+                     read_around (按块坐标取原文窗口), list_rules (规则覆盖面)。消费方判定矩阵 \
+                     (docs/rule-format.md §3): skim 零块=失明, 无条件回退 rg; job 已知失败而 \
+                     failure-intent 块为零=视同失明回退; warning/info 与成败判定无关。",
         )
+    }
+
+    /// issue #48: 手写 call_tool (宏对已定义方法让位, 逻辑 = 宏生成版 + 降级还原) —
+    /// 参数错误三形态 (类型错/缺字段/值域错) 统一 JSON-RPC `-32602` 中文文案,
+    /// 客户端可单一按 error code 判定, 无需同时检查 result.isError。
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let tcc = ToolCallContext::new(self, request, context);
+        reraise_argument_error(self.tool_router.call(tcc).await?)
     }
 }
 

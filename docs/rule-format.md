@@ -170,6 +170,7 @@ L4: build failed
 
 MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上的**消费方视图** — 与 CLI `--json` 直接返回引擎 `SkimResult` (顶层 `file`/`input_lines`/`output_lines`/`stats`, blocks 内嵌 fragments) 不同, MCP skim 返回块摘要 + 代表 fragment 的平行数组。成功结果为 text content 内嵌 JSON; 输入校验失败为 MCP `invalid_params` 错误 (结构化可恢复, 非 crash)。零块语义两面: CLI = stderr 警告 + exit 3 (上文); MCP = **正常返回** (非错误) + `fallback` 字段在场 — 同一失明判定的字段化表达。
 
+**参数错误通道统一 (issue #48)**: 参数错误三形态 — 值域错 (如 `context: 11`)、类型错 (如 `context: "3"`)、缺必填字段 (如缺 `log_text`) — 一律 JSON-RPC 错误响应 `code: -32602` (`invalid_params`), 不走 `result.isError=true` 正常响应通道; 文案统一中文框架 (值域错为业务文案如 `context 须在 0-10 内`; 类型错/缺字段为 `参数格式非法: <serde 细节>`, serde 细节保留英文字段名/类型名原文)。客户端单一按 error code 判定参数错误, 无需同时检查 result.isError。(rmcp 默认把类型错/缺字段降级为 isError=true 英文响应, 协议层拦截还原 — 判定依据是 rmcp 的 `failed to deserialize parameters:` 前缀, 见 server/src/mcp.rs `reraise_argument_error`。)
 **skim 响应** (非零块示例; `fallback`/`advice` 仅零块时在场, `stats.compression_*` 零块时省略):
 
 ```json
@@ -200,7 +201,7 @@ MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上
 | `fallback` | **仅零块时在场**; 取值域单值 `"no-blocks"` — 在场性即失明判定, 消费方无条件回退 rg 基线 (判定矩阵) |
 | `advice` | **仅零块时在场**; 回退建议文案 (rg 基线命令示例 + 规则贡献指引), 人类可读提示, 非协议解析对象 |
 
-skim 入参校验 (均 `invalid_params`): `log_text` 空或纯空白; `log_text` 超 32MB (建议 `tail -c` 预截取分段提交); `context` 超出 [0,10] (`context` 语义同上文 CLI `--context`)。
+skim 入参校验 (均 `invalid_params`, 含类型错/缺字段, 通道统一见上文 issue #48 段): `log_text` 空或纯空白; `log_text` 超 32MB (建议 `tail -c` 预截取分段提交); `context` 超出 [0,10] (`context` 语义同上文 CLI `--context`)。
 
 **read_around 响应**: `{total_lines, window_start, window_end, truncated, note?, lines[]}` — `window_start`/`window_end` 为实际返回窗口 (末尾收缩与截断之后, 1-based 含端点); `truncated` = 是否因 200 行窗口上限截断 (`line_end` 超出日志末尾收缩到末行**不算**截断); `note` 仅截断时在场, 给出续读起点行号; `lines[]` 为带 `L{n}: ` 前缀的原文行。入参校验 (均 `invalid_params`): `log_text` 空或纯空白或超 32MB; `line_start < 1` 或 `line_start > line_end`; `line_start` 超出日志末行。
 

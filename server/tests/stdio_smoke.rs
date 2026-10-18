@@ -213,6 +213,77 @@ fn stdio_smoke_read_around_and_list_rules() {
         .contains("空或纯空白"));
 }
 
+/// issue #48: 参数错误通道统一 — 类型错/缺字段与值域错同走 JSON-RPC `-32602`
+/// (rmcp 默认把反序列化失败降级为 `result.isError=true` 正常响应 + 英文文案,
+/// 本仓协议层还原为错误通道, 文案统一中文框架 + serde 字段细节)。
+/// 末尾跟一次正常调用, 证明错误通道不 crash 不毒化会话。
+#[test]
+fn stdio_param_error_channel_unified() {
+    let mut child = spawn_server();
+    let requests = [
+        handshake_reqs(),
+        vec![
+            // 形态①: 值域错 (context=11, i32 合法但越界) — 既有 -32602 中文文案
+            req(
+                2,
+                "tools/call",
+                serde_json::json!({"name": "skim", "arguments": {"log_text": CARGO_FAIL_LOG, "context": 11}}),
+            ),
+            // 形态②: 类型错 (context="3", i32 期望收到 string) — rmcp 默认降级通道
+            req(
+                3,
+                "tools/call",
+                serde_json::json!({"name": "skim", "arguments": {"log_text": CARGO_FAIL_LOG, "context": "3"}}),
+            ),
+            // 形态③: 缺必填 (log_text 缺席) — rmcp 默认降级通道
+            req(4, "tools/call", serde_json::json!({"name": "skim", "arguments": {}})),
+            // 通道健康: 正常调用仍成功
+            req(
+                5,
+                "tools/call",
+                serde_json::json!({"name": "skim", "arguments": {"log_text": CARGO_FAIL_LOG}}),
+            ),
+        ],
+    ]
+    .concat();
+    let (out, status) = roundtrip(&mut child, &requests);
+    assert!(status.success(), "参数错误不 crash: {status}");
+    let responses = parse_jsonl(&out);
+    assert_eq!(responses.len(), 5, "5 请求各 1 响应");
+
+    for id in [2, 3, 4] {
+        let r = by_id(&responses, id);
+        assert_eq!(
+            r["error"]["code"].as_i64(),
+            Some(-32602),
+            "id={id} 须走 invalid_params 错误通道: {r}"
+        );
+        assert!(
+            r.get("result").is_none(),
+            "id={id} 不得走 isError 正常响应通道: {r}"
+        );
+    }
+    // 形态①: 值域错中文文案 (既有契约锁定)
+    assert!(
+        by_id(&responses, 2)["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("context 须在 0-10 内"),
+        "值域文案: {}",
+        by_id(&responses, 2)["error"]["message"]
+    );
+    // 形态②③: 反序列化错中文框架 + serde 细节透传
+    // (形态② 实测细节 "invalid type: string \"3\", expected i32" — from_value 不带字段路径)
+    let m3 = by_id(&responses, 3)["error"]["message"].as_str().unwrap();
+    assert!(m3.contains("参数格式非法"), "id=3 中文框架: {m3}");
+    assert!(m3.contains("invalid type"), "id=3 serde 细节透传: {m3}");
+    let m4 = by_id(&responses, 4)["error"]["message"].as_str().unwrap();
+    assert!(m4.contains("参数格式非法"), "id=4 中文框架: {m4}");
+    assert!(m4.contains("log_text"), "id=4 缺字段名透传: {m4}");
+    let ok = by_id(&responses, 5);
+    assert!(ok.get("error").is_none(), "错误不影响后续正常调用: {ok}");
+}
+
 /// 大日志全链路: 验证 rmcp stdio 传输对 CI 级大文本 (数百 KB~MB) 无截断/超时。
 /// 语料在独立语料仓 (经 just corpus-fetch 拉到 data/logs), env 门控:
 /// LOG_SKIMMER_E2E_LOG 指向本地大日志 (如语料库最大样本
