@@ -182,7 +182,9 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 # ③ Full gate: whole-corpus regression (FN=0 / FP rate ≤2% / zero-blocks=0 /
 #    corpus presence ≥50) + per-rule hit report
 #    (per_rule_hits). Positive signal for a new rule: count ≥1 in per_rule_hits
-#    (i.e. absent from the dead_rules list).
+#    (i.e. absent from the dead_rules list). Stream separation: the full JSON
+#    verdict report goes to stdout (redirectable for archiving, e.g.
+#    `> report.json`); stderr carries a single-line `l0-gate: verdict=...` summary.
 target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
 
 # ④ Strict mode (optional): fail if any rule has zero hits across the corpus. Note the current

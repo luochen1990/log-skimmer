@@ -97,7 +97,7 @@ curl -sL <ci-log-url> | target/release/log-skimmer skim - --rules /path/to/rules
 
 ### MCP server (agent 集成形态)
 
-`log-skimmer-mcp` 以 stdio transport 暴露三个 tool: `skim(log_text, context?)` (提取块 + fragment 摘要 + 压缩统计 (零块时省略); 零块时返回 `fallback: "no-blocks"` 与回退建议字段, 不报错) / `read_around(log_text, line_start, line_end)` (按坐标取原文窗口, 单次限 200 行) / `list_rules()` (装载规则清单)。
+`log-skimmer-mcp` 以 stdio transport 暴露三个 tool: `skim(log_text, context?)` (提取块 + fragment 摘要 + 压缩统计 (零块时省略); context 取值 0-10, 越界报 invalid_params; 零块时返回 `fallback: "no-blocks"` 与回退建议字段, 不报错) / `read_around(log_text, line_start, line_end)` (按坐标取原文窗口, 单次限 200 行) / `list_rules()` (装载规则清单)。
 
 ```bash
 cargo build --release -p log-skimmer-server
@@ -174,6 +174,8 @@ target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 
 # ③ 全量门禁: 全语料回归 (FN=0 / FP率≤2% / 零块=0 / 语料在场≥50) + 每规则命中报告
 #    per_rule_hits。新规则的正向通过信号: 在 per_rule_hits 中计数 ≥1 (即不在 dead_rules 列表)。
+#    流分离: 完整 JSON 判定报告走 stdout (可重定向存档, 如 `> report.json`),
+#    stderr 仅一行 `l0-gate: verdict=...` 摘要。
 target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
 
 # ④ 严格模式 (可选): 存在语料零命中规则即 fail。注意现有规则集含公开语料暂无
