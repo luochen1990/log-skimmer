@@ -127,7 +127,15 @@ fn reraise_argument_error(resp: CallToolResponse) -> Result<CallToolResponse, Mc
 #[tool_handler]
 impl ServerHandler for SkimServer {
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
+            // issue #49: 协议身份 = 产品 (bin 名 + crate 版本)。rmcp 默认注入 SDK
+            // 自身身份 ("rmcp"/"3.5.1" — env! 在 rmcp 源码内展开), 客户端无法
+            // 对应本产品; rmcp 版本以 Cargo.lock 为权威, 不硬编码进文案。
+            .with_server_info(Implementation::new(
+                "log-skimmer-mcp",
+                env!("CARGO_PKG_VERSION"),
+            ))
+            .with_instructions(
             "log-skimmer: CI 日志高信噪比提取。tools: skim (结构化提取, 零块=fallback 失明警示), \
                      read_around (按块坐标取原文窗口), list_rules (规则覆盖面)。消费方判定矩阵 \
                      (docs/rule-format.md §3): skim 零块=失明, 无条件回退 rg; job 已知失败而 \

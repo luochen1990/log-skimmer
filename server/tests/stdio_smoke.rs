@@ -284,6 +284,38 @@ fn stdio_param_error_channel_unified() {
     assert!(ok.get("error").is_none(), "错误不影响后续正常调用: {ok}");
 }
 
+/// issue #49: initialize serverInfo 是产品身份 (log-skimmer-mcp + crate 版本),
+/// 非 rmcp 默认注入的 SDK 身份 ("rmcp"/"3.5.1")。附带锁定能力面不因修复扩张 (#50 前置)。
+#[test]
+fn stdio_server_info_product_identity() {
+    let mut child = spawn_server();
+    let requests = handshake_reqs();
+    let (out, status) = roundtrip(&mut child, &requests);
+    assert!(status.success());
+    let responses = parse_jsonl(&out);
+    let init = by_id(&responses, 1);
+    assert_eq!(
+        init["result"]["serverInfo"]["name"].as_str(),
+        Some("log-skimmer-mcp"),
+        "serverInfo: {}",
+        init["result"]["serverInfo"]
+    );
+    assert_eq!(
+        init["result"]["serverInfo"]["version"].as_str(),
+        Some(env!("CARGO_PKG_VERSION")),
+        "版本以 server crate Cargo.toml 为准"
+    );
+    assert!(init["result"]["capabilities"]["tools"].is_object());
+    assert!(
+        init["result"]["capabilities"].get("resources").is_none(),
+        "不声明 resources"
+    );
+    assert!(
+        init["result"]["capabilities"].get("prompts").is_none(),
+        "不声明 prompts"
+    );
+}
+
 /// 大日志全链路: 验证 rmcp stdio 传输对 CI 级大文本 (数百 KB~MB) 无截断/超时。
 /// 语料在独立语料仓 (经 just corpus-fetch 拉到 data/logs), env 门控:
 /// LOG_SKIMMER_E2E_LOG 指向本地大日志 (如语料库最大样本

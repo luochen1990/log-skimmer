@@ -32,8 +32,10 @@ fn main() {
             std::process::exit(2);
         }
     };
+    // serverInfo (协议身份) 在 mcp::get_info; stderr 启动行带产品版本备诊断 (issue #49)
     eprintln!(
-        "log-skimmer-mcp: 装载 {} 条规则 (来源 {})",
+        "log-skimmer-mcp v{}: 装载 {} 条规则 (来源 {})",
+        env!("CARGO_PKG_VERSION"),
         rules.len(),
         dir.display()
     );
