@@ -205,21 +205,23 @@ fn unreadable_log_file_exits_2() {
 // 专属文案钉: 指明空串、不冒充缺值; 退出码仍 64 (空串仍是解析期用法错误)。
 #[test]
 fn empty_rules_value_gets_dedicated_copy() {
-    for form in [
-        vec!["skim", "x.log", "--rules", ""], // 空格形态
-        vec!["skim", "x.log", "--rules="],    // 等号形态
-    ] {
-        let (code, _, stderr) = run(&form);
-        assert_eq!(
-            code, 64,
-            "空串是解析期用法错误, form={form:?}, stderr:\n{stderr}"
-        );
-        assert!(stderr.contains("不能为空串"), "空串须有专属文案: {stderr}");
-        assert!(
-            !stderr.contains("but none was supplied"),
-            "空串不得冒充缺值文案: {stderr}"
-        );
-    }
+    assert_dedicated_empty_copy(&["skim", "x.log", "--rules", ""]); // 空格形态
+    assert_dedicated_empty_copy(&["skim", "x.log", "--rules="]); // 等号形态
+}
+
+// 空串专属文案契约 (issue #73a): exit 64 + 指明空串 + 不冒充缺值文案 —
+// skim --rules 原发与 l0/hygiene 推广入口共用断言面。
+fn assert_dedicated_empty_copy(form: &[&str]) {
+    let (code, _, stderr) = run(form);
+    assert_eq!(
+        code, 64,
+        "空串是解析期用法错误, form={form:?}, stderr:\n{stderr}"
+    );
+    assert!(stderr.contains("不能为空串"), "空串须有专属文案: {stderr}");
+    assert!(
+        !stderr.contains("but none was supplied"),
+        "空串不得冒充缺值文案: {stderr}"
+    );
 }
 
 // #73a 推广回归钉: 空串专属文案泛化到 l0/hygiene 路径参数 —
@@ -229,18 +231,10 @@ fn empty_path_values_get_dedicated_copy_across_subcommands() {
     for form in [
         vec!["l0", "--corpus", "x", "--rules", ""],
         vec!["l0", "--corpus", "", "--rules", "x"],
+        vec!["l0", "--corpus", "x", "--rules", "y", "--base", ""],
         vec!["hygiene", "--patterns", "", "dir"],
     ] {
-        let (code, _, stderr) = run(&form);
-        assert_eq!(
-            code, 64,
-            "空串是解析期用法错误, form={form:?}, stderr:\n{stderr}"
-        );
-        assert!(stderr.contains("不能为空串"), "form={form:?}: {stderr}");
-        assert!(
-            !stderr.contains("but none was supplied"),
-            "form={form:?}: {stderr}"
-        );
+        assert_dedicated_empty_copy(&form);
     }
 }
 

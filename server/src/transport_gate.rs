@@ -11,7 +11,9 @@
 //! - ping 透传 (MCP spec 2025-11-25 lifecycle: initialize 前仅 ping 被允许,
 //!   rmcp serve_initialize 会自答 pong);
 //! - 带 2026-07-28 draft 完整内联 `_meta` 的请求透传 (draft discover 生命周期
-//!   合法跳过 initialize, rmcp 后续自行做版本校验/分发);
+//!   合法跳过 initialize, rmcp 后续自行做版本校验/分发)。残留: draft 会话无
+//!   initialize, 闸门恒处 pre-init 判定, 其后缺 `_meta` 的违约请求会被本闸门
+//!   以 -32002 拦下 (rmcp 自身会以 -32602 _meta 缺字段拒, 文案分工不同);
 //! - initialize 请求透传并落闸 (此后全透传, serve_inner 接管);
 //! - 其余请求 (经典生命周期客户端未握手先发) → 回 `-32002` "Server not
 //!   initialized" 并吞掉, 会话存活。
@@ -99,9 +101,10 @@ impl<T: Transport<RoleServer>> Transport<RoleServer> for InitGateTransport<T> {
     /// serve_server_with_ct 外层 (整条 serve vs ct.cancelled), 触发即会话终结,
     /// 丢一条消息无影响。落闸标记在 receive 解析后、任何再 await 之前完成。
     ///
-    /// 落闸点 = 收到 initialize **请求** (而非握手成功): 版本协商失败时 rmcp
-    /// 仍留在 pre-init 等重试, 此窗口内误发请求会回落 rmcp 默认 -32602 —
-    /// 但该客户端已发过 initialize, "not initialized" 文案本也不再准确。
+    /// 落闸点 = 收到 initialize **请求** (而非握手成功): 经典 initialize 的
+    /// 协商失败路径 (rmcp report_initialize_failure) 直接 return Err 终结会话,
+    /// 不存在「落闸后仍处 pre-init」的窗口; 落闸在消息解析后同步完成, 与
+    /// rmcp 握手结果无竞态。
     async fn receive(&mut self) -> Option<ClientJsonRpcMessage> {
         loop {
             let msg = self.inner.receive().await?;
@@ -206,11 +209,12 @@ mod tests {
     const PING: &str = r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#;
     const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"gate-test","version":"0"}}}"#;
 
-    /// 已发出消息中唯一的错误响应 (拦截路径断言面)。
-    fn sole_error_response(sent: &[ServerJsonRpcMessage]) -> &ErrorData {
+    /// 已发出消息中唯一的错误响应 envelope (拦截路径断言面) — 返回整个
+    /// `JsonRpcError`, 调用侧可直接断言 id, 免二次解构。
+    fn sole_error_response(sent: &[ServerJsonRpcMessage]) -> &rmcp::model::JsonRpcError {
         assert_eq!(sent.len(), 1, "恰好发出一条错误响应: {sent:?}");
         match &sent[0] {
-            ServerJsonRpcMessage::Error(e) => &e.error,
+            ServerJsonRpcMessage::Error(e) => e,
             other => panic!("须为 error 响应: {other:?}"),
         }
     }
@@ -258,61 +262,56 @@ mod tests {
             ),
             "pre-init 请求被吞, 下一条是 initialize: {first:?}"
         );
-        // 错误响应形态: -32002 + 文案 + 原 id
+        // 错误响应形态: -32002 + 文案 + 原 id (envelope 单点断言)
         let sent = gate.inner.sent();
-        let err = sole_error_response(&sent);
-        assert_eq!(err.code.0, -32002);
-        assert_eq!(err.message, SERVER_NOT_INITIALIZED_MSG);
+        let resp = sole_error_response(&sent);
+        assert_eq!(resp.error.code.0, -32002);
+        assert_eq!(resp.error.message, SERVER_NOT_INITIALIZED_MSG);
         assert!(
-            err.message.contains("not initialized") && err.message.contains("initialize"),
+            resp.error.message.contains("not initialized")
+                && resp.error.message.contains("initialize"),
             "文案自明: {}",
-            err.message
+            resp.error.message
         );
-        assert!(
-            matches!(
-                &sent[0],
-                ServerJsonRpcMessage::Error(e)
-                    if e.id == Some(rmcp::model::NumberOrString::Number(1))
-            ),
-            "错误响应携带原请求 id: {:?}",
-            sent[0]
+        assert_eq!(
+            resp.id,
+            Some(rmcp::model::NumberOrString::Number(1)),
+            "错误响应携带原请求 id"
         );
     }
 
-    #[test]
-    fn pre_init_ping_passes_through() {
-        let fake = FakeTransport::new(vec![msg(PING)]);
-        let mut gate = InitGateTransport::new(fake);
-        let out = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(gate.receive())
-            .expect("ping 透传");
-        assert!(matches!(
-            &out,
-            ClientJsonRpcMessage::Request(r) if matches!(r.request, ClientRequest::PingRequest(_))
-        ));
-        assert!(gate.inner.sent().is_empty(), "ping 不触发闸门错误");
-    }
+    /// pre-init 透传族 (表驱动): ping (spec lifecycle 允许) / draft `_meta`
+    /// 请求 (draft discover 不依赖 initialize, 原样上交 rmcp) / notification
+    /// (维持 rmcp 现行为, 闸门只管 Request) — 三者均不触发闸门错误。
+    /// 透传种类断言谓词 (表驱动用)。
+    type KindPred = for<'a> fn(&'a ClientJsonRpcMessage) -> bool;
 
-    /// draft discover 生命周期: 带完整内联 `_meta` 的请求不依赖 initialize,
-    /// 透传给 rmcp 自行处理 (版本校验/分发), 闸门不误伤。
     #[test]
-    fn pre_init_draft_meta_request_passes_through() {
-        let fake = FakeTransport::new(vec![msg(TOOLS_LIST_DRAFT_META)]);
-        let mut gate = InitGateTransport::new(fake);
-        let out = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(gate.receive())
-            .expect("draft 请求透传");
-        assert!(
-            matches!(
-                &out,
-                ClientJsonRpcMessage::Request(r)
-                    if matches!(r.request, ClientRequest::ListToolsRequest(_))
+    fn pre_init_messages_pass_through() {
+        let cases: &[(&str, KindPred)] = &[
+            (PING, |m| {
+                matches!(m, ClientJsonRpcMessage::Request(r)
+                    if matches!(r.request, ClientRequest::PingRequest(_)))
+            }),
+            (TOOLS_LIST_DRAFT_META, |m| {
+                matches!(m, ClientJsonRpcMessage::Request(r)
+                    if matches!(r.request, ClientRequest::ListToolsRequest(_)))
+            }),
+            (
+                r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+                |m| matches!(m, ClientJsonRpcMessage::Notification(_)),
             ),
-            "原样上交: {out:?}"
-        );
-        assert!(gate.inner.sent().is_empty());
+        ];
+        for (json, is_kind) in cases {
+            let fake = FakeTransport::new(vec![msg(json)]);
+            let mut gate = InitGateTransport::new(fake);
+            let out = tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(gate.receive())
+                .unwrap_or_else(|| panic!("透传: {json}"));
+            assert!(is_kind(&out), "原样上交: {json} -> {out:?}");
+            assert!(gate.inner.sent().is_empty(), "不触发闸门错误: {json}");
+        }
     }
 
     #[test]
@@ -328,20 +327,5 @@ mod tests {
             assert!(rt.block_on(gate.receive()).is_some(), "全部透传");
         }
         assert!(gate.inner.sent().is_empty(), "落闸后零拦截");
-    }
-
-    /// pre-init notification 原样透传 (维持 rmcp 现行为, 本闸门只管 Request)。
-    #[test]
-    fn pre_init_notification_passes_through() {
-        let fake = FakeTransport::new(vec![msg(
-            r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
-        )]);
-        let mut gate = InitGateTransport::new(fake);
-        let out = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(gate.receive())
-            .expect("notification 透传");
-        assert!(matches!(out, ClientJsonRpcMessage::Notification(_)));
-        assert!(gate.inner.sent().is_empty());
     }
 }

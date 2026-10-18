@@ -23,6 +23,26 @@ pub mod transport_gate;
 /// (防超大粘贴拖垮内存), 触发时明确报错并指导调用方预处理截取。
 pub const MAX_LOG_BYTES: usize = 32 * 1024 * 1024;
 
+/// MCP 入口准入结果 (skim/read_around 共用, spec §3「消费同一谓词」单点):
+/// helper 承担快拒三连的首尾两环 — 体积上限 (零分配) → [归一 (含 BOM 剥除) +
+/// 三分类 Empty/WhitespaceOnly 拒]; 中环 (不依赖行内容的参数校验, 错误类型
+/// 各异) 由各 view 在调用 helper 之前自检, 保证拒绝路径不白付逐行复制。
+enum LogAdmit {
+    Oversized(usize),
+    Degenerate,
+}
+
+fn admitted_lines(log_text: &str) -> Result<Vec<String>, LogAdmit> {
+    if log_text.len() > MAX_LOG_BYTES {
+        return Err(LogAdmit::Oversized(log_text.len()));
+    }
+    let lines = log_skimmer::normalize_lines(log_text);
+    if log_skimmer::classify_input(&lines) != log_skimmer::InputClass::Content {
+        return Err(LogAdmit::Degenerate);
+    }
+    Ok(lines)
+}
+
 /// read_around 单次窗口行数上限 (防上下文爆炸; 需要更多请分段调用)。
 pub const MAX_WINDOW_LINES: usize = 200;
 
@@ -202,21 +222,19 @@ pub fn skim_view(
     log_text: &str,
     context: Option<i32>,
 ) -> Result<SkimOutput, SkimInputError> {
-    // 体积上限先行 (零分配快拒 — 归一层对超大输入的逐行复制在拒绝路径上白付内存)。
-    if log_text.len() > MAX_LOG_BYTES {
-        return Err(SkimInputError::Oversized(log_text.len()));
-    }
-    // #71/#78: 空白判定收敛为引擎三分类谓词 (与 CLI exit 2 同源, spec §3 单点) —
-    // 归一 (含 BOM 剥除) 后 Empty/WhitespaceOnly 一律参数错误。
-    let lines = log_skimmer::normalize_lines(log_text);
-    if log_skimmer::classify_input(&lines) != log_skimmer::InputClass::Content {
-        return Err(SkimInputError::Empty);
-    }
+    // 快拒顺序契约 (精雕细琢 I2): 廉价参数校验先于归一 — 32MB 合法日志 + 手误
+    // context 的调用不在拒绝路径白付逐行复制。
     // 同界单源: 边界表达式从 engine CONTEXT_MAX 构造 (issue #28); i32 侧显式转型
     // (负值天然落在区间外被拒)。文案 "0-10" 是 spec 人话表述, 不随常量动态化。
     if let Some(n) = context.filter(|n| !(0..=CONTEXT_MAX as i32).contains(n)) {
         return Err(SkimInputError::InvalidContext(n));
     }
+    // #71/#78: 准入 helper 首尾两环 (体积 → 归一+三分类), 与 read_around 同源。
+    let lines = match admitted_lines(log_text) {
+        Ok(lines) => lines,
+        Err(LogAdmit::Oversized(n)) => return Err(SkimInputError::Oversized(n)),
+        Err(LogAdmit::Degenerate) => return Err(SkimInputError::Empty),
+    };
     let result = match context {
         None => skim("mcp", rules, &lines),
         Some(n) => skim("mcp", &override_context(rules, n as u32), &lines),
@@ -340,17 +358,15 @@ pub fn read_around_view(
     line_start: i64,
     line_end: i64,
 ) -> Result<ReadAroundResult, ReadAroundError> {
-    // 体积上限先行 (零分配快拒), 其后与 skim 同一三分类谓词 (#71/#78 收敛单点)。
-    if log_text.len() > MAX_LOG_BYTES {
-        return Err(ReadAroundError::Oversized(log_text.len()));
-    }
-    let lines = log_skimmer::normalize_lines(log_text);
-    if log_skimmer::classify_input(&lines) != log_skimmer::InputClass::Content {
-        return Err(ReadAroundError::EmptyLog);
-    }
+    // 快拒顺序契约同 skim_view: 廉价参数校验先于归一 (I2)。
     if line_start < 1 || line_end < line_start {
         return Err(ReadAroundError::BadRange(line_start, line_end));
     }
+    let lines = match admitted_lines(log_text) {
+        Ok(lines) => lines,
+        Err(LogAdmit::Oversized(n)) => return Err(ReadAroundError::Oversized(n)),
+        Err(LogAdmit::Degenerate) => return Err(ReadAroundError::EmptyLog),
+    };
     let total = lines.len();
     let start = line_start as usize;
     if start > total {

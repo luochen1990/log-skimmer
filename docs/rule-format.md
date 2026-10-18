@@ -104,7 +104,7 @@ min_engine_version: 0.1.0  # 选填。引擎版本下限, major.minor.patch 完�
 
 ## 2. 状态机语义 (公理 A1-A8)
 
-**A0 行消费语义**: 原始文本先剥去**文件首部**的 UTF-8 BOM (U+FEFF, 字节 EF BB BF; 仅最前一处 — 首行行中与非首行的 U+FEFF 是普通字符 ZWNBSP, 不剥), 再按 `lines()` 切行, 每行剥去尾部 `` (CRLF 归一) 后的字符串; 行号 1-based (BOM 剥除后 L1 即首个内容行, 输出**不回显** BOM 字节)。仅含 BOM 的文件剥除后为 0 行。宿主前缀 (CI 平台时间戳、ANSI 色码) **不做引擎预处理** — 由规则正则自带容忍 (如锚写 `^(timestamp )?error: `; 实测怪形态见 docs/poc-report.md §5)。
+**A0 行消费语义**: 原始文本先剥去**文件首部**的 UTF-8 BOM (U+FEFF, 字节 EF BB BF; 仅最前一处 — 首行行中与非首行的 U+FEFF 是普通字符 ZWNBSP, 不剥), 再按 `lines()` 切行, 每行剥去尾部 `\r` (CRLF 归一) 后的字符串; 行号 1-based (BOM 剥除后 L1 即首个内容行, 输出**不回显** BOM 字节)。仅含 BOM 的文件剥除后为 0 行。宿主前缀 (CI 平台时间戳、ANSI 色码) **不做引擎预处理** — 由规则正则自带容忍 (如锚写 `^(timestamp )?error: `; 实测怪形态见 docs/poc-report.md §5)。
 
 **A1 独立扫描**: 每条规则维护独立状态机, 对日志逐行扫描; 规则间互不干扰。
 
