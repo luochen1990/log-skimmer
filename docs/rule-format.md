@@ -150,6 +150,8 @@ L4: build failed
 
 输出定位为「**索引+摘要**」而非日志替代品 — 每个片段恒带坐标与元数据, 消费方 (agent) 据此决定是否展开上下文。
 
+以下示例与 CLI `skim --json` 实测输出**字段级一致** (完整字段集, 非节选; 数值与块数为示意):
+
 ```json
 {
   "file": "path/or:-",
@@ -158,21 +160,31 @@ L4: build failed
   "blocks": [
     {
       "start_line": 120, "end_line": 135,
+      "rules": ["nix-eval-error", "nix-eval-error-summary"],
       "fragments": [
-        { "rule": "nix-eval-error", "kind": "signal", "category": "typecheck",
-          "intent": "failure", "confidence": "high", "block": [120, 128], "out": [120, 135],
-          "text": "...(context 扩展后的完整文本)..." }
+        { "rule": "nix-eval-error", "kind": "signal", "intent": "failure", "category": "typecheck",
+          "confidence": "high", "block": [120, 128], "out": [120, 135],
+          "text": "...(context 扩展后的完整文本)..." },
+        { "rule": "nix-eval-error-summary", "kind": "signal", "intent": "failure", "category": "typecheck",
+          "confidence": "medium", "block": [128, 128], "out": [128, 135],
+          "text": "...(该 fragment 输出区间内的文本)..." }
       ]
     }
   ],
-  "stats": { "noise_lines_removed": 200, "signature_output_lines": 12 }
+  "stats": {
+    "input_lines": 1000, "output_lines": 42, "signature_output_lines": 12,
+    "noise_lines_removed": 200, "boundary_violations": []
+  }
 }
 ```
 
 - `start/end_line`: 合并块输出区间 hull (各成员 fragment 输出区间并集, 含 context 扩展; 1-based 含端点)。
+- `blocks[].rules`: 合并块成员规则 id 全集 (首次出现序去重) — 块级命中索引, 消费方不遍历 fragments 即可知道命中面。
 - fragment 的 `block` 是该规则自身消费区间 (无 context); `text` 含 context 扩展。
 - `output_lines` = 合并块总行数 (noise 剔除后) — **块级粒度**。
 - `signature_output_lines` = 各 fragment block 首行 (锚行/签名行, 去重行号) 计数 — **签名行级粒度**。压缩比按两档粒度分列统计 (两数字差异大, 验收线不可混谈)。
+- `input_lines`/`output_lines` 在顶层与 `stats` 内**同值重复**: 实现现状的冗余 (顶层概要字段 + `stats` 自包含统计体), 非两套口径 — 消费方读任一侧等价。
+- `stats.boundary_violations`: §4「边界完整性 (机械)」违例记录数组, 元素 `{rule, line_no, text}`; 按状态机构造**恒空** (实现哨兵: block 尾行按构造必被该规则某 pattern 消费, 非空 = 引擎实现 bug) — 消费方正常无需读取, 示例中 `[]` 即常态形态。
 - CLI `--context N` (默认按规则自带 context): 显示层全局覆盖为 before=N/after=N, 纯机械按坐标切割, 不需规则参与; 取值 0 ≤ N ≤ 10 (与 §1 规则 `context` 字段、MCP skim `context` 参数同界), 越界为解析期用法错误。
 - CLI 流分离契约: 人类可读输出 (块内容、统计行及其前导空行) 整体走 stdout — `> file` 重定向完整保留输出成果; 错误与警告 (含零块警示) 走 stderr。`--json` 模式 stdout 为纯 JSON, 统计行等诊断走 stderr。
 - 空日志硬拒绝 (exit 2): 0 行日志是数据错误 (疑似下载截断), 不进入零块判定 — 与「空规则集硬拒绝」对称, 宁可显式失败不静默通过。exit 2 族 = 规则集非法 / 日志读取失败 / 日志为空。纯空白文件 (归一后 ≥1 行) 不属此类, 走零块判定; MCP `skim` 的入口语义不同 (参数校验): 空**或纯空白** log_text 一律参数错误拒绝。

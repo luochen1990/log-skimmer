@@ -151,6 +151,8 @@ L4: build failed
 
 The output is positioned as an "**index + summary**", not a log replacement — every fragment always carries coordinates and metadata; the consumer (agent) decides whether to expand context accordingly.
 
+The example below matches the actual CLI `skim --json` output **field-for-field** (complete field set, not an excerpt; values and block count are illustrative):
+
 ```json
 {
   "file": "path/or:-",
@@ -159,21 +161,31 @@ The output is positioned as an "**index + summary**", not a log replacement — 
   "blocks": [
     {
       "start_line": 120, "end_line": 135,
+      "rules": ["nix-eval-error", "nix-eval-error-summary"],
       "fragments": [
-        { "rule": "nix-eval-error", "kind": "signal", "category": "typecheck",
-          "intent": "failure", "confidence": "high", "block": [120, 128], "out": [120, 135],
-          "text": "...(full text after context extension)..." }
+        { "rule": "nix-eval-error", "kind": "signal", "intent": "failure", "category": "typecheck",
+          "confidence": "high", "block": [120, 128], "out": [120, 135],
+          "text": "...(full text after context extension)..." },
+        { "rule": "nix-eval-error-summary", "kind": "signal", "intent": "failure", "category": "typecheck",
+          "confidence": "medium", "block": [128, 128], "out": [128, 135],
+          "text": "...(text within this fragment's output range)..." }
       ]
     }
   ],
-  "stats": { "noise_lines_removed": 200, "signature_output_lines": 12 }
+  "stats": {
+    "input_lines": 1000, "output_lines": 42, "signature_output_lines": 12,
+    "noise_lines_removed": 200, "boundary_violations": []
+  }
 }
 ```
 
 - `start/end_line`: the merged block's output-range hull (union of member fragments' output ranges, context extension included; 1-based, inclusive).
+- `blocks[].rules`: the full set of rule ids hit inside the merged block (deduplicated, first-occurrence order) — a block-level hit index, so consumers can see the hit surface without walking `fragments`.
 - A fragment's `block` is the range the rule itself consumed (no context); `text` includes the context extension.
 - `output_lines` = total lines of merged blocks (after noise removal) — **block-level granularity**.
 - `signature_output_lines` = the count of each fragment's block first line (anchor/signature line, deduplicated by line number) — **signature-line-level granularity**. Compression ratios are reported at both granularities (the two numbers can differ a lot; acceptance lines must not be mixed).
+- `input_lines`/`output_lines` appear **duplicated with identical values** at the top level and inside `stats`: an implementation artifact (top-level summary fields + a self-contained `stats` aggregate), not two different figures — consumers may read either side.
+- `stats.boundary_violations`: the violation records of the §4 "boundary integrity (mechanical)" check, elements `{rule, line_no, text}`; **always empty by state-machine construction** (an implementation sentinel: the block's tail line is by construction consumed by one of the rule's patterns; non-empty = an engine bug) — consumers normally never need to read it; `[]` in the example is the steady-state shape.
 - CLI `--context N` (default: each rule's own context): presentation-layer global override to before=N/after=N, a purely mechanical cut by coordinates, no rule involvement; valid range 0 ≤ N ≤ 10 (same boundary as the rule `context` field in §1 and the MCP skim `context` parameter), out-of-range is a parse-time usage error.
 - CLI stream-separation contract: human-readable output (block content, the stats line, and its leading blank line) goes to stdout as a whole — `> file` redirection keeps the full output; errors and warnings (including the zero-block warning) go to stderr. In `--json` mode stdout is pure JSON; diagnostics such as the stats line go to stderr.
 - Empty logs are hard-rejected (exit 2): a 0-line log is a data error (likely a truncated download) and never enters the zero-block verdict — symmetric with "empty rule set hard-rejected": prefer explicit failure over silent pass. The exit-2 family = invalid rule set / log read failure / empty log. A whitespace-only file (≥1 line after normalization) is not in this class and goes to the zero-block verdict; MCP `skim` has different entry semantics (parameter validation): empty **or whitespace-only** log_text is always rejected as a parameter error.
