@@ -285,7 +285,7 @@ fn stdio_param_error_channel_unified() {
 }
 
 /// issue #72(b): 未 initialize 先发请求 → JSON-RPC `-32002` "Server not initialized"。
-/// rmcp 3.5.1 pre-init 闸门 (service/server.rs serve_initialize) 对无 draft _meta 的
+/// rmcp 3.5.1 pre-init 闸门 (service/server.rs serve_server_with_ct_inner) 对无 draft _meta 的
 /// 请求回 `-32602` 且文案误导 ("request _meta is missing or has malformed required
 /// fields") — 实际问题是时序 (未握手), 不是参数。协议层以 transport 装饰器拦截
 /// (src/transport_gate.rs)。会话须存活: 误发请求后正常握手仍可完成、后续调用照常成功。

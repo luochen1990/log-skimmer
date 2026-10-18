@@ -23,10 +23,10 @@ pub mod transport_gate;
 /// (防超大粘贴拖垮内存), 触发时明确报错并指导调用方预处理截取。
 pub const MAX_LOG_BYTES: usize = 32 * 1024 * 1024;
 
-/// MCP 入口准入结果 (skim/read_around 共用, spec §3「消费同一谓词」单点):
-/// helper 承担快拒三连的首尾两环 — 体积上限 (零分配) → [归一 (含 BOM 剥除) +
-/// 三分类 Empty/WhitespaceOnly 拒]; 中环 (不依赖行内容的参数校验, 错误类型
-/// 各异) 由各 view 在调用 helper 之前自检, 保证拒绝路径不白付逐行复制。
+/// MCP 入口准入结果 (skim/read_around 共用, spec §3「消费同一谓词」单点)。
+/// 快拒三连的执行顺序: ① 参数校验 (各 view 自检, O(1), 错误类型各异) →
+/// ② 体积上限 (helper, 零分配) → ③ 归一 (含 BOM 剥除) + 三分类拒绝 (helper,
+/// O(n)) — 保证拒绝路径不白付逐行复制; ②③ 在 helper 内, ① 在调用方。
 enum LogAdmit {
     Oversized(usize),
     Degenerate,

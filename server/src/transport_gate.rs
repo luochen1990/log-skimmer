@@ -1,7 +1,7 @@
 //! MCP stdio transport 初始化闸门 (issue #72b): 未 initialize 先发请求 → `-32002`。
 //!
 //! 职责边界: 纯协议生命周期守卫 (装饰 rmcp transport, 不触碰行解析/提取逻辑)。
-//! rmcp 3.5.1 的 pre-init 循环 (`service/server.rs` serve_initialize) 对无 draft
+//! rmcp 3.5.1 的 pre-init 循环 (`service/server.rs` serve_server_with_ct_inner) 对无 draft
 //! `_meta` 的请求自行回 `-32602` 且文案误导 ("request _meta is missing or has
 //! malformed required fields" — 实际问题是时序而非参数), 且发生在 ServerHandler
 //! 分发之前, handler 层无从拦截。本模块是唯一拦截点: `Transport` trait 公开 +
@@ -9,7 +9,7 @@
 //!
 //! 拦截语义 (与 rmcp pre-init 判定同构, 只替换 rmcp 会拒绝的那一支):
 //! - ping 透传 (MCP spec 2025-11-25 lifecycle: initialize 前仅 ping 被允许,
-//!   rmcp serve_initialize 会自答 pong);
+//!   rmcp serve_server_with_ct_inner 会自答 pong);
 //! - 带 2026-07-28 draft 完整内联 `_meta` 的请求透传 (draft discover 生命周期
 //!   合法跳过 initialize, rmcp 后续自行做版本校验/分发)。残留: draft 会话无
 //!   initialize, 闸门恒处 pre-init 判定, 其后缺 `_meta` 的违约请求会被本闸门
@@ -37,7 +37,7 @@ const SERVER_NOT_INITIALIZED: ErrorCode = ErrorCode(-32002);
 const SERVER_NOT_INITIALIZED_MSG: &str = "Server not initialized: send initialize first";
 
 /// pre-init 请求是否携带 2026-07-28 draft 完整内联 `_meta`
-/// (protocolVersion + clientCapabilities) — 与 rmcp serve_initialize 的
+/// (protocolVersion + clientCapabilities) — 与 rmcp serve_server_with_ct_inner 的
 /// `missing_required_keys` 判定同源同参, 保证两道闸门对同一条消息的分流一致。
 fn has_complete_draft_meta(req: &ClientRequest) -> bool {
     req.get_meta()
@@ -96,7 +96,7 @@ pub fn gated_stdio(
 impl<T: Transport<RoleServer>> Transport<RoleServer> for InitGateTransport<T> {
     type Error = T::Error;
 
-    /// 取消安全性: 拦截只发生在 pre-init 阶段, 该阶段 rmcp serve_initialize 为
+    /// 取消安全性: 拦截只发生在 pre-init 阶段, 该阶段 rmcp serve_server_with_ct_inner 为
     /// 纯顺序 await (无 select!), 正常运行不存在取消点; 唯一的 select 在
     /// serve_server_with_ct 外层 (整条 serve vs ct.cancelled), 触发即会话终结,
     /// 丢一条消息无影响。落闸标记在 receive 解析后、任何再 await 之前完成。
@@ -280,12 +280,11 @@ mod tests {
         );
     }
 
+    type KindPred = for<'a> fn(&'a ClientJsonRpcMessage) -> bool;
+
     /// pre-init 透传族 (表驱动): ping (spec lifecycle 允许) / draft `_meta`
     /// 请求 (draft discover 不依赖 initialize, 原样上交 rmcp) / notification
     /// (维持 rmcp 现行为, 闸门只管 Request) — 三者均不触发闸门错误。
-    /// 透传种类断言谓词 (表驱动用)。
-    type KindPred = for<'a> fn(&'a ClientJsonRpcMessage) -> bool;
-
     #[test]
     fn pre_init_messages_pass_through() {
         let cases: &[(&str, KindPred)] = &[
