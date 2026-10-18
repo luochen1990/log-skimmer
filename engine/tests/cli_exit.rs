@@ -197,6 +197,43 @@ fn unreadable_log_file_exits_2() {
     assert!(stderr.contains("读取日志失败"), "stderr:\n{stderr}");
 }
 
+// ---- --rules 值文案: 空串 ≠ 缺值 (issue #73a) -----------------------------------
+
+// #73a: `--rules ""` / `--rules=` (空串) ≠ 真缺值 — clap 原生 PathBuf parser 把
+// 空串短路成空 invalid_value, 渲染层对空值统一渲染 "a value is required ... but
+// none was supplied", 与真缺值逐字节同文案, 与「用户提供了空串」事实不符。
+// 专属文案钉: 指明空串、不冒充缺值; 退出码仍 64 (空串仍是解析期用法错误)。
+#[test]
+fn empty_rules_value_gets_dedicated_copy() {
+    for form in [
+        vec!["skim", "x.log", "--rules", ""], // 空格形态
+        vec!["skim", "x.log", "--rules="],    // 等号形态
+    ] {
+        let (code, _, stderr) = run(&form);
+        assert_eq!(
+            code, 64,
+            "空串是解析期用法错误, form={form:?}, stderr:\n{stderr}"
+        );
+        assert!(stderr.contains("不能为空串"), "空串须有专属文案: {stderr}");
+        assert!(
+            !stderr.contains("but none was supplied"),
+            "空串不得冒充缺值文案: {stderr}"
+        );
+    }
+}
+
+// #73a 回归钉: 真缺值 (后面跟已知 flag) 的原有正确文案不因空串修复而漂移 —
+// 空串拦截挂 value parser 层, 缺值发生在值抵达 parser 之前 (clap verify_num_args)。
+#[test]
+fn rules_missing_value_keeps_missing_copy() {
+    let (code, _, stderr) = run(&["skim", "x.log", "--rules", "--json"]);
+    assert_eq!(code, 64, "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("a value is required"),
+        "真缺值文案保持: {stderr}"
+    );
+}
+
 // ---- l0 门禁码分层 (issue #44): 采集层语料非法 → 2 / 判定层违例 → 1 --------------
 
 /// l0 跑一个小语料目录 (指定 tag 建临时目录), 返回 (exit_code, stdout, stderr)。

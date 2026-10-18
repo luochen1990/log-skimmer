@@ -7,12 +7,31 @@
 //! (解析成功后由 l0_cmd 运行期发出): 1=判定层违例 / 2=采集层语料或规则非法
 //! (语料目录不存在/零配对样本/规则集非法, issue #44), 与解析期 64 正交。
 
+use clap::builder::TypedValueParser as _;
 use clap::{Parser, Subcommand};
+use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// BSD sysexits(3) EX_USAGE: 命令用法错误 (解析期), 与运行期数据错误 exit 2 分流。
 const EX_USAGE: i32 = 64;
+
+/// `--rules` 值解析器 (issue #73a): 原生 PathBufValueParser 对空串短路报空
+/// invalid_value, 渲染层对空值统一渲染 "a value is required ... but none was
+/// supplied" — 与真缺值 (clap verify_num_args 路径) 逐字节同文案, 与「用户
+/// 提供了空串」的事实不符 (不可分诊)。inner 换不拒空串的 OsStringValueParser
+/// (OsStr 直通, 非 UTF-8 路径行为不变) 再 try_map: 空串 → 专属文案 (风格对齐
+/// MCP 侧 env 空串先例 "LOG_SKIMMER_RULES 为空串"), 非空路径行为零变化; 真缺值
+/// 发生在值抵达 parser 之前, 文案不受影响 (回归钉: cli_exit.rs
+/// rules_missing_value_keeps_missing_copy)。
+fn non_empty_rules_dir() -> impl clap::builder::TypedValueParser<Value = PathBuf> {
+    clap::builder::OsStringValueParser::new().try_map(|s: OsString| {
+        if s.is_empty() {
+            return Err(String::from("--rules 不能为空串 (须为规则集目录)"));
+        }
+        Ok(PathBuf::from(s))
+    })
+}
 
 #[derive(Parser)]
 #[command(name = "log-skimmer", version, about = "CI 日志高信噪比提取 (POC)")]
@@ -27,8 +46,8 @@ enum Cmd {
     Skim {
         /// 日志文件 (只接受一个; 多文件须分别调用), `-` 表示 stdin (Unix 管道惯例)
         log_file: PathBuf,
-        /// 规则目录 (递归加载 *.yaml)
-        #[arg(long)]
+        /// 规则目录 (递归加载 *.yaml; 空串有专属报错, 见 non_empty_rules_dir — issue #73a)
+        #[arg(long, value_parser = non_empty_rules_dir())]
         rules: PathBuf,
         /// 输出 JSON 协议 (默认人类可读)
         #[arg(long)]
