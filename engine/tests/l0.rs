@@ -146,6 +146,29 @@ fn gate_dual_test_improvement_passes() {
     assert!(v.compression_compare.regressions.is_empty());
 }
 
+/// 配对可见性 (issue #46): 单侧在场样本 (fixture 钉双侧缺口形态) 不再静默 — 进
+/// Collected.orphans (相对路径 + 缺失侧), 不进 samples; 配对成功样本计数不变。
+#[test]
+fn collect_reports_orphan_samples() {
+    let c = l0::collect(&fixtures().join("l0-corpus"), &fixtures().join("rules"))
+        .expect("fixture 语料采集失败");
+    assert_eq!(c.samples.len(), 3, "孤儿不进 samples, 配对样本计数不变");
+    assert_eq!(
+        c.orphans,
+        vec![
+            l0::OrphanSample {
+                path: "github.com/x/y/2026-10-16/orphan-no-log.log.json".into(),
+                missing: l0::MissingSide::Log,
+            },
+            l0::OrphanSample {
+                path: "github.com/x/y/2026-10-16/orphan-no-sidecar.log".into(),
+                missing: l0::MissingSide::Sidecar,
+            },
+        ],
+        "双侧配对缺口都显形 (路径字典序)"
+    );
+}
+
 /// 正向验证口径 (issue #19 B): per_rule_hits 定义域 = 装载规则全集;
 /// signal = fragment 数 (全样本域, 含 excluded — 仅被 rerun 样本命中不是死规则),
 /// noise = 剔除区块数 (noise 不产 fragment), 零值 = 语料上未生效。

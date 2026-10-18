@@ -5,6 +5,10 @@
 //!   CLI 形态 `log-skimmer l0` (main.rs 接线); bash/jq 时代脚本的等价移植
 //!   (l0-collect.sh / l0-summarize.jq / l0-gate.sh 已退役), 判定逻辑自此可单测。
 //!
+//! 配对语义 (spec §5): 样本 = *.log + 同名 *.log.json, 单侧在场 = 孤儿 —
+//!   不进样本计数, 进 Collected.orphans 供 CLI 告警 (issue #46 可见性,
+//!   引擎只产出数据不渲染, 是否升级硬错误留需求方裁决)。
+//!
 //! 口径 (spec §4, 与 jq 时代逐条等价):
 //!   - 主指标滤除 rerun-through (attempt>1 且 conclusion=success);
 //!   - FN 谓词只数 failure/timed_out 家族样本上 failure-intent fragment 数为 0;
@@ -26,7 +30,7 @@
 
 use crate::{load_rules, skim, Intent};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 // ---- 阈值 (判定 SSOT; 原 l0-gate.sh 头注释的职责迁移至此) ----
@@ -80,8 +84,9 @@ fn one() -> u32 {
     1
 }
 
-/// 递归收集目录下全部 *.log.json (路径字典序, 确定性遍历 — 等价 `find | sort`)。
-fn walk_sidecars(dir: &Path, out: &mut Vec<PathBuf>) {
+/// 递归收集语料文件 (路径字典序, 确定性遍历 — 等价 `find | sort`): *.log.json
+/// sidecar 与 *.log 日志分列, 配对判定在 collect (单侧在场 = 孤儿, issue #46)。
+fn walk_corpus_files(dir: &Path, logs: &mut Vec<PathBuf>, sidecars: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -90,36 +95,73 @@ fn walk_sidecars(dir: &Path, out: &mut Vec<PathBuf>) {
     for e in entries {
         let p = e.path();
         if p.is_dir() {
-            walk_sidecars(&p, out);
-        } else if p.extension().is_some_and(|x| x == "json")
-            && p.file_stem()
-                .is_some_and(|s| s.to_string_lossy().ends_with(".log"))
-        {
-            out.push(p);
+            walk_corpus_files(&p, logs, sidecars);
+        } else if e.file_name().to_string_lossy().ends_with(".log.json") {
+            sidecars.push(p);
+        } else if p.extension().is_some_and(|x| x == "log") {
+            logs.push(p);
         }
     }
 }
 
-/// 采集产物: 样本记录 × 装载规则全集 id — 后者是 per_rule_hits 的定义域,
-/// 零命中规则 (死规则) 只有对照装载清单才能显形 (issue #19 B)。
+/// 配对缺口 (issue #46 可见性): 样本两件套 (*.log + 同名 *.log.json) 只有一侧在场。
+/// 引擎只产出数据 (相对语料根路径 + 缺失侧), 告警渲染归 CLI — 不升级硬错误
+/// (是否 exit 2 留给需求方)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OrphanSample {
+    pub path: String,
+    pub missing: MissingSide,
+}
+
+/// 缺失侧 (在场文件的对侧)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum MissingSide {
+    /// *.log.json 在场, 同名 *.log 缺失
+    Log,
+    /// *.log 在场, 同名 *.log.json (sidecar) 缺失
+    Sidecar,
+}
+
+fn orphan(corpus_dir: &Path, present: &Path, missing: MissingSide) -> OrphanSample {
+    OrphanSample {
+        path: present
+            .strip_prefix(corpus_dir)
+            .unwrap_or(present)
+            .display()
+            .to_string(),
+        missing,
+    }
+}
+
+/// 采集产物: 样本记录 × 装载规则全集 id × 孤儿清单 — rule_ids 是 per_rule_hits
+/// 的定义域 (零命中规则只有对照装载清单才能显形, issue #19 B); orphans 是
+/// 配对缺口的可见性数据 (渲染归 CLI)。
 #[derive(Debug, Clone)]
 pub struct Collected {
     pub samples: Vec<L0Sample>,
     pub rule_ids: Vec<String>,
+    pub orphans: Vec<OrphanSample>,
 }
 
 /// 采集全语料: 规则单次加载, 逐样本 skim。非法规则集/日志读取失败 → Err (fail-fast,
-/// 门禁无兜底); 零块是正常记录 (违例判定在 gate — 结构承诺的失明信号)。
+/// 门禁无兜底); 零块是正常记录 (违例判定在 gate — 结构承诺的失明信号);
+/// 孤儿样本 (单侧在场) 跳过不计数, 见 Collected.orphans。
 pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String> {
     let rules = load_rules(rules_dir).map_err(|e| format!("规则集非法: {e}"))?;
-    let mut sidecars = Vec::new();
-    walk_sidecars(corpus_dir, &mut sidecars);
+    let (mut logs, mut sidecars) = (Vec::new(), Vec::new());
+    walk_corpus_files(corpus_dir, &mut logs, &mut sidecars);
+    let log_set: HashSet<String> = logs.iter().map(|p| p.display().to_string()).collect();
+    let sidecar_set: HashSet<String> = sidecars.iter().map(|p| p.display().to_string()).collect();
+    let mut orphans = Vec::new();
     let mut samples = Vec::with_capacity(sidecars.len());
     for j in &sidecars {
-        let log_path = PathBuf::from(j.to_string_lossy().trim_end_matches(".json"));
-        if !log_path.is_file() {
+        let sc_str = j.display().to_string();
+        let log_str = sc_str.strip_suffix(".json").unwrap_or(&sc_str).to_string();
+        if !log_set.contains(&log_str) {
+            orphans.push(orphan(corpus_dir, j, MissingSide::Log));
             continue;
         }
+        let log_path = PathBuf::from(&log_str);
         let sc: Sidecar = serde_json::from_str(
             &std::fs::read_to_string(j)
                 .map_err(|e| format!("sidecar 读取失败 {}: {e}", j.display()))?,
@@ -177,9 +219,16 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
             noise_hits: r.noise_rule_hits,
         });
     }
+    for l in &logs {
+        if !sidecar_set.contains(&format!("{}.json", l.display())) {
+            orphans.push(orphan(corpus_dir, l, MissingSide::Sidecar));
+        }
+    }
+    orphans.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(Collected {
         samples,
         rule_ids: rules.iter().map(|r| r.id.clone()).collect(),
+        orphans,
     })
 }
 

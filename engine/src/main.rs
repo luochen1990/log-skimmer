@@ -40,7 +40,7 @@ enum Cmd {
     /// L0 全语料回归门禁 (采集→汇总→判定; 退出码 0=pass / 1=fail / 2=语料或规则非法)
     #[command(hide = true)] // 内部 CI 工具, 不占公共帮助面 (issue #16)
     L0 {
-        /// 语料根目录 (含 *.log + *.log.json 递归)
+        /// 语料根目录 (递归; 样本 = *.log + 同名 *.log.json 配对, 单侧缺失的孤儿样本 stderr 警告并跳过)
         #[arg(long)]
         corpus: PathBuf,
         /// 规则目录
@@ -140,6 +140,15 @@ fn l0_cmd(
         eprintln!("l0 采集失败: {e}");
         std::process::exit(2);
     });
+    // 孤儿样本可见性 (issue #46): 配对缺口逐条 stderr 警告 (已跳过, 不计数) —
+    // 自组语料的命名手误可见, 门禁不因配对缺口静默缩水; 是否升级硬错误留需求方。
+    for o in &collected.orphans {
+        let side = match o.missing {
+            log_skimmer::l0::MissingSide::Sidecar => "sidecar (*.log.json)",
+            log_skimmer::l0::MissingSide::Log => "日志 (*.log)",
+        };
+        eprintln!("l0: 警告: 孤儿样本 {} 缺 {side}, 已跳过 (不计数)", o.path);
+    }
     let summary = log_skimmer::l0::summarize(&collected);
     if emit_summary {
         println!("{}", serde_json::to_string_pretty(&summary).unwrap());

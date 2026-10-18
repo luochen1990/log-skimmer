@@ -10,6 +10,11 @@ const RULE_FAILURE: &str = "id: t-hit\ntitle: h\ntool: t\nscope: global\nkind: s
 /// warning 规则 (相邻行可与 RULE_FAILURE 合并进同块, 验证代表 fragment 选择)。
 const RULE_WARNING: &str = "id: t-warn\ntitle: w\ntool: t\nscope: global\nkind: signal\nintent: warning\ncategory: lint\npatterns:\n  - regex: '^WARN'\n";
 
+/// 引擎仓 fixture 规则集 (l0 e2e 用 — 与 engine/tests/l0.rs 同源)。
+fn fixtures_rules() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/rules")
+}
+
 /// 唯一 temp 目录下建规则目录 + 日志文件, 返回 (rules_dir, log_path)。
 fn fixture(name: &str, rule_yamls: &[&str], log_content: &str) -> (PathBuf, PathBuf) {
     let dir = std::env::temp_dir().join(format!("ls-cli-contract-{name}"));
@@ -202,6 +207,58 @@ fn l0_hidden_from_public_help() {
     assert!(
         !help_text.lines().any(|l| l.trim_start().starts_with("l0")),
         "l0 子命令不应出现在公共帮助 Commands 区: {help_text}"
+    );
+}
+
+// #46: 孤儿样本 (单侧在场) 可见性 — 混在场时 stderr 逐条警告 (文件名 + 缺侧 + 已跳过),
+// 不计数不升级 (是否硬错误留需求方裁决); 门禁不因配对缺口静默缩水。
+#[test]
+fn l0_orphan_sample_warned_and_skipped() {
+    let dir = std::env::temp_dir().join("ls-cli-contract-l0-orphan");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // 1 个配对样本 (failure, 命中 fixture gha 规则) + 1 个孤儿 (有 .log 无 sidecar)
+    std::fs::write(dir.join("a.log"), "##[error]boom\n").unwrap();
+    std::fs::write(
+        dir.join("a.log.json"),
+        r#"{"repo":"github.com/x/y","conclusion":"failure","attempt":1}"#,
+    )
+    .unwrap();
+    std::fs::write(dir.join("b.log"), "##[error]orphan\n").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_log-skimmer"))
+        .args(["l0", "--corpus", dir.to_str().unwrap(), "--rules", fixtures_rules()])
+        .output()
+        .unwrap();
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "1<50 → 判定层 fail (corpus-missing), 孤儿只警告不升级"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("b.log"), "孤儿文件名应出现在警告: {stderr}");
+    assert!(
+        stderr.contains("缺 sidecar") && stderr.contains("跳过"),
+        "警告应含缺侧与跳过语义: {stderr}"
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let v: serde_json::Value =
+        serde_json::from_str(&stdout).unwrap_or_else(|e| panic!("stdout 应为 verdict JSON ({e}): {stdout}"));
+    assert_eq!(v["stats"]["samples"], 1, "孤儿不计数: {stdout}");
+}
+
+// #46: --corpus 说明声明配对语义 (样本 = *.log + 同名 .log.json, 单侧缺失警告跳过) —
+// 帮助面与采集行为一致, 自组语料者的命名手误可自查。
+#[test]
+fn l0_help_documents_pairing_semantics() {
+    let out = Command::new(env!("CARGO_BIN_EXE_log-skimmer"))
+        .args(["l0", "--help"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("同名"),
+        "l0 --help 的 --corpus 应声明配对语义: {stdout}"
     );
 }
 
