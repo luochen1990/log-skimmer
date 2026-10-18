@@ -97,7 +97,7 @@ Exit code semantics (caller contract):
 | Exit code | Meaning | Caller action |
 | --- | --- | --- |
 | 0 | Completed normally | Consume the output |
-| 2 | Data error: invalid rule set (load-time validation failed) / log read failure / empty log (0 lines, likely a truncated download) | Fix the data, then retry |
+| 2 | Data error: invalid rule set (load-time validation failed) / log read failure / empty or whitespace-only log (0 lines or all-whitespace lines, likely a truncated download) | Fix the data, then retry |
 | 3 | Zero-block blindness — the rule set matched nothing in this log | Unconditionally fall back to the `rg -i 'error\|warn'` baseline |
 | 64 | Usage error — argument parsing failed (BSD sysexits `EX_USAGE`; `--help`/`--version` still exit 0) | Check the command spelling (clap output on stderr); fixing data won't help |
 

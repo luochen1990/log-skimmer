@@ -504,12 +504,78 @@ fn zero_block_guard_unconditional() {
     assert_eq!(out2.status.code(), Some(0), "有块 → exit 0");
 }
 
-/// A0 行归一 (spec §2): CRLF 剥 \r / 空输入零行 / 尾部空行不计 — 三方消费的唯一行预处理。
+/// A0 行归一 (spec §2): CRLF 剥 \r / 空输入零行 / 尾部空行不计 / 首部 BOM 剥除
+/// (#78) — 三方消费的唯一行预处理。
 #[test]
 fn a0_normalize_lines() {
     assert_eq!(log_skimmer::normalize_lines("a\r\nb\r\n"), vec!["a", "b"]);
     assert_eq!(log_skimmer::normalize_lines(""), Vec::<String>::new());
     assert_eq!(log_skimmer::normalize_lines("a\n\n"), vec!["a", ""]);
+    // #78a: 首部 UTF-8 BOM (U+FEFF = EF BB BF) 归一层剥除, 输出不回显 BOM 字节;
+    // 仅文件最前一处 — 行中/非首行的 U+FEFF 是普通字符 (ZWNBSP), 不剥。
+    assert_eq!(
+        log_skimmer::normalize_lines("\u{feff}error: x\n"),
+        vec!["error: x"]
+    );
+    assert_eq!(
+        log_skimmer::normalize_lines("\u{feff}a\r\nb\r\n"),
+        vec!["a", "b"]
+    );
+    // 仅 BOM: 剥除后 0 行 (归 Empty); BOM+换行: 剥除后余 1 空行 (归 WhitespaceOnly)
+    assert_eq!(
+        log_skimmer::normalize_lines("\u{feff}"),
+        Vec::<String>::new()
+    );
+    assert_eq!(log_skimmer::normalize_lines("\u{feff}\n"), vec![""]);
+    assert_eq!(
+        log_skimmer::normalize_lines("a\u{feff}b\nc"),
+        vec!["a\u{feff}b", "c"]
+    );
+    assert_eq!(
+        log_skimmer::normalize_lines("a\n\u{feff}b"),
+        vec!["a", "\u{feff}b"]
+    );
+}
+
+/// 输入三分类谓词 (spec §3, issues #71/#78): `classify_input` 单点口径 —
+/// 空白判定 = 每行所有字符均满足 `char::is_whitespace` (Unicode, 含全角空格 U+3000)。
+/// CLI (exit 2 数据错误族) 与 MCP 入口校验 (invalid_params) 消费同一谓词。
+#[test]
+fn classify_input_table() {
+    use log_skimmer::InputClass;
+    let cls = |raw: &str| log_skimmer::classify_input(&log_skimmer::normalize_lines(raw));
+    // Empty: 0 行 (空输入; 或仅 BOM — 剥除后为空)
+    assert_eq!(cls(""), InputClass::Empty);
+    assert_eq!(cls("\u{feff}"), InputClass::Empty);
+    // WhitespaceOnly: ≥1 行且全为空白行 (空行/ASCII 空白/Unicode 空白)
+    assert_eq!(
+        log_skimmer::classify_input(&["".to_string()]),
+        InputClass::WhitespaceOnly
+    );
+    assert_eq!(
+        log_skimmer::classify_input(&[" \t".to_string()]),
+        InputClass::WhitespaceOnly
+    );
+    assert_eq!(
+        log_skimmer::classify_input(&["\u{3000}".to_string()]), // 全角空格
+        InputClass::WhitespaceOnly
+    );
+    assert_eq!(
+        log_skimmer::classify_input(&["".to_string(), "   ".into()]),
+        InputClass::WhitespaceOnly
+    );
+    assert_eq!(cls("\u{feff}\n"), InputClass::WhitespaceOnly);
+    // Content: 至少一行含非空白字符 (混空白行也归 Content)
+    assert_eq!(
+        log_skimmer::classify_input(&["".to_string(), "x".into()]),
+        InputClass::Content
+    );
+    assert_eq!(
+        log_skimmer::classify_input(&["\u{3000}".to_string(), "a".into()]),
+        InputClass::Content
+    );
+    assert_eq!(cls("\u{feff}error: boom\n"), InputClass::Content);
+    assert_eq!(cls("plain\n"), InputClass::Content);
 }
 
 // Display 名与 serde 序列化名恒一致 (issue #16): CLI 人类可读块头的 intent/category

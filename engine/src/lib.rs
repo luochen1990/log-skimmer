@@ -496,12 +496,40 @@ fn out_span(rule: &Rule, block: (usize, usize), n: usize) -> (usize, usize) {
     )
 }
 
-/// A0 行归一 (spec §2): `lines()` 切行 + 剥尾部 `\r`; 尾部空行不计。
+/// A0 行归一 (spec §2): 首部 UTF-8 BOM 剥除 (#78, 仅文件最前一处; 行中 U+FEFF 是
+/// 普通字符 ZWNBSP 不剥) + `lines()` 切行 + 剥尾部 `\r`; 尾部空行不计。
 /// 引擎/CLI/server 三方唯一行预处理 (SSOT, 禁止各消费点再写同款)。
 pub fn normalize_lines(raw: &str) -> Vec<String> {
-    raw.lines()
+    raw.strip_prefix('\u{feff}')
+        .unwrap_or(raw)
+        .lines()
         .map(|l| l.trim_end_matches('\r').to_string())
         .collect()
+}
+
+/// 输入三分类 (spec §3, issues #71/#78): 归一后日志的内容性判定, 引擎层单点谓词。
+/// CLI (Empty/WhitespaceOnly → exit 2 数据错误族) 与 MCP 入口校验 (→ invalid_params)
+/// 消费同一谓词, 禁止各消费点自写空白判定。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputClass {
+    /// 0 行 (空输入; 或仅 BOM — 剥除后为空)。
+    Empty,
+    /// ≥1 行且全部为空白行。
+    WhitespaceOnly,
+    /// 至少一行含非空白字符。
+    Content,
+}
+
+/// 三分类谓词。空白口径 (规范写死): 每行所有字符均满足 `char::is_whitespace`
+/// (Unicode 空白, 含全角空格 U+3000; 空行 "" 视为空白行)。
+pub fn classify_input(lines: &[String]) -> InputClass {
+    if lines.is_empty() {
+        InputClass::Empty
+    } else if lines.iter().all(|l| l.chars().all(char::is_whitespace)) {
+        InputClass::WhitespaceOnly
+    } else {
+        InputClass::Content
+    }
 }
 
 /// A5/A6/A7 + 统计: 聚合为输出块。

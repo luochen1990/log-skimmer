@@ -2,7 +2,7 @@
 
 > 职责边界: 本文是规则 YAML 格式、逐行状态机语义、fragment 输出协议与 L0 统计口径的**单一事实来源**, 是规则编写者与引擎实现者的共同契约。两者对语义的任何疑问以本文为准; 本文未定义的行为视为未指定 (实现不应依赖)。
 > 英文译本: [rule-format.en.md](rule-format.en.md) (non-normative, 语义歧义以本文为准)。
-> 版本: v0.4 (POC)。v0.1 吸收 T2 实测反馈 (A0); v0.2 吸收第二轮增量建议 (intent/坐标恒带/双粒度/三态与 rerun); v0.3 intent 三分化 (failure|warning|info, 需求方反馈: 非 failure 信息区分问题倾向与纯环境快照); v0.4 规则集 manifest 版本协商 + 未知字段拒载 (issue #59: 引擎 × 规则集兼容性静态可判定)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
+> 版本: v0.5 (POC)。v0.1 吸收 T2 实测反馈 (A0); v0.2 吸收第二轮增量建议 (intent/坐标恒带/双粒度/三态与 rerun); v0.3 intent 三分化 (failure|warning|info, 需求方反馈: 非 failure 信息区分问题倾向与纯环境快照); v0.4 规则集 manifest 版本协商 + 未知字段拒载 (issue #59: 引擎 × 规则集兼容性静态可判定); v0.5 输入三分类 SSOT (issue #71: 纯空白归 exit 2 数据错误族, 零块警示文案分流退役) + A0 首部 BOM 剥除 (issue #78) — 行为语义变更但不触及规则文件格式 (`format_version` 恒 1, 规则零迁移)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
 
 ## 0. 设计灵魂 (约束一切后续演进)
 
@@ -104,7 +104,7 @@ min_engine_version: 0.1.0  # 选填。引擎版本下限, major.minor.patch 完�
 
 ## 2. 状态机语义 (公理 A1-A8)
 
-**A0 行消费语义**: 引擎消费的「行」= 原始行剥去尾部 `\r` (CRLF 归一) 后的字符串; 行号 1-based。宿主前缀 (CI 平台时间戳、ANSI 色码) **不做引擎预处理** — 由规则正则自带容忍 (如锚写 `^(timestamp )?error: `; 实测怪形态见 docs/poc-report.md §5)。
+**A0 行消费语义**: 原始文本先剥去**文件首部**的 UTF-8 BOM (U+FEFF, 字节 EF BB BF; 仅最前一处 — 首行行中与非首行的 U+FEFF 是普通字符 ZWNBSP, 不剥), 再按 `lines()` 切行, 每行剥去尾部 `` (CRLF 归一) 后的字符串; 行号 1-based (BOM 剥除后 L1 即首个内容行, 输出**不回显** BOM 字节)。仅含 BOM 的文件剥除后为 0 行。宿主前缀 (CI 平台时间戳、ANSI 色码) **不做引擎预处理** — 由规则正则自带容忍 (如锚写 `^(timestamp )?error: `; 实测怪形态见 docs/poc-report.md §5)。
 
 **A1 独立扫描**: 每条规则维护独立状态机, 对日志逐行扫描; 规则间互不干扰。
 
@@ -187,9 +187,9 @@ L4: build failed
 - `stats.boundary_violations`: §4「边界完整性 (机械)」违例记录数组, 元素 `{rule, line_no, text}`; 按状态机构造**恒空** (实现哨兵: block 尾行按构造必被该规则某 pattern 消费, 非空 = 引擎实现 bug) — 消费方正常无需读取, 示例中 `[]` 即常态形态。
 - CLI `--context N` (默认按规则自带 context): 显示层全局覆盖为 before=N/after=N, 纯机械按坐标切割, 不需规则参与; 取值 0 ≤ N ≤ 10 (与 §1 规则 `context` 字段、MCP skim `context` 参数同界), 越界为解析期用法错误。
 - CLI 流分离契约: 人类可读输出 (块内容、统计行及其前导空行) 整体走 stdout — `> file` 重定向完整保留输出成果; 错误与警告 (含零块警示) 走 stderr。`--json` 模式 stdout 为纯 JSON, 统计行等诊断走 stderr。
-- 空日志硬拒绝 (exit 2): 0 行日志是数据错误 (疑似下载截断), 不进入零块判定 — 与「空规则集硬拒绝」对称, 宁可显式失败不静默通过。exit 2 族 = 规则集非法 / 日志读取失败 / 日志为空。纯空白文件 (归一后 ≥1 行) 不属此类, 走零块判定; MCP `skim` 的入口语义不同 (参数校验): 空**或纯空白** log_text 一律参数错误拒绝。
+- 输入三分类与空日志硬拒绝 (exit 2, issues #71/#78): 归一后日志由**引擎层单点谓词**三分类 — `Empty` (0 行; 含仅 BOM 文件 — 剥除后为空) / `WhitespaceOnly` (≥1 行且每行所有字符均为 Unicode 空白, 口径写死 `char::is_whitespace`, 含全角空格 U+3000, 空行视为空白行) / `Content` (至少一行含非空白字符)。`Empty` 与 `WhitespaceOnly` 同属**数据错误族** (疑似下载截断或空跑): CLI 侧 exit 2 硬拒绝、不进入零块判定 — 与「空规则集硬拒绝」对称, 宁可显式失败不静默通过; exit 2 族 = 规则集非法 / 日志读取失败 / 日志为空 (0 行或纯空白行)。MCP `skim`/`read_around` 的入口参数校验消费**同一谓词**: `Empty` 或 `WhitespaceOnly` 的 log_text 一律 `invalid_params` (通道不同 — CLI 退出码 / MCP 参数错误, 判定同源)。零块判定 (exit 3) 仅对 `Content` 输入可达 — 纯空白输入彻底离开零块路径, 其排障指引 (检查日志源) 不再与回退 rg 建议同屏。
 - 统计行压缩率: 零块场景显示 `n/a` (无输出即无压缩率, 拒绝 100.0% 伪统计); 其余数字照常输出。
-- CLI 零块警示 (**无条件**, spec §0「召回优先」的运行时配套): 「任何真实 CI 日志 skim 非零」是规则集的**结构承诺**, 由双侧安全网兑现 — 失败侧 (CI 平台 annotation/runner 失败信号规则) + 成功侧 (平台环境 info 规则, 如 runner 版本行; 成功日志至少一条 info 是规则集义务而非建议)。零块 = 规则集对该日志**失明**, 与 job 成败无关 → stderr 醒目警告 + **退出码 3**, 调用方无条件回退 rg 基线。不需要调用方传入任何预期元数据 — 判定完全内生于规则集的覆盖承诺。零块警示**文案**按输入形态分流 (判定与退出码不动, 呈现层细化): 归一后全部行均为空白 = 退化输入, 警示指向日志源排障 (疑下载截断或空跑, 检查日志源); 非退化输入维持失明导向文案 (回退 rg 基线 + 贡献规则指引)。
+- CLI 零块警示 (**无条件**, spec §0「召回优先」的运行时配套): 「任何真实 CI 日志 skim 非零」是规则集的**结构承诺**, 由双侧安全网兑现 — 失败侧 (CI 平台 annotation/runner 失败信号规则) + 成功侧 (平台环境 info 规则, 如 runner 版本行; 成功日志至少一条 info 是规则集义务而非建议)。零块 = 规则集对该日志**失明**, 与 job 成败无关 → stderr 醒目警告 + **退出码 3**, 调用方无条件回退 rg 基线。不需要调用方传入任何预期元数据 — 判定完全内生于规则集的覆盖承诺。零块警示恒为失明导向文案 (回退 rg 基线 + 贡献规则指引): 纯空白输入已在输入三分类处 exit 2 前置拦截, 不达零块路径, 无需按输入形态分流文案 (#51 的分流形态随 #71 纯空白归 exit 2 退役)。
 
 **消费方判定矩阵** (agent 使用契约; warning/info 与成败无关, 不参与判定):
 
@@ -200,7 +200,7 @@ L4: build failed
 | 成功 | 非零 | 非零 | FP (后果轻: 多几行噪音; 验收线容忍, 无须 fallback) |
 | 失败 | 非零 | 非零 | 正常 (失败侧安全网结构保证) |
 | 失败 | 非零 | 0 | **异常** — 已知边界: 日志截断 (runner 崩溃丢尾部失败信号) 或规则失明; 工具无 conclusion 无法自判, 消费方一行检查 `结论=failure 而 failure 块零 → 视同失明 → fallback` |
-- 人类可读输出 (默认): 块间 `---` 分隔, 块头 `[L120-L135] [failure/typecheck] rule1,rule2` (intent/category 取块代表 fragment — intent 优先级 failure > warning > info, 同级 confidence > 块内原序; 语义单点 engine `OutputBlock::representative`, MCP BlockSummary 同源), 后跟文本。
+- 人类可读输出 (默认): 块间 `---` 分隔 (首块前**无前导空行**, 输出顶格开始 — #78b; 块间空行保留作分隔), 块头 `[L120-L135] [failure/typecheck] rule1,rule2` (intent/category 取块代表 fragment — intent 优先级 failure > warning > info, 同级 confidence > 块内原序; 语义单点 engine `OutputBlock::representative`, MCP BlockSummary 同源), 后跟文本。
 
 ### MCP tool 响应协议 (skim / read_around / list_rules)
 
@@ -240,7 +240,7 @@ MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上
 | `fallback` | **仅零块时在场**; 取值域单值 `"no-blocks"` — 在场性即失明判定, 消费方无条件回退 rg 基线 (判定矩阵) |
 | `advice` | **仅零块时在场**; 回退建议文案 (rg 基线命令示例 + 规则贡献指引), 人类可读提示, 非协议解析对象 |
 
-skim 入参校验 (均 `invalid_params`, 含类型错/缺字段, 通道统一见上文 issue #48 段): `log_text` 空或纯空白; `log_text` 超 32MB (建议 `tail -c` 预截取分段提交); `context` 超出 [0,10] (`context` 语义同上文 CLI `--context`)。
+skim 入参校验 (均 `invalid_params`, 含类型错/缺字段, 通道统一见上文 issue #48 段): `log_text` 空或纯空白 (判定源 = 上文输入三分类谓词); `log_text` 超 32MB (建议 `tail -c` 预截取分段提交); `context` 超出 [0,10] (`context` 语义同上文 CLI `--context`)。
 
 **read_around 响应**: `{total_lines, window_start, window_end, truncated, note?, lines[]}` — `window_start`/`window_end` 为实际返回窗口 (末尾收缩与截断之后, 1-based 含端点); `truncated` = 是否因 200 行窗口上限截断 (`line_end` 超出日志末尾收缩到末行**不算**截断); `note` 仅截断时在场, 给出续读起点行号; `lines[]` 为带 `L{n}: ` 前缀的原文行。入参校验 (均 `invalid_params`): `log_text` 空或纯空白或超 32MB; `line_start < 1` 或 `line_start > line_end`; `line_start` 超出日志末行。
 

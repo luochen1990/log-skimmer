@@ -238,18 +238,29 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
             std::process::exit(2);
         })
     };
-    // 行归一: 去 \r (CRLF), 保内容; 尾部空行不计 (A0, engine lib SSOT)。
+    // 行归一: A0 (engine lib SSOT) — 剥首部 BOM (#78), 去 \r (CRLF), 保内容; 尾部空行不计。
     let lines = log_skimmer::normalize_lines(&raw);
-    // 空日志硬拒绝 (issue #13): 0 行 = 疑似下载截断的数据错误, 不进入零块判定
-    // (与「空规则集硬拒绝」哲学对称 — 宁可显式失败, 不静默通过)。
-    if lines.is_empty() {
-        eprintln!("日志为空 (0 行): 疑似下载截断, 拒绝静默通过");
-        std::process::exit(2);
+    // 输入三分类 (issues #71/#78, spec §3): 0 行或纯空白 = 数据错误族 exit 2 硬拒绝,
+    // 不进入零块判定 (与「空规则集硬拒绝」对称 — 宁可显式失败, 不静默通过);
+    // 纯空白彻底离开零块路径, 排障话术 (检查日志源) 不再与回退 rg 建议同屏。
+    match log_skimmer::classify_input(&lines) {
+        log_skimmer::InputClass::Empty => {
+            eprintln!("日志为空 (0 行): 疑似下载截断, 拒绝静默通过");
+            std::process::exit(2);
+        }
+        log_skimmer::InputClass::WhitespaceOnly => {
+            eprintln!(
+                "日志为纯空白 ({} 行均为空白行): 疑似下载截断或空跑, 请检查日志源, 拒绝静默通过",
+                lines.len()
+            );
+            std::process::exit(2);
+        }
+        log_skimmer::InputClass::Content => {}
     }
     let result = log_skimmer::skim(&log_file.display().to_string(), &rules_loaded, &lines);
     let zero_blocks = result.blocks.is_empty();
     // 压缩率 (issue #17): 零块时无意义 → n/a (拒绝 100.0% 伪统计);
-    // input_lines 恒 > 0 (空日志已前置拦截)。
+    // input_lines 恒 > 0 (空/纯空白已在三分类前置拦截, issues #71/#78)。
     let pct = if zero_blocks {
         "n/a".to_string()
     } else {
@@ -272,8 +283,11 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
     } else {
         // 人类可读输出整体走 stdout (issue #10): 块内容与统计行同为「输出成果」,
         // `> out.txt` 重定向完整保留; 错误/警告 (零块警示) 才走 stderr。
-        for b in &result.blocks {
-            println!();
+        for (i, b) in result.blocks.iter().enumerate() {
+            // #78b: 首块前无前导空行 (输出顶格开始); 块间空行保留作块分隔。
+            if i > 0 {
+                println!();
+            }
             let rep = b.representative();
             println!(
                 "--- [L{}-L{}] [{}/{}] {}",
@@ -295,19 +309,10 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
     // 零块警示 (无条件): 「任何真实 CI 日志 skim 非零」是规则集的结构承诺
     // (失败侧 annotation/runner 安全网 + 成功侧 runner 版本 info 规则) — 零块 = 规则集
     // 对该日志失明, 与 job 成败无关, 调用方应无条件回退 rg 基线。
-    // #51 文案分流 (判定与退出码不动): 归一后全为空白行 = 退化输入 (疑下载截断/
-    // 空跑), 警示指向日志源排障 — 与规则失明不同因, 不同文案 (spec §3)。
+    // #71a: 纯空白输入已在上方三分类处 exit 2 前置拦截, 不达此处 — 警示恒为
+    // 失明导向文案, 无需按输入形态分流 (#51 分流形态随纯空白归 exit 2 退役)。
     if zero_blocks {
-        let all_blank = lines.iter().all(|l| l.trim().is_empty());
-        let advice = if all_blank {
-            format!(
-                "⚠ 零提取 — 日志内容为纯空白 ({} 行均为空白行): 疑似下载截断或空跑, 请检查日志源",
-                lines.len()
-            )
-        } else {
-            "⚠ 零提取 — 规则集对该日志失明; 建议回退 rg error|warn && tail 基线; 新工具日志可贡献规则: https://github.com/luochen1990/log-skimmer-rules".to_string()
-        };
-        eprintln!("{advice}");
+        eprintln!("⚠ 零提取 — 规则集对该日志失明; 建议回退 rg error|warn && tail 基线; 新工具日志可贡献规则: https://github.com/luochen1990/log-skimmer-rules");
         std::process::exit(3);
     }
 }

@@ -255,40 +255,97 @@ fn user_visible_output_has_no_spec_refs() {
     );
 }
 
-// #51: 零块警示文案分流 (判定与退出码不动, 仍 exit 3): 归一后全为空白行 =
-// 退化输入 → 指向日志源排障; 非退化输入 → 维持规则失明导向 (rg 回退 + 贡献规则)。
+// #71a (裁决方案a): 纯空白日志 = 数据错误族 → exit 2 硬拒绝, 不再走零块 exit 3。
+// stderr 保留「疑似下载截断…请检查日志源」话术语义 — 该场景彻底离开零块路径,
+// 不再与回退 rg 建议同屏 (#51 的零块文案分流随本变更退役)。
 #[test]
-fn zero_block_blank_log_advice_branches_on_input() {
-    // 分支一: 纯空白日志 (退化输入) — 不再断言「规则集失明」误导排障方向
-    let (rules, log) = fixture("blank51", &[RULE_FAILURE], "\n   \n\t\n");
+fn whitespace_log_rejected_exit_2() {
+    let (rules, log) = fixture("blank71", &[RULE_FAILURE], "\n   \n\t\n");
     let out = run_skim(&rules, &log, &[]);
-    assert_eq!(out.status.code(), Some(3), "纯空白仍走零块判定 exit 3");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "纯空白 → exit 2 (数据错误族), stderr:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("纯空白"), "退化输入文案: {stderr}");
+    assert!(stderr.contains("纯空白"), "stderr: {stderr}");
     assert!(
         stderr.contains("日志源"),
         "应指向日志源排障 (疑下载截断/空跑): {stderr}"
     );
     assert!(
         !stderr.contains("失明") && !stderr.contains("贡献规则"),
-        "纯空白非规则失明, 不得给失明导向文案: {stderr}"
+        "纯空白是数据错误, 不得给失明导向文案: {stderr}"
     );
+    // 块渲染前拒绝: stdout 不得残留统计行/块内容
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        stdout.contains("input 3 lines -> output 0 lines (n/a compression)"),
-        "统计行照常: {stdout}"
-    );
+    assert!(stdout.is_empty(), "exit 2 拒绝应无 stdout 输出: {stdout}");
+}
 
-    // 分支二: 非退化输入零块 — 维持既有失明导向文案 (回退基线 + 贡献规则)
-    let (rules, log) = fixture("blind51", &[RULE_FAILURE], "nothing matchable\nok\n");
+// #71/#78 收敛守护: 非空白输入零块仍走 exit 3 + 失明导向文案
+// (回退基线 + 贡献规则) — 零块路径只剩 Content 输入可达。
+#[test]
+fn zero_block_content_input_keeps_blindness_advice_exit_3() {
+    let (rules, log) = fixture("blind71", &[RULE_FAILURE], "nothing matchable\nok\n");
     let out = run_skim(&rules, &log, &[]);
     assert_eq!(out.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("失明"), "stderr: {stderr}");
     assert!(stderr.contains("贡献规则"), "stderr: {stderr}");
+}
+
+// #78a: 首部 UTF-8 BOM 在 A0 归一层剥除 — L1 锚定规则可命中, 输出不回显 BOM 字节。
+#[test]
+fn bom_prefix_stripped_l1_anchor_matches() {
+    let (rules, log) = fixture("bom78", &[RULE_FAILURE], "\u{feff}ERR boom\n");
+    let out = run_skim(&rules, &log, &[]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "BOM 不得挡住 L1 锚定, stderr:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        !stderr.contains("纯空白"),
-        "非空白输入不得给退化输入文案: {stderr}"
+        stdout.contains("--- [L1-L1] [failure/test] t-hit"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        !stdout.contains('\u{feff}'),
+        "输出不得回显 BOM 字节: {stdout:?}"
+    );
+}
+
+// #78a 配套: 仅 BOM 文件剥除后为 0 行 → 空日志硬拒绝 (exit 2 数据错误族)。
+#[test]
+fn bom_only_log_is_empty_rejected_exit_2() {
+    let (rules, log) = fixture("bom78e", &[RULE_FAILURE], "\u{feff}");
+    let out = run_skim(&rules, &log, &[]);
+    assert_eq!(out.status.code(), Some(2), "仅 BOM → 0 行 → exit 2");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("日志为空 (0 行)"), "stderr: {stderr}");
+}
+
+// #78b: 人类可读输出首块前无前导空行 (输出顶格开始); 块间空行与统计行前空行保留。
+#[test]
+fn human_output_no_leading_blank_line() {
+    let (rules, log) = fixture("lead78", &[RULE_FAILURE], "ERR a\nmid\nERR b\n");
+    let out = run_skim(&rules, &log, &[]);
+    assert_eq!(out.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.starts_with("--- [L1-L1]"),
+        "首块前不得有前导空行: {stdout:?}"
+    );
+    assert_eq!(
+        stdout.matches("\n\n--- [").count(),
+        1,
+        "块间空行保留 (两块恰一处分隔): {stdout:?}"
+    );
+    assert!(
+        stdout.contains("\n\ninput 3 lines"),
+        "统计行前导空行保留: {stdout:?}"
     );
 }
 

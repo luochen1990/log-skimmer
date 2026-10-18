@@ -122,7 +122,7 @@ fn oversized_msg(n: usize) -> String {
 /// skim tool 的输入校验错误 (协议层转 MCP invalid_params, 非 crash)。
 #[derive(Debug, PartialEq, Eq)]
 pub enum SkimInputError {
-    /// log_text 为空串或纯空白 — 无可扫描内容。
+    /// log_text 归一后为空或纯空白 (三分类 Empty/WhitespaceOnly) — 无可扫描内容。
     Empty,
     /// log_text 超过 [MAX_LOG_BYTES], 携带实际字节数。
     Oversized(usize),
@@ -202,18 +202,21 @@ pub fn skim_view(
     log_text: &str,
     context: Option<i32>,
 ) -> Result<SkimOutput, SkimInputError> {
-    if log_text.trim().is_empty() {
-        return Err(SkimInputError::Empty);
-    }
+    // 体积上限先行 (零分配快拒 — 归一层对超大输入的逐行复制在拒绝路径上白付内存)。
     if log_text.len() > MAX_LOG_BYTES {
         return Err(SkimInputError::Oversized(log_text.len()));
+    }
+    // #71/#78: 空白判定收敛为引擎三分类谓词 (与 CLI exit 2 同源, spec §3 单点) —
+    // 归一 (含 BOM 剥除) 后 Empty/WhitespaceOnly 一律参数错误。
+    let lines = log_skimmer::normalize_lines(log_text);
+    if log_skimmer::classify_input(&lines) != log_skimmer::InputClass::Content {
+        return Err(SkimInputError::Empty);
     }
     // 同界单源: 边界表达式从 engine CONTEXT_MAX 构造 (issue #28); i32 侧显式转型
     // (负值天然落在区间外被拒)。文案 "0-10" 是 spec 人话表述, 不随常量动态化。
     if let Some(n) = context.filter(|n| !(0..=CONTEXT_MAX as i32).contains(n)) {
         return Err(SkimInputError::InvalidContext(n));
     }
-    let lines = log_skimmer::normalize_lines(log_text);
     let result = match context {
         None => skim("mcp", rules, &lines),
         Some(n) => skim("mcp", &override_context(rules, n as u32), &lines),
@@ -337,16 +340,17 @@ pub fn read_around_view(
     line_start: i64,
     line_end: i64,
 ) -> Result<ReadAroundResult, ReadAroundError> {
-    if log_text.trim().is_empty() {
-        return Err(ReadAroundError::EmptyLog);
-    }
+    // 体积上限先行 (零分配快拒), 其后与 skim 同一三分类谓词 (#71/#78 收敛单点)。
     if log_text.len() > MAX_LOG_BYTES {
         return Err(ReadAroundError::Oversized(log_text.len()));
+    }
+    let lines = log_skimmer::normalize_lines(log_text);
+    if log_skimmer::classify_input(&lines) != log_skimmer::InputClass::Content {
+        return Err(ReadAroundError::EmptyLog);
     }
     if line_start < 1 || line_end < line_start {
         return Err(ReadAroundError::BadRange(line_start, line_end));
     }
-    let lines = log_skimmer::normalize_lines(log_text);
     let total = lines.len();
     let start = line_start as usize;
     if start > total {
@@ -440,6 +444,20 @@ mod tests {
         assert_eq!(skim_view(&[], "", None).unwrap_err(), SkimInputError::Empty);
         assert_eq!(
             skim_view(&[], "  \n\t \n", None).unwrap_err(),
+            SkimInputError::Empty
+        );
+        // #71/#78: 空白判定收敛为引擎三分类谓词 — 仅 BOM 输入归一层剥成 0 行,
+        // 同一谓词拒绝 (此前 trim 口径把 BOM 当内容放行, 回显 BOM 字节)
+        assert_eq!(
+            skim_view(&[], "\u{feff}", None).unwrap_err(),
+            SkimInputError::Empty
+        );
+        assert_eq!(
+            skim_view(&[], "\u{feff}\n", None).unwrap_err(),
+            SkimInputError::Empty
+        );
+        assert_eq!(
+            skim_view(&[], &"\u{3000}".repeat(3), None).unwrap_err(), // 全角空格
             SkimInputError::Empty
         );
         assert_eq!(
@@ -604,6 +622,11 @@ mod tests {
         );
         assert_eq!(
             read_around_view("", 1, 2).unwrap_err(),
+            ReadAroundError::EmptyLog
+        );
+        // #78: 仅 BOM 输入剥除后 0 行 — 与 skim 同一三分类谓词拒绝
+        assert_eq!(
+            read_around_view("\u{feff}", 1, 2).unwrap_err(),
             ReadAroundError::EmptyLog
         );
     }
