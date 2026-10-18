@@ -46,6 +46,56 @@ fn usage_error_invalid_context_exits_64() {
     assert_usage_error(&["skim", "x.log", "--rules", "R", "--context=-1"]);
 }
 
+// #52b: `--context -1` 的空格形态须抵达值校验器 (invalid value ... not in 0..=10),
+// 不得停在 clap 分词器的死路 tip ("to pass '-1' as a value, use '-- -1'" —
+// 照做仍报错, 无效指引)。等号形态是既有回归基线。
+#[test]
+fn context_negative_space_form_reaches_value_validation() {
+    for form in [
+        vec!["skim", "x.log", "--rules", "R", "--context", "-1"],
+        vec!["skim", "x.log", "--rules", "R", "--context=-1"],
+    ] {
+        let (code, _, stderr) = run(&form);
+        assert_eq!(
+            code, 64,
+            "越界 context 是用法错误, args={form:?}, stderr:\n{stderr}"
+        );
+        assert!(
+            stderr.contains("invalid value '-1'"),
+            "应抵达值校验器给出 invalid value: {stderr}"
+        );
+        assert!(
+            stderr.contains("0..=10"),
+            "越界报错应指明合法区间: {stderr}"
+        );
+        assert!(
+            !stderr.contains("to pass"),
+            "不得给出 '-- --context' 死路 tip: {stderr}"
+        );
+    }
+}
+
+// #52b 配套: 值缺失形态不因 allow_negative_numbers 而退化 — `--context` 后跟
+// 已知 flag 时仍是「缺值」报错, 不把 flag 吞成值 (文案级断言, 防语义漂移)。
+#[test]
+fn context_missing_value_still_detected() {
+    let (code, _, stderr) = run(&["skim", "x.log", "--rules", "R", "--context", "--json"]);
+    assert_eq!(code, 64, "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("a value is required"),
+        "应报缺值而非吞 flag 为值: {stderr}"
+    );
+}
+
+// #52a: 多日志文件是解析期用法错误 (LOG_FILE 只接受一个), exit 64 + clap
+// unexpected argument 文案 (多文件说明走 --help 与 README, 此处钉行为)。
+#[test]
+fn multiple_log_files_is_usage_error() {
+    let (code, _, stderr) = run(&["skim", "a.log", "b.log", "--rules", "R"]);
+    assert_eq!(code, 64, "多文件应 exit 64, stderr:\n{stderr}");
+    assert!(stderr.contains("unexpected argument"), "stderr:\n{stderr}");
+}
+
 #[test]
 fn usage_error_unknown_flag_exits_64() {
     assert_usage_error(&["--bogus"]);

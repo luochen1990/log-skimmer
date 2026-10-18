@@ -36,8 +36,11 @@ enum Cmd {
         // 取值范围同界单源: engine lib 常量 CONTEXT_MAX (spec §1; issue #28) —
         // 与规则 context 字段及 MCP skim 参数共享, 漂移即编译错误;
         // 引用留在源码注释, 不进 help 文案 (用户可见文案去 spec 指针, issue #17)。
-        /// 全局覆盖 context 为 before=N/after=N (默认按规则自带; 取值 0-10, 越界为用法错误)
-        #[arg(long, value_parser = clap::value_parser!(u32).range(0..=log_skimmer::CONTEXT_MAX as i64))]
+        // allow_negative_numbers (issue #52b): `-1` 这类负数字面量被送入值校验器
+        // (invalid value ... not in 0..=10), 而非停在分词器的 `-- -1` 死路 tip;
+        // 仅匹配负数形态, 其余 flag 仍按 flag 识别 (缺值报错不退化, 有 e2e 钉)。
+        /// 全局覆盖 context 为 before=N/after=N (默认按规则自带; 取值 0-10, 越界为用法错误; 以 - 开头的值请用 --context=N 形式)
+        #[arg(long, allow_negative_numbers = true, value_parser = clap::value_parser!(u32).range(0..=log_skimmer::CONTEXT_MAX as i64))]
         context: Option<u32>,
     },
     /// L0 全语料回归门禁 (采集→汇总→判定; 退出码 0=pass / 1=fail / 2=语料或规则非法:
