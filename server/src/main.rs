@@ -6,9 +6,11 @@
 //! 状态机语义在 engine crate (`log_skimmer`) — 本文件零业务逻辑。
 //!
 //! # 装载语义
-//! 定位优先级 (env > exe 相邻 > 编译期源码树) 的 SSOT 在
-//! [log_skimmer_server::resolve_rules_dir] 文档, 此处不重复。
+//! 定位优先级 (env > exe 相邻 > 编译期源码树) 与命中层级的 SSOT 在
+//! [log_skimmer_server::resolve_rules] 文档, 此处不重复。
 //! 装载失败 (目录缺失 / 校验违例 / 零条规则) fail-fast: stderr 中文报错 + exit 2。
+//! 第 3 级 fixture 兜底命中时额外打 stderr 醒目警示行 (issue #56 — 兜底是
+//! 开发形态, 生产部署命中即配置缺失, 不做静默降级)。
 //! stderr 是日志通道 (MCP 协议只占 stdout), 启动行不干扰协议。
 //!
 //! # 消费方判定矩阵 (引用, SSOT 见 docs/rule-format.md §3)
@@ -18,7 +20,7 @@
 //! - warning / info 与成败判定无关。
 
 fn main() {
-    let dir = log_skimmer_server::resolve_rules_dir();
+    let (dir, level) = log_skimmer_server::resolve_rules();
     let rules = match log_skimmer_server::load_ruleset_at(&dir) {
         Ok(r) => r,
         Err(e) => {
@@ -39,6 +41,9 @@ fn main() {
         rules.len(),
         dir.display()
     );
+    if level == log_skimmer_server::RulesLevel::FixtureFallback {
+        eprintln!("{}", log_skimmer_server::FIXTURE_FALLBACK_WARNING);
+    }
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
     if let Err(e) = runtime.block_on(log_skimmer_server::mcp::serve(rules)) {
         eprintln!("{e}");

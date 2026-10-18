@@ -35,30 +35,53 @@ pub const ADVICE_NO_BLOCKS: &str = "零块=失明, 请回退 rg 基线 (如 rg -
 // 规则集装载
 // ---------------------------------------------------------------------------
 
+/// 规则集定位的命中层级 (issue #56): 第 3 级兜底命中时 main 须打 stderr 警示 —
+/// 兜底装载的是开发 fixture 规则集 (远小于真规则集), 「静默成功」会让构建机上
+/// 忘配 env 的部署以降级覆盖面无感运行, 宁可一行刺眼的警告。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RulesLevel {
+    /// 第 1 级: env `LOG_SKIMMER_RULES` 显式指定 (部署方完全可控)。
+    Env,
+    /// 第 2 级: 可执行文件相邻探测 — 以**真实二进制路径**为基准 (`current_exe`
+    /// 解析 symlink), symlink 旁的 rules/ 无效 (issue #54, 语义叙述见 README)。
+    ExeAdjacent,
+    /// 第 3 级: 编译期源码树 fixture 兜底 (开发/单测形态)。
+    FixtureFallback,
+}
+
+/// 第 3 级 fixture 兜底命中时的 stderr 警示行 (issue #56; 文案 SSOT, 测试锚定)。
+pub const FIXTURE_FALLBACK_WARNING: &str = "⚠ 第 3 级 fixture 兜底生效 — 装载的是开发 fixture 规则集 (覆盖面远小于真规则集), 生产部署应配置 LOG_SKIMMER_RULES 或将规则集置于二进制旁";
+
 /// 规则目录定位, 优先级: env `LOG_SKIMMER_RULES` > 可执行文件相邻探测 > 编译期源码树。
-/// pub: main 装载入口需要把「最终定位到的目录」带进启动日志与报错 (装载语义 SSOT 在此)。
+/// 返回 (目录, 命中层级) — 层级判定与目录选取在单函数内原子完成, 不得分叉。
+/// pub: main 装载入口需要把「最终定位到的目录 + 命中层级」带进启动日志与警示
+/// (装载语义 SSOT 在此)。
 ///
 /// - env: 显式指定, 部署方完全可控, 恒最优先;
 /// - exe 相邻: 覆盖两类布局 — 部署形态 (rules 与 bin 同级或 bin 的父目录同级) 与
 ///   cargo 布局 (bin 在 target/{debug,release}/, 仓库根 rules 在 `../../rules`);
+///   探测以真实二进制路径为基准 (symlink 会被解析 — issue #54);
 /// - 编译期 `CARGO_MANIFEST_DIR/../engine/tests/fixtures/rules`: 开发/单测形态兜底
 ///   (fixture 规则集, 离线可跑; 真实规则集独立成仓经 fetch-rules 获取, 四仓拓扑);
 ///   部署后该路径通常不存在, 故排在 exe 相邻之后。
-pub fn resolve_rules_dir() -> PathBuf {
+pub fn resolve_rules() -> (PathBuf, RulesLevel) {
     if let Some(p) = std::env::var_os("LOG_SKIMMER_RULES") {
-        return PathBuf::from(p);
+        return (PathBuf::from(p), RulesLevel::Env);
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             for rel in ["rules", "../rules", "../../rules"] {
                 let cand = dir.join(rel);
                 if cand.is_dir() {
-                    return cand;
+                    return (cand, RulesLevel::ExeAdjacent);
                 }
             }
         }
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../engine/tests/fixtures/rules")
+    (
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../engine/tests/fixtures/rules"),
+        RulesLevel::FixtureFallback,
+    )
 }
 
 /// 装载规则集 (fail-fast 判定点): 目录不存在 / 加载校验失败 / 零条规则均为 Err。
@@ -629,13 +652,19 @@ mod tests {
     }
 
     /// 真规则集集成兜底 (issue #3 双侧安全网 server 侧): 走生产装载路径
-    /// (resolve_rules_dir 编译期默认 → engine/tests/fixtures/rules, 镜像真规则仓
+    /// (resolve_rules 编译期默认 → engine/tests/fixtures/rules, 镜像真规则仓
     /// 布局) 装载完整规则集 — 共享规则集布局演进破坏 server 装载面时在此红,
     /// 归因单一。只断言装载面, 不断言具体规则 (规则语义回归由 L0 门禁 + engine
     /// 侧 rules_load 把守, 规则改名不再波及 server 行为测试)。
     #[test]
     fn real_ruleset_loads_via_production_path() {
-        let rs = load_ruleset_at(&resolve_rules_dir()).expect("生产路径装载真规则集失败");
+        let (dir, level) = resolve_rules();
+        assert_eq!(
+            level,
+            RulesLevel::FixtureFallback,
+            "测试环境默认走第 3 级兜底"
+        );
+        let rs = load_ruleset_at(&dir).expect("生产路径装载真规则集失败");
         assert!(rs.len() >= 2, "真规则集异常稀少 ({})", rs.len());
     }
 
