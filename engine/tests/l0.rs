@@ -46,14 +46,20 @@ fn collect_and_summarize_semantics() {
         "FP 率分母=success 输入行"
     );
 
-    // 压缩率 = 聚合行数比 (主指标域)
+    // 压缩率 = 聚合行数比 (主指标域); 报告口径两位小数收敛 (issue #74:
+    // f64 全精度尾巴在 JSON/stderr 两侧均无信息量, 收敛于计算点单点生效)
     let (i, o, sig) = (
         s.totals.input_lines,
         s.totals.output_lines,
         s.totals.signature_output_lines,
     );
-    assert!((s.totals.comp_blk_pct - 100.0 * (i - o) as f64 / i as f64).abs() < 1e-9);
-    assert!((s.totals.comp_sig_pct - 100.0 * (i - sig) as f64 / i as f64).abs() < 1e-9);
+    let r2 = |x: f64| (x * 100.0).round() / 100.0;
+    assert!((s.totals.comp_blk_pct - r2(100.0 * (i - o) as f64 / i as f64)).abs() < 1e-9);
+    assert!((s.totals.comp_sig_pct - r2(100.0 * (i - sig) as f64 / i as f64)).abs() < 1e-9);
+    // 性质: 值 ×100 近整数 = 至多两位小数 (7 行分母的比值天然带长尾,
+    // 未收敛的原值在此断言下必红)
+    assert!((s.totals.comp_blk_pct * 100.0).fract().abs() < 1e-9);
+    assert!((s.totals.comp_sig_pct * 100.0).fract().abs() < 1e-9);
 }
 
 /// 判定: 合规 summary → pass (断言族全绿, 单测模式)。
@@ -67,6 +73,42 @@ fn gate_pass_on_compliant_summary() {
     assert!(v.compression_compare.mode.contains("单测"));
     s.totals.fn_samples = 0; // clippy: s 有后续读者前的确定性
     let _ = s;
+}
+
+/// stderr 单行摘要自解释 (issue #74): pass 时验收线也一眼可见 — 零阈值断言族
+/// `值/上限`, 方向性断言 `≤/≥`; 阈值字面量从常量派生 (改常量断言同步变)。
+#[test]
+fn gate_summary_line_pairs_values_with_thresholds() {
+    let s = ok_summary();
+    let v = l0::gate(&s, None, false);
+    assert_eq!(v.verdict, "pass");
+    let line = v.summary_line();
+    assert!(line.contains("verdict=pass"), "{line}");
+    assert!(line.contains("FN=0/0"), "{line}");
+    assert!(
+        line.contains(&format!("FP率=0.00%≤{}%", l0::FP_MAX_PCT)),
+        "{line}"
+    );
+    assert!(line.contains("零块=0/0"), "{line}");
+    assert!(line.contains("边界违例=0/0"), "{line}");
+    assert!(
+        line.contains(&format!(
+            "语料={}≥{}",
+            s.structural.samples_total,
+            l0::MIN_SAMPLES
+        )),
+        "{line}"
+    );
+    // fail 形态同格式: 超标值与验收线同在, 一眼可见差距
+    let mut bad = ok_summary();
+    bad.totals.fn_samples = 2;
+    bad.totals.fp_rate_pct = l0::FP_MAX_PCT + 0.5;
+    let v = l0::gate(&bad, None, false);
+    assert_eq!(v.verdict, "fail");
+    let line = v.summary_line();
+    assert!(line.contains("verdict=fail"), "{line}");
+    assert!(line.contains("FN=2/0"), "{line}");
+    assert!(line.contains(&format!("≤{}%", l0::FP_MAX_PCT)), "{line}");
 }
 
 /// 判定: FN>0 → fail + fn violation (spec §0 召回优先)。

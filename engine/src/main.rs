@@ -203,17 +203,7 @@ fn l0_cmd(
     });
     let v = log_skimmer::l0::gate(&summary, base_summary.as_ref(), require_all_rules_hit);
     println!("{}", serde_json::to_string_pretty(&v).unwrap());
-    eprintln!(
-        "l0-gate: verdict={} FN={} FP率={:.2}% 零块={} 边界违例={} 压缩 blk={:.2}% sig={:.2}% 规则零命中={}",
-        v.verdict,
-        v.stats["fn"],
-        v.stats["fp_rate_pct"],
-        v.stats["zero_blocks"],
-        v.stats["boundary_violations"],
-        v.stats["comp_blk_pct"],
-        v.stats["comp_sig_pct"],
-        v.stats["dead_rules"].as_array().map_or(0, |a| a.len())
-    );
+    eprintln!("{}", v.summary_line());
     if v.verdict != "pass" {
         std::process::exit(1);
     }

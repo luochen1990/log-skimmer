@@ -271,6 +271,13 @@ fn ratio_pct(num: f64, den: f64) -> f64 {
     }
 }
 
+/// 两位小数收敛 (issue #74): 压缩率百分比的 f64 全精度尾巴 (98.349999…)
+/// 在 stdout JSON 与 stderr 摘要两侧均无信息量 — 于计算点单点收敛, 数值类型
+/// 不变 (消费方 `--base` 走 serde 数值解析, 双测对比两侧同点收敛)。
+fn round2(x: f64) -> f64 {
+    (x * 100.0).round() / 100.0
+}
+
 fn agg(samples: &[&L0Sample]) -> Agg {
     let mut a = Agg {
         runs: samples.len(),
@@ -292,14 +299,14 @@ fn agg(samples: &[&L0Sample]) -> Agg {
             a.success_info_frags += s.info_frags;
         }
     }
-    a.comp_blk_pct = ratio_pct(
+    a.comp_blk_pct = round2(ratio_pct(
         a.input_lines as f64 - a.output_lines as f64,
         a.input_lines as f64,
-    );
-    a.comp_sig_pct = ratio_pct(
+    ));
+    a.comp_sig_pct = round2(ratio_pct(
         a.input_lines as f64 - a.signature_output_lines as f64,
         a.input_lines as f64,
-    );
+    ));
     a.fp_rate_pct = ratio_pct(a.fp_lines as f64, a.success_input_lines as f64);
     a
 }
@@ -582,5 +589,33 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
         }),
         violations,
         compression_compare: cmp,
+    }
+}
+
+impl Verdict {
+    /// stderr 单行摘要 — 自解释 (issue #74): 阈值对照随行, pass 时验收线也一眼
+    /// 可见, fail 时超标值与线同在。零阈值断言族用 `值/上限` (FN/零块/边界违例),
+    /// 方向性断言用 `≤/≥` (FP 率上限 / 语料下限, 阈值字面量从常量派生);
+    /// 压缩率无数值阈值 (双测对比专用) 与 规则零命中 (默认无断言) 只报值。
+    /// 注: 值须经 as_f64/as_u64 取出后再 {:.2} 格式化 — serde_json::Value 的
+    /// Display 忽略 precision 参数 (master 曾因此漏出全精度尾巴)。
+    pub fn summary_line(&self) -> String {
+        let num = |k: &str| self.stats[k].as_f64().unwrap_or(0.0);
+        let cnt = |k: &str| self.stats[k].as_u64().unwrap_or(0);
+        format!(
+            "l0-gate: verdict={} FN={}/0 FP率={:.2}%≤{}% 零块={}/0 边界违例={}/0 \
+             语料={}≥{} 压缩 blk={:.2}% sig={:.2}% 规则零命中={}",
+            self.verdict,
+            cnt("fn"),
+            num("fp_rate_pct"),
+            FP_MAX_PCT,
+            cnt("zero_blocks"),
+            cnt("boundary_violations"),
+            cnt("samples"),
+            MIN_SAMPLES,
+            num("comp_blk_pct"),
+            num("comp_sig_pct"),
+            self.stats["dead_rules"].as_array().map_or(0, |a| a.len()),
+        )
     }
 }
