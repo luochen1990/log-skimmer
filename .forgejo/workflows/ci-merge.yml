@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# 薄入口骨架 — org 标准 CI P0 合入门禁 ci-merge (v3.0, 2026-09-16; 三档分级
+# 薄入口骨架 — org 标准 CI P0 合入门禁 ci-merge (v3.3, 2026-10-18; 三档分级
 # ci-merge/ci-deploy/ci-periodic 见 lc-studio/forgejo-actions README)
 # ─────────────────────────────────────────────────────────────────────────────
 # 使用: 复制到目标仓库 .forgejo/workflows/ci-merge.yml, 拷贝 SSOT 的
@@ -14,6 +14,10 @@
 #   骨架层  本文件 (含内联 checkout 链) — check-drift 结构断言锁死, 人工不改 (除 ⟦⟧ 字段)
 #   逻辑层  .forgejo/actions/skip-if-passed — 机器同步分发, 人工不改 (改 SSOT 上游)
 #   契约层  justfile 的 `ci-merge` recipe — 各仓库自由实现
+#
+# [v3.3] 新增 Nix syntax gate step: .nix 变更纯解析冒烟 (nixos#1900 — log-skimmer
+#   PR 曾在 flake.nix 误写列表闭合 `]);`, ci-merge 全链未拦)。逐文件
+#   nix-instantiate --parse, 仅 .nix 有变更时跑; check-drift L2 同步 +3 断言。
 #
 # [v3.0] 契约整体改名: ci → ci-merge (门禁语义命名; 存量仓库迁移手册见 README)。
 #
@@ -115,6 +119,50 @@ jobs:
         # 不依赖读者知晓该规则; 效果: checkout 失败时不进空 workspace 跑探针
         if: success() && github.event_name == 'push'
         continue-on-error: true
+
+      # Nix 语法门禁 — .nix 变更纯解析冒烟 (v3.3, nixos#1900): log-skimmer PR 曾在
+      # flake.nix 误写 packages 列表闭合 (`]);`), ci-merge 全链未拦 (vm-nix 契约禁止
+      # VM 内求值 flake — ro store), 直到人工本地 nix develop 才炸。本步用
+      # nix-instantiate --parse 补口: 纯解析零求值 (abort/throw/import 均不执行)、
+      # 零 store 写 (不连 daemon, ro store 契约兼容)、NIX_PATH 无关 (<nixpkgs> 查找
+      # 路径是求值期语义, 解析期只认字面量 — flake.nix 顶层 {…} 函数/attrset 按普通
+      # 表达式解析即可, 无需任何求值上下文)。Lix 实现附带 parse-time 名字分析:
+      # undefined variable 一并拦 (with 动态作用域不误报), 比 CppNix 多一层免费
+      # 覆盖。清单为空直通, 有失败即红并逐文件点名。
+      - name: Nix syntax gate
+        # success() 同上 (显式默认门); skip 同 SHA 已验证过则本门禁一并跳过
+        if: success() && steps.skip.outputs.should_skip != 'true'
+        env:
+          # PR 事件: base tip sha (事件 payload) — checkout 链已 fetch 其对象, 且
+          # deploy key 已清理无法再补 fetch, 只能就地取材做三点 diff
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            # 三点 diff 取本 PR 变更集; --diff-filter 去 D (已删文件无从解析),
+            # rename 旧路径由下方 -f 存在性判断兜底
+            files="$(git diff --name-only --diff-filter=ACMR "${BASE_SHA}...${GITHUB_SHA}" -- '*.nix')"
+          else
+            # 非 PR 事件 (push master / dispatch): checkout 链是 --depth 1 浅克隆,
+            # 无 HEAD~1 — 退化为全量 .nix 冒烟 (org 仓 .nix 数量级小, 成本毫秒级)
+            files="$(git ls-files -- '*.nix')"
+          fi
+          if [ -z "$files" ]; then
+            echo "无 .nix 变更, 直通"
+            exit 0
+          fi
+          echo "nix 语法门禁: ${files//$'\n'/ }"
+          status=0
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            # 纯解析: 错误定位 (文件+行列) 由 nix-instantiate 原样打到 stderr
+            if ! nix-instantiate --parse "$f" >/dev/null; then
+              echo "✗ $f: nix 语法错误"
+              status=1
+            fi
+          done <<< "$files"
+          if [ "$status" -eq 0 ]; then echo "✓ nix 语法门禁通过"; fi
+          exit "$status"
 
       # 质量门禁 — 契约层入口, 各仓库 justfile 实现 `ci-merge` recipe:
       # 快步骤先行 (fmt/lint/typecheck 先于慢测试), 阻塞级, 零参数, 失败即红。
