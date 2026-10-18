@@ -3,7 +3,7 @@
 > Non-normative English translation. In case of any discrepancy, the normative reference is [docs/rule-format.md](rule-format.md) (Chinese, SSOT).
 >
 > Scope: this specification — normative in its Chinese version — is the **single source of truth** for the rule YAML format, the line-by-line state machine semantics, the fragment output protocol, and the L0 statistics criteria; it is the shared contract between rule authors and engine implementers. For either side, any question about semantics is settled by the normative version; behavior not defined there is unspecified (implementations must not rely on it).
-> Version: v0.3 (POC). v0.1 absorbed T2 field-test feedback (A0); v0.2 absorbed a second round of incremental suggestions (intent/always-on coordinates/dual granularity/three states & rerun); v0.3 split intent three ways (failure|warning|info, requester feedback: distinguish problem-prone signals from pure environment snapshots among non-failure information). Fields evolve forward by addition only, never removal; semantic changes must bump the version and migrate rules.
+> Version: v0.4 (POC). v0.1 absorbed T2 field-test feedback (A0); v0.2 absorbed a second round of incremental suggestions (intent/always-on coordinates/dual granularity/three states & rerun); v0.3 split intent three ways (failure|warning|info, requester feedback: distinguish problem-prone signals from pure environment snapshots among non-failure information); v0.4 added the ruleset manifest version negotiation + unknown-field rejection (issue #59: engine × ruleset compatibility becomes statically decidable). Fields evolve forward by addition only, never removal; semantic changes must bump the version and migrate rules.
 
 ## 0. Design Soul (constrains all future evolution)
 
@@ -78,6 +78,30 @@ Closed `category` enum (finalized by survey, see docs/category-survey.md; two mi
 | `unknown` | Fallback | Cannot be uniquely categorized |
 
 Labeling discipline (**prefer missing over wrong**): mislabeling pollutes query semantics (agents filter programmatically; undetectable), while unknown only loses that one rule's filtering value. Use unknown when: multiple causes mixed / category outside the enum (a signal for set evolution — record samples in the PR) / insufficient samples / L0 backtesting finds a rule matching multiple categories. An unknown share persistently >40% triggers a set review; upgrading an unknown to a named category goes through PR with human confirmation. flaky is an attribute, not a category — it does not enter category (a separate dimension in the future).
+
+### 1.M Ruleset Manifest (set-level version negotiation, optional)
+
+A ruleset root may carry a `manifest.yaml` (a single set-level file, not a per-rule field; the exact filename `manifest.yaml` is a reserved filename at the ruleset root — it is not parsed as a rule). The engine and the ruleset evolve independently (README "Repository Topology"); version negotiation makes the compatibility of an "engine × ruleset" combination **statically decidable**: a downstream packager pinning both sources (engine tag + ruleset rev) can upgrade either side alone and learn compatibility from a single load attempt instead of a full regression.
+
+```yaml
+# manifest.yaml (ruleset root, optional)
+format_version: 1          # required. Rule-format version, integer (currently 1)
+min_engine_version: 0.1.0  # optional. Engine version floor, full major.minor.patch numeric triple
+```
+
+Loading semantics (validated when the engine loads a ruleset; a violation = **invalid ruleset**, rejected as a whole, exit 2 — the same "invalid ruleset" exit-code family as the §1 field constraints):
+
+| Check | Violation | Rejection-message requirements |
+| --- | --- | --- |
+| Format version | `format_version` > the version supported by the engine | State the ruleset's declared version and the engine's supported version; suggest upgrading the engine |
+| Engine floor | the engine's own version (build-time `CARGO_PKG_VERSION`) < `min_engine_version` | State the engine version the ruleset needs and this engine's version; suggest upgrading the engine or rolling back the ruleset |
+| Manifest itself | YAML parse failure / unknown field / malformed `min_engine_version` | State the manifest's specific defect |
+
+- **No manifest → loads as before** (backward-compatibility window): absence means no constraint; existing rulesets are unaffected. The manifest is an interface for rulesets (e.g. log-skimmer-rules) to adopt later; the adoption timing is the rules repo's own decision.
+- **Version comparison**: both sides compare as plain `major.minor.patch` numeric triples, no semver library; the triple must be complete and purely numeric (`1` / `1.2` / `1.x.0` are all invalid).
+- **Unknown-field rejection (deny_unknown_fields)**: deserialization of rule files (including pattern items and context items) and of the manifest rejects unknown fields — a future new field changes on old engines from "silently ignored" to "explicitly rejected". Silent drift (rule semantics changed while extraction results drift unnoticed) is more dangerous than rejection; introducing a new field must come with engine-side support, otherwise old engines reject explicitly via this section's checks.
+- Rejection messages are self-explanatory: which check failed + a suggested action, so the consumer immediately knows which side to upgrade.
+- The §1 reserved fields `structured-hint` (YAML hyphenated form) / `attribution` are known fields (not consumed in POC); their presence is legal.
 
 ## 2. State Machine Semantics (Axioms A1–A8)
 
