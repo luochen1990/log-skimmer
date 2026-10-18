@@ -135,8 +135,10 @@ Claude Desktop (`claude_desktop_config.json` 的 `mcpServers` 段; 环境变量�
 规则集定位 (启动时一次性解析, 目录不存在 / 无 `*.yaml` / 加载校验失败均 fail-fast 退出码 2):
 
 1. 环境变量 `LOG_SKIMMER_RULES` 指向的**规则集目录** (log-skimmer-rules 仓的 clone, 含 `*.yaml`) — 已设置即采用、不回落后续探测 (指向无效目录直接 fail-fast; 路径存在但不是目录时如实报「不是目录」而非「不存在」), 规则集不在二进制旁时的标准部署手段。设为**空串**同样 fail-fast — 报错点名 `LOG_SKIMMER_RULES 为空串`, 不静默跳过探测 (可暴露部署脚本里的空变量传递);
-2. 缺省探测 — 可执行文件所在目录依次尝试相邻的 `rules/` → `../rules/` → `../../rules/` (首个为目录者生效; 覆盖「rules 与 bin 同级」部署布局与 cargo `target/{debug,release}/` 构建布局);
-3. 编译时嵌入的本仓源码树 fixture 路径 — 开发/单测形态兜底, 部署后通常不存在。
+2. 缺省探测 — 可执行文件所在目录依次尝试相邻的 `rules/` → `../rules/` → `../../rules/` (首个为目录者生效; 覆盖「rules 与 bin 同级」部署布局与 cargo `target/{debug,release}/` 构建布局)。注意探测基准是**真实二进制路径** (`current_exe` 会解析 symlink): symlink 安装形态 (如 `/usr/local/bin/x -> /opt/pkg/bin/x`) 下, 放在 **symlink 旁**的 `rules/` **不会**被找到 — 请将规则集置于真实二进制旁, 或直接用 `LOG_SKIMMER_RULES`;
+3. 编译时嵌入的本仓源码树 fixture 路径 — 开发/单测形态兜底, 部署后通常不存在。**注意**: 构建机上源码树在场且未配置 env/相邻 rules 时, 此级会**装载成功** — 但装的是开发 fixture 规则集 (覆盖面远小于真规则集), 失败日志可能漏检。每次命中此级启动都会在 stderr 打一行醒目的 `⚠ fixture 兜底` 警示; 生产环境看到它即说明该配置 `LOG_SKIMMER_RULES` 了。
+
+**规则集 manifest (可选版本契约)**: 规则集根目录可携带 `manifest.yaml`, 声明 `format_version` (规则格式版本, 当前 1) 与选填的 `min_engine_version` (引擎版本下限, `major.minor.patch`)。装载时引擎校验: 声明的格式版本超出引擎支持 / 引擎版本低于下限 → 拒载 (exit 2, 文案自解释 — 指明失败的校验项与补救动作); 规则文件与 manifest 的未知字段同样显式拒载而非静默忽略。无 manifest 的规则集照常装载 (向后兼容窗口)。由此「引擎 × 规则集」兼容性可静态判定 — 下游打包方双源 pin 可单侧升级, 一次装载即知兼容与否, 无需全量回归 (规范: docs/rule-format.md §1.M)。
 
 输入上限 (**仅 MCP 侧**): 单条 `log_text` 超过 32MB 报 invalid_params 并建议 `tail -c` 截取后分段提交; CLI 文件输入 (`skim <log>`) 无此限制。
 
