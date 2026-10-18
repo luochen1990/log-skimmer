@@ -11,7 +11,7 @@ CI 日志高信噪比提取工具 — 以确定性规则集把失败的 CI 日�
 AI agent 排查 CI 失败时, 日志消费存在结构性困境:
 
 - **全量日志太大**: 一次失败的 job 动辄数千上万行, 整体塞进上下文既昂贵, 又让关键错误淹没在噪音里。
-- **关键词基线假阳性高**: agent 的保底手段 `rg -i 'error|warn'` 会把成功 job 里大量无害的 warning 字样当成错误信号。POC 实测: 该基线在 18 个成功 job 上产出 **230 行假阳性** (FP 率 100%, 均值 12.8 行/job); Log Skimmer 同口径为 **0 行**。
+- **关键词基线假阳性高**: agent 的保底手段 `rg -i 'error|warn'` 会把成功 job 里大量无害的 warning 字样当成错误信号。POC (概念验证阶段, 产品当前阶段) 实测: 该基线在 18 个成功 job 上产出 **230 行假阳性** (FP 率 100%, 均值 12.8 行/job); Log Skimmer 同口径为 **0 行**。
 - **单行正则抓不住错误树**: nix/rustc 等工具的失败证据是多行结构 (POC 语料中最大的 nix 错误树达 219 行), `rg` 只回显孤立锚行 (错误树的首行, 如 `error: ...`), 支撑「瞥见」但无法支撑「定位」。
 
 Log Skimmer 的解法是**学习型规则集 + 运行期纯正则逐行状态机**: 规则描述「各类工具的失败证据长什么样」(锚行 + 多行扩展), 引擎按规则提取出完整错误树并附加坐标与语义标注。LLM 只在未来学习期 (规则生成 Adapter) 参与, 读取期零 LLM、零网络、结果可复现。
@@ -72,6 +72,7 @@ git clone --depth 1 https://github.com/luochen1990/log-skimmer-rules /path/to/ru
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 
 # JSON 协议 (--json): 块/fragment 结构化坐标与元数据 + L0 统计, 供 agent 程序化消费
+# (L0 = Level-0 门禁: 全语料回归判定的最低层级, l0 子命令实现)
 # (stdout 纯 JSON, 统计行等诊断走 stderr)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --json
 
@@ -158,7 +159,7 @@ nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt +
 ## 贡献指引
 
 - 新增或修改规则: 到 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) 提 PR, 读仓内 README (规则贡献指南与打标纪律)。
-- 规则格式、状态机语义与输出协议的规范 SSOT: [docs/rule-format.md](docs/rule-format.md)。
+- 规则格式、状态机语义与输出协议的规范 SSOT: [docs/rule-format.md](docs/rule-format.md)。规范自带独立版本号 (vN), 与引擎 crate 版本号 (如 0.1.0) 是两条独立的版本轴, 无对应关系。
 
 ### 贡献者本地验证 (纯公开件)
 

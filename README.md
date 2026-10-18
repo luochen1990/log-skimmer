@@ -11,7 +11,7 @@ High signal-to-noise-ratio extraction for CI logs — a deterministic rule set c
 When an AI agent investigates CI failures, log consumption is structurally hard:
 
 - **Full logs are too large**: a single failed job easily spans thousands to tens of thousands of lines. Feeding it wholesale into context is expensive, and the key errors drown in noise.
-- **Keyword baselines produce many false positives**: the agent's fallback, `rg -i 'error|warn'`, treats the many harmless "warning" mentions in successful jobs as error signals. POC measurement: this baseline produced **230 lines of false positives** across 18 successful jobs (FP rate 100%, averaging 12.8 lines/job); Log Skimmer under the same criteria produced **0 lines**.
+- **Keyword baselines produce many false positives**: the agent's fallback, `rg -i 'error|warn'`, treats the many harmless "warning" mentions in successful jobs as error signals. POC (proof-of-concept, the product's current stage) measurement: this baseline produced **230 lines of false positives** across 18 successful jobs (FP rate 100%, averaging 12.8 lines/job); Log Skimmer under the same criteria produced **0 lines**.
 - **Single-line regexes cannot capture error trees**: failure evidence from tools like nix/rustc is multi-line structure (the largest nix error tree in the POC corpus spans 219 lines). `rg` only echoes the isolated anchor line (the first line of an error tree, e.g. `error: ...`) — enough to "glimpse" an error, not to "locate" it.
 
 Log Skimmer's answer is a **learned rule set + a pure-regex, line-by-line state machine at runtime**: rules describe "what failure evidence from each tool looks like" (anchor line + multi-line extension), and the engine extracts complete error trees per those rules, attaching coordinates and semantic annotations. The LLM participates only in the future learning phase (rule-generation Adapter); the reading phase has zero LLM, zero network, and reproducible results.
@@ -74,7 +74,8 @@ Two output forms:
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 
 # JSON protocol (--json): structured coordinates and metadata for blocks/fragments + L0 stats,
-# for programmatic agent consumption.
+# for programmatic agent consumption. (L0 = Level-0 gate: the lowest tier of
+# whole-corpus regression gating, implemented by the `l0` subcommand.)
 # (stdout is pure JSON; diagnostics such as the stats line go to stderr.)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules --json
 
@@ -163,7 +164,7 @@ Regression corpus: [log-skimmer-corpus](https://github.com/luochen1990/log-skimm
 ## Contributing
 
 - To add or modify rules: open a PR in [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) and read that repo's README (rule contribution guide and labeling discipline).
-- Normative SSOT for the rule format, state-machine semantics, and output protocol: [docs/rule-format.md](docs/rule-format.md) (Chinese; see the non-normative English translation in [docs/rule-format.en.md](docs/rule-format.en.md)).
+- Normative SSOT for the rule format, state-machine semantics, and output protocol: [docs/rule-format.md](docs/rule-format.md) (Chinese; see the non-normative English translation in [docs/rule-format.en.md](docs/rule-format.en.md)). The spec carries its own independent version number (vN) — a separate axis from the engine crate version (e.g. 0.1.0); the two have no correspondence.
 
 ### Contributor local verification (public artifacts only)
 

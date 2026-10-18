@@ -105,7 +105,7 @@ Loading semantics (validated when the engine loads a ruleset; a violation = **in
 
 ## 2. State Machine Semantics (Axioms A1–A8)
 
-**A0 line consumption semantics**: a "line" as consumed by the engine = the raw line with the trailing `\r` stripped (CRLF normalization); line numbers are 1-based. Host prefixes (CI platform timestamps, ANSI color codes) get **no engine-side preprocessing** — rules' regexes carry their own tolerance (e.g. an anchor written as `^(timestamp )?error: `; observed odd shapes in docs/poc-report.md §4).
+**A0 line consumption semantics**: a "line" as consumed by the engine = the raw line with the trailing `\r` stripped (CRLF normalization); line numbers are 1-based. Host prefixes (CI platform timestamps, ANSI color codes) get **no engine-side preprocessing** — rules' regexes carry their own tolerance (e.g. an anchor written as `^(timestamp )?error: `; observed odd shapes in docs/poc-report.md §5).
 
 **A1 independent scanning**: each rule maintains an independent state machine scanning the log line by line; rules do not interfere with each other.
 
