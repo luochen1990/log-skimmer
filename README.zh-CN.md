@@ -97,7 +97,9 @@ curl -sL <ci-log-url> | target/release/log-skimmer skim - --rules /path/to/rules
 
 ### MCP server (agent 集成形态)
 
-`log-skimmer-mcp` 以 stdio transport 暴露三个 tool: `skim(log_text, context?)` (提取块 + fragment 摘要 + 压缩统计 (零块时省略); context 取值 0-10, 越界报 invalid_params; 零块时返回 `fallback: "no-blocks"` 与回退建议字段, 不报错) / `read_around(log_text, line_start, line_end)` (按坐标取原文窗口, 单次限 200 行) / `list_rules()` (装载规则清单)。
+`log-skimmer-mcp` 以 stdio transport 暴露三个 tool: `skim(log_text, context?)` (提取块 + fragment 摘要 + 压缩比字段 (零块时省略; stats 对象本身保留); context 取值 0-10, 越界报 invalid_params; 零块时返回 `fallback: "no-blocks"` 与回退建议字段, 不报错) / `read_around(log_text, line_start, line_end)` (按坐标取原文窗口, 单次限 200 行) / `list_rules()` (装载规则清单)。
+
+协议行为: server 在 `initialize` 中自报身份为 `log-skimmer-mcp` (crate 版本), 且仅声明 `tools` 能力。一切参数错误 — 取值越界、类型错误、必填字段缺失 — 统一返回 JSON-RPC `-32602 invalid_params` 错误 (从不用 `isError=true` 正常响应承载), 客户端凭错误码即可判定; 未声明能力的方法 (`resources/*`、`prompts/*`) 返回 `-32601 method not found`。响应可能乱序返回 (按完成序), 客户端应按 `id` 匹配请求与响应。
 
 ```bash
 cargo build --release -p log-skimmer-server
