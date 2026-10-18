@@ -7,8 +7,8 @@
 //! - 64 用法错误 (clap 解析期, BSD sysexits EX_USAGE) — 与运行期 2 分流,
 //!   调用方看到 64 应检查命令拼写而非修数据
 //!
-//! l0 子命令的 0/1/2 判定码是内部 CI 契约 (l0_cmd 运行期发出), 与本文件的
-//! 解析期用法错误正交, 不在此断言。
+//! l0 子命令的 0/1/2 门禁码 (issue #44 分层): 1 = 判定层违例 (质量门禁红),
+//! 2 = 采集层语料/规则非法 (数据错误, 与 skim 侧 exit 2 同族), 解析期用法错误同 64。
 
 use std::process::Command;
 
@@ -126,4 +126,112 @@ fn unreadable_log_file_exits_2() {
         "日志读取失败是运行期数据错误, 应保持 exit 2, stderr:\n{stderr}"
     );
     assert!(stderr.contains("读取日志失败"), "stderr:\n{stderr}");
+}
+
+// ---- l0 门禁码分层 (issue #44): 采集层语料非法 → 2 / 判定层违例 → 1 --------------
+
+/// l0 跑一个小语料目录 (指定 tag 建临时目录), 返回 (exit_code, stdout, stderr)。
+fn run_l0_on(tag: &str) -> (i32, String, String) {
+    let corpus = std::env::temp_dir().join(format!("ls-cli-exit-l0-{tag}"));
+    let _ = std::fs::remove_dir_all(&corpus);
+    std::fs::create_dir_all(&corpus).unwrap();
+    prepare(tag, &corpus);
+    run(&[
+        "l0",
+        "--corpus",
+        corpus.to_str().unwrap(),
+        "--rules",
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/rules"),
+    ])
+}
+
+/// 各用例的语料布景: empty = 空目录; orphan = 仅 b.log (无 sidecar);
+/// small = 1 个配对样本 (failure, 命中 fixture gha 规则)。
+fn prepare(tag: &str, corpus: &std::path::Path) {
+    match tag {
+        "empty" => {} // 不布景: 空目录
+        "orphan" => {
+            std::fs::write(corpus.join("b.log"), "##[error]orphan\n").unwrap();
+        }
+        "small" => {
+            std::fs::write(corpus.join("a.log"), "##[error]boom\n").unwrap();
+            std::fs::write(
+                corpus.join("a.log.json"),
+                r#"{"repo":"github.com/x/y","conclusion":"failure","attempt":1}"#,
+            )
+            .unwrap();
+        }
+        _ => unreachable!("未布景的 tag: {tag}"),
+    }
+}
+
+#[test]
+fn l0_missing_corpus_dir_exits_2() {
+    // 语料目录不存在 = 采集层语料非法 (与 --rules /nonexistent 的规则侧对称),
+    // 不是质量门禁红 — CI 按退出码分诊时「修环境」不得误判为「规则质量回归」。
+    let (code, _, stderr) = run(&[
+        "l0",
+        "--corpus",
+        "/nonexistent-corpus-dir-l0-cli",
+        "--rules",
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/rules"),
+    ]);
+    assert_eq!(
+        code, 2,
+        "语料目录不存在应 exit 2 (语料非法), stderr:\n{stderr}"
+    );
+    assert!(stderr.contains("语料目录不存在"), "stderr:\n{stderr}");
+}
+
+#[test]
+fn l0_zero_paired_samples_exits_2() {
+    // 目录存在但零配对样本 = 采集层面失败 (空语料上拒绝判定/出 summary)。
+    let (code, _, stderr) = run_l0_on("empty");
+    assert_eq!(code, 2, "零配对样本应 exit 2, stderr:\n{stderr}");
+    assert!(stderr.contains("零配对样本"), "stderr:\n{stderr}");
+    // --emit-summary 路径同守卫: CI base 侧消费 summary, 空语料 summary =
+    // 防空转要拦的伪基线 (否则双测对比对空 base 出伪结论)。
+    let corpus = std::env::temp_dir().join("ls-cli-exit-l0-empty");
+    let (code, stdout, _) = run(&[
+        "l0",
+        "--corpus",
+        corpus.to_str().unwrap(),
+        "--rules",
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/rules"),
+        "--emit-summary",
+    ]);
+    assert_eq!(code, 2, "emit-summary 亦不得在空语料上出 summary");
+    assert!(stdout.is_empty(), "不得输出伪基线 summary: {stdout}");
+}
+
+#[test]
+fn l0_orphan_only_corpus_exits_2_with_warning() {
+    // 孤儿-only = 零配对样本: exit 2 (issue #44), 且孤儿警告先行给出线索 (#46)。
+    let (code, _, stderr) = run_l0_on("orphan");
+    assert_eq!(
+        code, 2,
+        "孤儿-only 语料 = 零配对样本 → exit 2, stderr:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("b.log") && stderr.contains("缺 sidecar"),
+        "stderr:\n{stderr}"
+    );
+    assert!(stderr.contains("零配对样本"), "stderr:\n{stderr}");
+}
+
+#[test]
+fn l0_small_corpus_fails_exit_1_with_targeted_note() {
+    // 0<n<50 合法小语料 (定向验证场景) 保持判定层 fail + exit 1 — note 双读法,
+    // 不再单以「疑获取链路故障」指控定向验证的贡献者 (issue #44b)。
+    let (code, stdout, stderr) = run_l0_on("small");
+    assert_eq!(code, 1, "小语料 = 语料在场下限违例 → fail + exit 1");
+    assert!(stderr.contains("verdict=fail"), "stderr:\n{stderr}");
+    assert!(
+        stdout.contains("定向验证"),
+        "corpus-missing note 应分流读法: {stdout}"
+    );
+    assert!(
+        stdout.contains("per_rule_hits"),
+        "note 应指向定向验证正向信号: {stdout}"
+    );
 }

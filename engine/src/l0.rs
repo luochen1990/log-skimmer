@@ -22,6 +22,9 @@
 //!   压缩率防退化 = 双测对比 (base summary 提供 per-repo 基准, 相对退化 >2% 判红;
 //!   未提供则单测模式显式声明 — 引擎仓传 base 引擎实测, 规则仓传 base 规则实测,
 //!   同语料下纯单变量归因)。
+//! 退出码分层 (issue #44, CLI 侧): 采集层语料非法 (目录不存在/零配对样本) →
+//!   exit 2 (与规则侧对称), 语料在场 ≥50 断言只对 0<n<50 生效 — 定向验证小语料
+//!   fail 属预期 (防空转), note 分流「定向验证」与「疑获取链路」两种读法。
 //! 正向验证 (issue #19 B, 贡献闭环「规则确实工作」的信心来源): per_rule_hits
 //!   恒报告 (定义域=装载规则全集, 零命中即死规则); dead_rules 断言仅在该
 //!   规则集全部规则应在语料上生效时开启 (`--require-all-rules-hit`, rules 仓
@@ -143,10 +146,16 @@ pub struct Collected {
     pub orphans: Vec<OrphanSample>,
 }
 
-/// 采集全语料: 规则单次加载, 逐样本 skim。非法规则集/日志读取失败 → Err (fail-fast,
-/// 门禁无兜底); 零块是正常记录 (违例判定在 gate — 结构承诺的失明信号);
+/// 采集全语料: 规则单次加载, 逐样本 skim。非法规则集/语料目录不存在/日志读取失败
+/// → Err (fail-fast, 门禁无兜底); 零配对样本 → Ok 空清单 (exit 2 决策在 CLI,
+/// issue #44); 零块是正常记录 (违例判定在 gate — 结构承诺的失明信号);
 /// 孤儿样本 (单侧在场) 跳过不计数, 见 Collected.orphans。
 pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String> {
+    // 语料目录不存在 = 语料非法 (与 load_rules 的规则目录对称, issue #44) —
+    // 采集层失败不是质量门禁红, CLI 侧映射 exit 2。
+    if !corpus_dir.is_dir() {
+        return Err(format!("语料目录不存在: {}", corpus_dir.display()));
+    }
     let rules = load_rules(rules_dir).map_err(|e| format!("规则集非法: {e}"))?;
     let (mut logs, mut sidecars) = (Vec::new(), Vec::new());
     walk_corpus_files(corpus_dir, &mut logs, &mut sidecars);
@@ -453,7 +462,9 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
         violations.push(Violation {
             kind: "corpus-missing",
             note: format!(
-                "语料样本数异常 ({} <{MIN_SAMPLES}), 疑获取链路故障 — 拒绝在空语料上判定",
+                "语料样本数不足 ({} <{MIN_SAMPLES}) — 定向验证小语料属预期 \
+                 (fail 为防空转设计, 正向信号以 per_rule_hits 为准); \
+                 全量语料下则疑获取链路故障",
                 st.samples_total
             ),
             detail: None,

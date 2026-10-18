@@ -167,7 +167,8 @@ git clone --depth 1 https://github.com/luochen1990/log-skimmer-rules /path/to/ru
 #    whether a specific rule matched is attributed by ③'s per_rule_hits)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 
-# ③ Full gate: whole-corpus regression (FN=0 / FP rate ≤2% / zero-blocks=0) + per-rule hit report
+# ③ Full gate: whole-corpus regression (FN=0 / FP rate ≤2% / zero-blocks=0 /
+#    corpus presence ≥50) + per-rule hit report
 #    (per_rule_hits). Positive signal for a new rule: count ≥1 in per_rule_hits
 #    (i.e. absent from the dead_rules list).
 target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
@@ -178,6 +179,8 @@ target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
 #    scenarios; for targeted verification of a new rule, the signal in ③ is authoritative.
 target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --require-all-rules-hit
 ```
+
+Note on exit codes (l0): a missing corpus dir or zero paired samples is a data error (exit 2 — fix the environment/fetch); running ③ on a hand-assembled mini corpus (<50 paired samples) fails the presence assertion by design (exit 1) — for targeted verification read `per_rule_hits` instead. Samples are `*.log` + same-name `*.log.json` pairs; unpaired orphans are warned on stderr and skipped (not counted).
 
 Please attach a minimal sample log to PRs for new tool rules (provenance convention: spec §5 `samples: self-provided`).
 

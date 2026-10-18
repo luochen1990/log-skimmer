@@ -163,8 +163,8 @@ git clone --depth 1 https://github.com/luochen1990/log-skimmer-rules /path/to/ru
 #    per_rule_hits 归因为准)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 
-# ③ 全量门禁: 全语料回归 (FN=0 / FP率≤2% / 零块=0) + 每规则命中报告 per_rule_hits。
-#    新规则的正向通过信号: 在 per_rule_hits 中计数 ≥1 (即不在 dead_rules 列表)。
+# ③ 全量门禁: 全语料回归 (FN=0 / FP率≤2% / 零块=0 / 语料在场≥50) + 每规则命中报告
+#    per_rule_hits。新规则的正向通过信号: 在 per_rule_hits 中计数 ≥1 (即不在 dead_rules 列表)。
 target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
 
 # ④ 严格模式 (可选): 存在语料零命中规则即 fail。注意现有规则集含公开语料暂无
@@ -172,6 +172,8 @@ target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules
 #    适用于「语料应覆盖全部规则」的场景; 对新规则的定向验证以 ③ 的信号为准。
 target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --require-all-rules-hit
 ```
+
+l0 退出码说明: 语料目录不存在或零配对样本属数据错误 (exit 2, 修环境/取数链路); 以自组小语料 (<50 配对样本) 跑 ③ 会命中语料在场断言而 fail (exit 1) — 定向验证请以 per_rule_hits 为信号。样本 = `*.log` + 同名 `*.log.json` 配对, 单侧缺失的孤儿样本在 stderr 警告并跳过 (不计数)。
 
 新工具规则 PR 请附最小样例日志 (溯源写法见规范 §5 `samples: self-provided` 约定)。
 

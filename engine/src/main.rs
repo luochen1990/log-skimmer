@@ -3,8 +3,9 @@
 //!
 //! 退出码契约 (SSOT 表 + 调用方行为见 README「退出码语义」): 0 正常完成 /
 //! 2 运行期数据错误 (规则集非法、日志读取失败) / 3 零块失明 / 64 解析期用法错误
-//! (BSD sysexits EX_USAGE; --help/--version 走 stdout 仍 0)。l0 判定码 0/1/2 是
-//! 内部 CI 契约 (解析成功后由 l0_cmd 运行期发出), 与解析期 64 正交。
+//! (BSD sysexits EX_USAGE; --help/--version 走 stdout 仍 0)。l0 门禁码 0/1/2
+//! (解析成功后由 l0_cmd 运行期发出): 1=判定层违例 / 2=采集层语料或规则非法
+//! (语料目录不存在/零配对样本/规则集非法, issue #44), 与解析期 64 正交。
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -37,7 +38,8 @@ enum Cmd {
         #[arg(long, value_parser = clap::value_parser!(u32).range(0..=log_skimmer::CONTEXT_MAX as i64))]
         context: Option<u32>,
     },
-    /// L0 全语料回归门禁 (采集→汇总→判定; 退出码 0=pass / 1=fail / 2=语料或规则非法)
+    /// L0 全语料回归门禁 (采集→汇总→判定; 退出码 0=pass / 1=fail / 2=语料或规则非法:
+    /// 语料目录不存在/零配对样本/规则集非法; 0<n<50 小语料属判定 fail — 定向验证以 per_rule_hits 为信号)
     #[command(hide = true)] // 内部 CI 工具, 不占公共帮助面 (issue #16)
     L0 {
         /// 语料根目录 (递归; 样本 = *.log + 同名 *.log.json 配对, 单侧缺失的孤儿样本 stderr 警告并跳过)
@@ -148,6 +150,15 @@ fn l0_cmd(
             log_skimmer::l0::MissingSide::Log => "日志 (*.log)",
         };
         eprintln!("l0: 警告: 孤儿样本 {} 缺 {side}, 已跳过 (不计数)", o.path);
+    }
+    // 零配对样本 = 采集层面失败: 语料非法 exit 2 (issue #44, 与规则侧对称) —
+    // 拒绝在空语料上判定/出 summary (防空转假绿); 孤儿警告已先行给出线索。
+    if collected.samples.is_empty() {
+        eprintln!(
+            "l0: 语料零配对样本 ({}) — 语料非法, 拒绝判定 (检查目录内容/获取链路)",
+            corpus.display()
+        );
+        std::process::exit(2);
     }
     let summary = log_skimmer::l0::summarize(&collected);
     if emit_summary {

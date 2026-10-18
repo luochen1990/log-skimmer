@@ -89,14 +89,58 @@ fn gate_fails_on_fp_rate() {
     assert!(v.violations.iter().any(|x| x.kind == "fp-rate"));
 }
 
-/// 判定: 语料在场不足 → corpus-missing (防空转假绿 — 断言族在空语料上拒绝判定)。
+/// 判定: 语料在场不足 (0<n<50; CLI 路径采集层已保证 n≥1) → fail — 防空转下限;
+/// note 分流两种读法 (issue #44): 定向验证小语料属预期 (正向信号 per_rule_hits),
+/// 全量语料下才是获取链路故障 — 不可单指控后者误导定向验证的贡献者。
 #[test]
 fn gate_fails_on_missing_corpus() {
     let mut s = ok_summary();
     s.structural.samples_total = l0::MIN_SAMPLES - 1;
     let v = l0::gate(&s, None, false);
     assert_eq!(v.verdict, "fail");
-    assert!(v.violations.iter().any(|x| x.kind == "corpus-missing"));
+    let viol = v
+        .violations
+        .iter()
+        .find(|x| x.kind == "corpus-missing")
+        .expect("corpus-missing violation 在场");
+    assert!(viol.note.contains("定向验证"), "note: {}", viol.note);
+    assert!(viol.note.contains("获取链路"), "note: {}", viol.note);
+    assert!(
+        viol.note.contains("per_rule_hits"),
+        "note 应指向定向验证的正向信号: {}",
+        viol.note
+    );
+}
+
+/// 采集: 语料目录不存在 = 语料非法 (与规则目录对称, load_rules 同款 Err) —
+/// CLI 侧映射 exit 2 (issue #44: 采集层面失败不是质量门禁红)。
+#[test]
+fn collect_missing_corpus_dir_is_err() {
+    let e = l0::collect(
+        &PathBuf::from("/nonexistent-corpus-dir-l0-test"),
+        &fixtures().join("rules"),
+    )
+    .unwrap_err();
+    assert!(e.contains("语料目录不存在"), "Err 应点明目录不存在: {e}");
+}
+
+/// 判定: 边界违例 note 如实描述 A4 块尾行哨兵 (issue #43) — spec §4 边界完整性
+/// 检查的是「block 尾行仍被该规则任一 pattern 匹配」, 与 context 取值域无关;
+/// 不得误述为 "context 越界" 或内嵌孤立的 [0,10] 字面量 (CONTEXT_MAX 已单源)。
+#[test]
+fn gate_boundary_note_matches_a4_check() {
+    let mut s = ok_summary();
+    s.structural.boundary_violations = 1;
+    let v = l0::gate(&s, None, false);
+    assert_eq!(v.verdict, "fail");
+    let viol = v
+        .violations
+        .iter()
+        .find(|x| x.kind == "boundary")
+        .expect("boundary violation 在场");
+    assert!(viol.note.contains("尾行"), "note: {}", viol.note);
+    assert!(!viol.note.contains("[0,10]"), "note: {}", viol.note);
+    assert!(!viol.note.contains("context"), "note: {}", viol.note);
 }
 
 /// 判定: 双测压缩率退化 >2% → fail; base 缺 repo → drift 通知不判红。

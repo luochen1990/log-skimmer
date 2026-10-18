@@ -227,10 +227,12 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 
 **rerun 处理** (取数层元数据, 不用正则): sidecar 必带 `attempt`; rerun-through (attempt>1 且最终成功) 排除出主指标; 其失败 attempt 是优质 failure 语料, 按 attempt 结论打标签收进语料库。
 
+**退出码分层** (CLI 契约, issue #44): 采集层非法 — 语料目录不存在 / 零配对样本 / 规则集非法 — 属数据错误, exit 2 (与 skim 侧 exit 2 同族, 调用方修环境而非修规则); 判定层违例 → verdict=fail + exit 1。语料在场 ≥50 断言因此只对 0<n<50 生效: 定向验证小语料的 fail 属预期 (防空转下限, 正向信号以 per_rule_hits 为准), 全量语料下的样本不足才是获取链路故障信号 — corpus-missing note 必须分流这两种读法, 不可单指控后者。
+
 ## 5. 样本与配对 (POC 约定)
 
 - 样本存放: `data/logs/<host>/<owner>/<repo>/<YYYY-MM-DD>/<run_id>-<job_id>-<job_name>-<conclusion>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, created_at, job_name, attempt, ci, fetched_at}` — **嵌套自然路径** (需求方裁决, 弃 `__` 扁平化: 机器遍历用递归 find 无成本, 人类可读性优先 — 日期/触发 job/成败进路径, 裸数字文件名不可读); `repo` 为 **`host/owner/repo` 完整形态** (元数据 SSOT 在 sidecar, 路径仅为可读性投影); conclusion 取 **job 级 result**; `created_at` (run 级) / `job_name` 取数时从 API 元数据写入; `job_name` 清洗规则: `/`与空格→`-`, 截 30 字符。
-- **语料独立仓 (双源, 需求方裁决, 2026-10-16)**: 语料不入引擎仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏。双源形态: ① GHA 侧 (公开仓) 滚动槽位存独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, **源头自包含零依赖** — GHA weekly 自刷槽位, 不构建引擎不算基线), 引擎仓 CI 经幂等拉取脚本消费; ② **私有语料源** (含敏感环境信息, 不公开分发)。`data/logs`/`data/rules` 是拉取脚本的工作副本 (gitignored); L0 门禁的语料在场 ≥50 断言同时兜底获取失败 (兼容 rules 仓单源 CI)。规则集独立成仓 `github.com/luochen1990/log-skimmer-rules` (社区维护 + Agent 辅助, 规则 PR 的质量门禁在该仓 CI: 发布面引擎 × corpus 语料 × master-vs-PR 规则双测)。压缩率防退化走 PR CI 双测对比: master vs PR 引擎 × 同语料同规则, 无基线文件无配对问题。
+- **语料独立仓 (双源, 需求方裁决, 2026-10-16)**: 语料不入引擎仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏。双源形态: ① GHA 侧 (公开仓) 滚动槽位存独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, **源头自包含零依赖** — GHA weekly 自刷槽位, 不构建引擎不算基线), 引擎仓 CI 经幂等拉取脚本消费; ② **私有语料源** (含敏感环境信息, 不公开分发)。`data/logs`/`data/rules` 是拉取脚本的工作副本 (gitignored); L0 门禁的语料在场断言分层兜底获取失败: 零配对样本在采集层 exit 2, 0<n<50 在判定层 fail (兼容 rules 仓单源 CI)。规则集独立成仓 `github.com/luochen1990/log-skimmer-rules` (社区维护 + Agent 辅助, 规则 PR 的质量门禁在该仓 CI: 发布面引擎 × corpus 语料 × master-vs-PR 规则双测)。压缩率防退化走 PR CI 双测对比: master vs PR 引擎 × 同语料同规则, 无基线文件无配对问题。
 - 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。**新工具暂无语料仓样本时** (语料未覆盖的工具, 如 pytest): 写 `# samples: self-provided`, 且 PR 必附最小样例日志 (能命中该规则的真实日志片段) — 样例经维护者审核后收进语料仓, 届时回填具体溯源; 溯源字段禁止悬空或编造。
 - **孤儿样本可见性**: 样本两件套单侧在场 (有 `*.log` 无 sidecar, 或反之) = 配对缺口 — l0 采集对每个孤儿 stderr 逐条警告并跳过 (不计数), 不升级硬错误; 门禁不因缺口静默缩水 (sidecar 必带约定的可见性配套, issue #46)。
 
