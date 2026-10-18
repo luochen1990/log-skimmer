@@ -65,7 +65,7 @@ impl SkimServer {
     }
 
     #[tool(
-        description = "skim CI 日志: 高信噪比提取失败证据/警示/环境快照。返回 blocks (块摘要: 坐标/规则/intent/category/输出行数/签名行数, 按 intent 优先级排序 failure>warning>info, 同级按行序) + fragments (每块代表片段全字段, 与 blocks 同序一一对应) + stats (双粒度压缩比, 零块时省略)。零块时返回 fallback=\"no-blocks\": 规则集对该日志失明, 请无条件回退 rg 基线 (如 rg -i 'error|fail|panic') 并考虑贡献新规则。消费方判定矩阵: job 失败而 failure-intent 块为零 = 视同失明回退 (docs/rule-format.md §3)。需要块周边原文时用 read_around 按块坐标取窗。 规则贡献: https://github.com/luochen1990/log-skimmer-rules"
+        description = "skim CI 日志: 高信噪比提取失败证据/警示/环境快照。返回 blocks (块摘要: 坐标/规则/intent/category/输出行数/签名行数, 按 intent 优先级排序 failure>warning>info, 同级按行序) + fragments (每块代表片段全字段, 与 blocks 同序一一对应) + stats (total/out/signature 行数统计恒在场; 双粒度压缩比字段在零块时省略)。零块时返回 fallback=\"no-blocks\": 规则集对该日志失明, 请无条件回退 rg 基线 (如 rg -i 'error|fail|panic') 并考虑贡献新规则。消费方判定矩阵: job 失败而 failure-intent 块为零 = 视同失明回退 (docs/rule-format.md §3)。需要块周边原文时用 read_around 按块坐标取窗。 规则贡献: https://github.com/luochen1990/log-skimmer-rules"
     )]
     fn skim(
         &self,
