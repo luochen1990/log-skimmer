@@ -171,6 +171,9 @@ L4: build failed
 MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上的**消费方视图** — 与 CLI `--json` 直接返回引擎 `SkimResult` (顶层 `file`/`input_lines`/`output_lines`/`stats`, blocks 内嵌 fragments) 不同, MCP skim 返回块摘要 + 代表 fragment 的平行数组。成功结果为 text content 内嵌 JSON; 输入校验失败为 MCP `invalid_params` 错误 (结构化可恢复, 非 crash)。零块语义两面: CLI = stderr 警告 + exit 3 (上文); MCP = **正常返回** (非错误) + `fallback` 字段在场 — 同一失明判定的字段化表达。
 
 **参数错误通道统一 (issue #48)**: 参数错误三形态 — 值域错 (如 `context: 11`)、类型错 (如 `context: "3"`)、缺必填字段 (如缺 `log_text`) — 一律 JSON-RPC 错误响应 `code: -32602` (`invalid_params`), 不走 `result.isError=true` 正常响应通道; 文案统一中文框架 (值域错为业务文案如 `context 须在 0-10 内`; 类型错/缺字段为 `参数格式非法: <serde 细节>`, serde 细节保留英文字段名/类型名原文)。客户端单一按 error code 判定参数错误, 无需同时检查 result.isError。(rmcp 默认把类型错/缺字段降级为 isError=true 英文响应, 协议层拦截还原 — 判定依据是 rmcp 的 `failed to deserialize parameters:` 前缀, 见 server/src/mcp.rs `reraise_argument_error`。)
+
+**未声明能力的方法语义 (issue #50)**: initialize capabilities 仅声明 `tools`; 对 resources / prompts 能力面的方法 (`resources/list`, `resources/templates/list`, `prompts/list`, `read_resource`, `get_prompt` 等) 一律 `-32601 method not found`, 不返回空清单伪成功。(rmcp trait 对 list 类方法默认返回空成功, 协议层覆写对齐 read 类方法的 not found 默认。)
+
 **skim 响应** (非零块示例; `fallback`/`advice` 仅零块时在场, `stats.compression_*` 零块时省略):
 
 ```json

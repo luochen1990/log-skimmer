@@ -316,6 +316,42 @@ fn stdio_server_info_product_identity() {
     );
 }
 
+/// issue #50: 未声明 resources/prompts capability, 对应 list 方法报 `-32601`
+/// (rmcp trait 默认返回空成功, 与能力声明矛盾; 覆写为 method not found,
+/// 与 trait 对 read_resource/get_prompt 的默认对齐)。
+#[test]
+fn stdio_undeclared_capability_list_methods_not_found() {
+    let mut child = spawn_server();
+    let requests = [
+        handshake_reqs(),
+        vec![
+            req(2, "resources/list", serde_json::json!({})),
+            req(3, "resources/templates/list", serde_json::json!({})),
+            req(4, "prompts/list", serde_json::json!({})),
+        ],
+    ]
+    .concat();
+    let (out, status) = roundtrip(&mut child, &requests);
+    assert!(status.success());
+    let responses = parse_jsonl(&out);
+    for (id, method) in [
+        (2, "resources/list"),
+        (3, "resources/templates/list"),
+        (4, "prompts/list"),
+    ] {
+        let r = by_id(&responses, id);
+        assert_eq!(
+            r["error"]["code"].as_i64(),
+            Some(-32601),
+            "{method} 须 method not found: {r}"
+        );
+        assert!(
+            r["error"]["message"].as_str().unwrap().contains(method),
+            "message 携带方法名: {r}"
+        );
+    }
+}
+
 /// 大日志全链路: 验证 rmcp stdio 传输对 CI 级大文本 (数百 KB~MB) 无截断/超时。
 /// 语料在独立语料仓 (经 just corpus-fetch 拉到 data/logs), env 门控:
 /// LOG_SKIMMER_E2E_LOG 指向本地大日志 (如语料库最大样本

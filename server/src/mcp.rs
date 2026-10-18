@@ -11,12 +11,13 @@ use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::*;
-use rmcp::service::RequestContext;
+use rmcp::service::{MaybeSendFuture, RequestContext};
 use rmcp::{
     schemars, tool, tool_handler, tool_router, transport::stdio, ErrorData as McpError, RoleServer,
     ServerHandler, ServiceExt,
 };
 use serde::Deserialize;
+use std::future::Future;
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct SkimParams {
@@ -136,11 +137,11 @@ impl ServerHandler for SkimServer {
                 env!("CARGO_PKG_VERSION"),
             ))
             .with_instructions(
-            "log-skimmer: CI 日志高信噪比提取。tools: skim (结构化提取, 零块=fallback 失明警示), \
+                "log-skimmer: CI 日志高信噪比提取。tools: skim (结构化提取, 零块=fallback 失明警示), \
                      read_around (按块坐标取原文窗口), list_rules (规则覆盖面)。消费方判定矩阵 \
                      (docs/rule-format.md §3): skim 零块=失明, 无条件回退 rg; job 已知失败而 \
                      failure-intent 块为零=视同失明回退; warning/info 与成败判定无关。",
-        )
+            )
     }
 
     /// issue #48: 手写 call_tool (宏对已定义方法让位, 逻辑 = 宏生成版 + 降级还原) —
@@ -153,6 +154,41 @@ impl ServerHandler for SkimServer {
     ) -> Result<CallToolResponse, McpError> {
         let tcc = ToolCallContext::new(self, request, context);
         reraise_argument_error(self.tool_router.call(tcc).await?)
+    }
+
+    /// issue #50: rmcp trait 对 list_resources / list_resource_templates / list_prompts
+    /// 默认返回**空成功**, 与 initialize 仅声明 tools capability 矛盾 (客户端误判可
+    /// 消费); 覆写为 `-32601 method not found`, 与 trait 对 read_resource / get_prompt
+    /// 等方法的默认对齐。capabilities 声明保持不变 (仍只声明 tools)。
+    fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ListResourcesResult, McpError>> + MaybeSendFuture + '_ {
+        std::future::ready(Err(
+            McpError::method_not_found::<ListResourcesRequestMethod>(),
+        ))
+    }
+
+    /// 同 [Self::list_resources] (issue #50): resources 能力面下的模板清单方法。
+    fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ListResourceTemplatesResult, McpError>> + MaybeSendFuture + '_
+    {
+        std::future::ready(Err(McpError::method_not_found::<
+            ListResourceTemplatesRequestMethod,
+        >()))
+    }
+
+    /// 同 [Self::list_resources] (issue #50): prompts 能力面下的清单方法。
+    fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ListPromptsResult, McpError>> + MaybeSendFuture + '_ {
+        std::future::ready(Err(McpError::method_not_found::<ListPromptsRequestMethod>()))
     }
 }
 
