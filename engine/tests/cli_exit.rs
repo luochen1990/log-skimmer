@@ -167,6 +167,25 @@ fn invalid_rules_dir_exits_2() {
     assert!(stderr.contains("规则目录不存在"), "stderr:\n{stderr}");
 }
 
+// #47a CLI 面: --rules 误指已存在文件 → 如实报「不是目录」, 不误报「不存在」。
+#[test]
+fn rules_path_is_file_exits_2_truthfully() {
+    let rules_file = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/rules/cargo/cargo-could-not-compile.yaml"
+    );
+    let (code, _, stderr) = run(&["skim", "x.log", "--rules", rules_file]);
+    assert_eq!(
+        code, 2,
+        "规则路径非目录是运行期数据错误, 应保持 exit 2, stderr:\n{stderr}"
+    );
+    assert!(stderr.contains("不是目录"), "stderr:\n{stderr}");
+    assert!(
+        !stderr.contains("规则目录不存在"),
+        "路径在场不得误报不存在: {stderr}"
+    );
+}
+
 #[test]
 fn unreadable_log_file_exits_2() {
     let rules = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/rules");

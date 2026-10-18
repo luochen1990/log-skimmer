@@ -139,7 +139,7 @@ Claude Desktop (`mcpServers` section of `claude_desktop_config.json`; environmen
 
 Rule set resolution (resolved once at startup; a missing directory / no `*.yaml` / load-time validation failure all fail fast with exit code 2):
 
-1. The **rule set directory** pointed to by the `LOG_SKIMMER_RULES` environment variable (a clone of the log-skimmer-rules repo, containing `*.yaml`) — if set, it is adopted unconditionally with no fallback probing (an invalid directory fails fast); the standard deployment means when the rule set doesn't sit next to the binary;
+1. The **rule set directory** pointed to by the `LOG_SKIMMER_RULES` environment variable (a clone of the log-skimmer-rules repo, containing `*.yaml`) — if set, it is adopted unconditionally with no fallback probing (an invalid directory fails fast; a path that exists but is not a directory is reported as such rather than as "missing"); the standard deployment means when the rule set doesn't sit next to the binary. Setting it to an **empty string** also fails fast — the error names the variable (`LOG_SKIMMER_RULES 为空串`) instead of silently falling through to probing, which catches empty-variable plumbing bugs in deploy scripts;
 2. Default probing — from the executable's directory, try adjacent `rules/` → `../rules/` → `../../rules/` in order (the first that is a directory wins; covers both the "rules next to bin" deployment layout and the cargo `target/{debug,release}/` build layout);
 3. A source-tree fixture path embedded at compile time — a dev/unit-test fallback, usually absent after deployment.
 

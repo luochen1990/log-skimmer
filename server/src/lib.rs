@@ -64,13 +64,24 @@ pub fn resolve_rules_dir() -> PathBuf {
 /// 装载规则集 (fail-fast 判定点): 目录不存在 / 加载校验失败 / 零条规则均为 Err。
 /// 零条视为错误: engine `load_rules` 对空目录静默返回 Ok(vec![]), 而「至少一条规则」
 /// 是 server 可用性底线 (双侧安全网依赖规则集在场, spec §0)。
+///
+/// #47 诊断文案契约: 本层 Err 消息**不带路径** — 调用方 (main) 的「来源 <path>」
+/// 前缀已含路径一次, 消息再带路径会在整条报错里出现两次; 空串路径
+/// (resolve_rules_dir 对 env 空串的返回, 唯一来源) 点名 LOG_SKIMMER_RULES
+/// 并指向 README 三级解析文档, 不空值裸奔。
 pub fn load_ruleset_at(dir: &Path) -> Result<Vec<Rule>, String> {
+    if dir.as_os_str().is_empty() {
+        return Err("LOG_SKIMMER_RULES 为空串 — 请设置为规则集目录路径, 或 unset 后走缺省探测 (三级定位次序见 README)".into());
+    }
     if !dir.is_dir() {
-        return Err(format!("规则目录不存在: {}", dir.display()));
+        if dir.exists() {
+            return Err("路径存在但不是目录 (规则集须为目录)".into());
+        }
+        return Err("规则目录不存在".into());
     }
     let rules = load_rules(dir).map_err(|e| e.to_string())?;
     if rules.is_empty() {
-        return Err(format!("规则目录内无 *.yaml 规则: {}", dir.display()));
+        return Err("规则目录内无 *.yaml 规则".into());
     }
     Ok(rules)
 }
@@ -626,5 +637,28 @@ mod tests {
     fn real_ruleset_loads_via_production_path() {
         let rs = load_ruleset_at(&resolve_rules_dir()).expect("生产路径装载真规则集失败");
         assert!(rs.len() >= 2, "真规则集异常稀少 ({})", rs.len());
+    }
+
+    /// #47 规则集定位失败诊断文案族: 本层消息**不带路径** (调用方 main 的
+    /// 「来源 <path>」前缀已含路径一次 — 报错里路径只出现一次), 三形态各自可归因:
+    /// 空串 env (resolve_rules_dir 的 Path("") 唯一来源) / 路径存在但非目录 / 不存在。
+    #[test]
+    fn ruleset_location_diagnostics() {
+        // (c) env 空串 → 点名 LOG_SKIMMER_RULES 并指向 README 三级解析文档
+        let e = load_ruleset_at(Path::new("")).unwrap_err();
+        assert!(e.contains("LOG_SKIMMER_RULES 为空串"), "{e}");
+        assert!(e.contains("README"), "应指向三级解析文档: {e}");
+        // (a/b) 路径存在但非目录 → 如实文案, 消息内不带路径 (防双次出现)
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let e = load_ruleset_at(&manifest).unwrap_err();
+        assert!(e.contains("不是目录"), "{e}");
+        assert!(!e.contains("Cargo.toml"), "路径只出现在 main 来源前缀: {e}");
+        // 不存在 → 维持既有文案 (同样不带路径)
+        let e = load_ruleset_at(Path::new("/nonexistent-rules-dir")).unwrap_err();
+        assert!(e.contains("规则目录不存在"), "{e}");
+        assert!(
+            !e.contains("/nonexistent"),
+            "路径只出现在 main 来源前缀: {e}"
+        );
     }
 }

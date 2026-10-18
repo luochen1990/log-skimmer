@@ -22,7 +22,13 @@ fn main() {
     let rules = match log_skimmer_server::load_ruleset_at(&dir) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("规则集装载失败 (来源 {}): {e}", dir.display());
+            // 来源前缀携带路径唯一一次 (Err 消息本体不带路径, #47 防双次出现);
+            // 空串路径无「来源」可标 — 报错文案已自点名 LOG_SKIMMER_RULES。
+            if dir.as_os_str().is_empty() {
+                eprintln!("规则集装载失败: {e}");
+            } else {
+                eprintln!("规则集装载失败 (来源 {}): {e}", dir.display());
+            }
             std::process::exit(2);
         }
     };

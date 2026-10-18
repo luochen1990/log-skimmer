@@ -293,8 +293,17 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
     // 目录不存在 / 零规则 = 集体失明: 空规则集对任何日志输出零块, 在 L0 聚合侧表现
     // 为全样本 100% 压缩的假象 (实测事故: rules 仓 lint 的 base 路径基准分叉, 不存在
     // 的目录被静默当空集 → base 恒 100% → 伪 regression) — 拒绝而非静默。
+    // #47a: 路径存在但非目录 (如误指单个 yaml 文件) 如实报「不是目录」,
+    // 与「不存在」区分 — 误报不存在会误导排障方向。
     if !dir.is_dir() {
-        errs.0.push(format!("{}: 规则目录不存在", dir.display()));
+        if dir.exists() {
+            errs.0.push(format!(
+                "{}: 路径存在但不是目录 (规则集须为目录)",
+                dir.display()
+            ));
+        } else {
+            errs.0.push(format!("{}: 规则目录不存在", dir.display()));
+        }
         return Err(errs);
     }
     let mut files = Vec::new();

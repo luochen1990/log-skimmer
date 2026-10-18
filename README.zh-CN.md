@@ -134,7 +134,7 @@ Claude Desktop (`claude_desktop_config.json` 的 `mcpServers` 段; 环境变量�
 
 规则集定位 (启动时一次性解析, 目录不存在 / 无 `*.yaml` / 加载校验失败均 fail-fast 退出码 2):
 
-1. 环境变量 `LOG_SKIMMER_RULES` 指向的**规则集目录** (log-skimmer-rules 仓的 clone, 含 `*.yaml`) — 已设置即采用、不回落后续探测 (指向无效目录直接 fail-fast), 规则集不在二进制旁时的标准部署手段;
+1. 环境变量 `LOG_SKIMMER_RULES` 指向的**规则集目录** (log-skimmer-rules 仓的 clone, 含 `*.yaml`) — 已设置即采用、不回落后续探测 (指向无效目录直接 fail-fast; 路径存在但不是目录时如实报「不是目录」而非「不存在」), 规则集不在二进制旁时的标准部署手段。设为**空串**同样 fail-fast — 报错点名 `LOG_SKIMMER_RULES 为空串`, 不静默跳过探测 (可暴露部署脚本里的空变量传递);
 2. 缺省探测 — 可执行文件所在目录依次尝试相邻的 `rules/` → `../rules/` → `../../rules/` (首个为目录者生效; 覆盖「rules 与 bin 同级」部署布局与 cargo `target/{debug,release}/` 构建布局);
 3. 编译时嵌入的本仓源码树 fixture 路径 — 开发/单测形态兜底, 部署后通常不存在。
 

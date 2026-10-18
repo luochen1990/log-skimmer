@@ -52,6 +52,21 @@ fn empty_rules_dir_rejected() {
     assert!(e.to_string().contains("无 *.yaml"), "got: {e}");
 }
 
+/// #47a: 路径存在但非目录 (如误指某个 yaml 文件) — 如实报「不是目录」,
+/// 不再误报「目录不存在」(与事实相悖, 误导排障方向)。
+#[test]
+fn rules_path_not_a_dir_rejected_truthfully() {
+    let f = std::env::temp_dir().join("log-skimmer-rules-not-dir.yaml");
+    std::fs::write(&f, "x").unwrap(); // 内容无关 — 判定只看路径类型
+    let e = log_skimmer::load_rules(&f).expect_err("文件路径 (非目录) 必须 Err");
+    let msg = e.to_string();
+    assert!(msg.contains("不是目录"), "应如实报非目录: {msg}");
+    assert!(
+        !msg.contains("规则目录不存在"),
+        "路径在场时不得误报不存在: {msg}"
+    );
+}
+
 /// 规则 context 字段上界跟随 engine 单源常量 (issue #28): 恰好 CONTEXT_MAX 合法,
 /// 超一档整集拒载 — 边界值从常量派生, 改常量即本测试边界同步变。
 #[test]
