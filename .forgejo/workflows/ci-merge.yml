@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# 薄入口骨架 — org 标准 CI P0 合入门禁 ci-merge (v3.3, 2026-10-18; 三档分级
+# 薄入口骨架 — org 标准 CI P0 合入门禁 ci-merge (v3.3.1, 2026-10-19; 三档分级
 # ci-merge/ci-deploy/ci-periodic 见 lc-studio/forgejo-actions README)
 # ─────────────────────────────────────────────────────────────────────────────
 # 使用: 复制到目标仓库 .forgejo/workflows/ci-merge.yml, 拷贝 SSOT 的
@@ -14,6 +14,11 @@
 #   骨架层  本文件 (含内联 checkout 链) — check-drift 结构断言锁死, 人工不改 (除 ⟦⟧ 字段)
 #   逻辑层  .forgejo/actions/skip-if-passed — 机器同步分发, 人工不改 (改 SSOT 上游)
 #   契约层  justfile 的 `ci-merge` recipe — 各仓库自由实现
+#
+# [v3.3.1] nix 门禁补 NIX_STATE_DIR 重定向: "零 store 写" 假设修正 — nix 启动期
+#   仍会初始化 state dir 写 temproots, ro /nix/var/nix 对 runner 用户不可写,
+#   语法正确也被误报红 (secret-guard #337 首爆, 修复经其 PR #343 端到端验证后
+#   verbatim 移植); check-drift 锚点 +1 (NIX_STATE_DIR), issue #20。
 #
 # [v3.3] 新增 Nix syntax gate step: .nix 变更纯解析冒烟 (nixos#1900 — log-skimmer
 #   PR 曾在 flake.nix 误写列表闭合 `]);`, ci-merge 全链未拦)。逐文件
@@ -124,11 +129,17 @@ jobs:
       # flake.nix 误写 packages 列表闭合 (`]);`), ci-merge 全链未拦 (vm-nix 契约禁止
       # VM 内求值 flake — ro store), 直到人工本地 nix develop 才炸。本步用
       # nix-instantiate --parse 补口: 纯解析零求值 (abort/throw/import 均不执行)、
-      # 零 store 写 (不连 daemon, ro store 契约兼容)、NIX_PATH 无关 (<nixpkgs> 查找
-      # 路径是求值期语义, 解析期只认字面量 — flake.nix 顶层 {…} 函数/attrset 按普通
-      # 表达式解析即可, 无需任何求值上下文)。Lix 实现附带 parse-time 名字分析:
-      # undefined variable 一并拦 (with 动态作用域不误报), 比 CppNix 多一层免费
-      # 覆盖。清单为空直通, 有失败即红并逐文件点名。
+      # 零 store 写 (不连 daemon, ro store 契约兼容 — 但 nix 二进制启动仍会初始化
+      # state dir 写 temproots GC 记账, ro 的 /nix/var/nix 对 forgejo-runner 用户
+      # 不可写 → 经 NIX_STATE_DIR 重定向到 job 私有 tmp, 见 env 注释)、NIX_PATH
+      # 无关 (<nixpkgs> 查找路径是求值期语义, 解析期只认字面量 — flake.nix 顶层 {…}
+      # 函数/attrset 按普通表达式解析即可, 无需任何求值上下文)。Lix 实现附带
+      # parse-time 名字分析: undefined variable 一并拦 (with 动态作用域不误报),
+      # 比 CppNix 多一层免费覆盖。清单为空直通, 有失败即红并逐文件点名。
+      # (state dir 修正: 2026-10-18 secret-guard PR #337 首次真实执行爆雷 — step
+      # 合入后首个含 .nix 变更的 PR, nix 启动即 `creating directory
+      # /nix/var/nix/temproots: Permission denied`, 语法正确的文件被误判语法
+      # 错误; 修复经 secret-guard PR #343 端到端验证后移植, issue #20。)
       - name: Nix syntax gate
         # success() 同上 (显式默认门); skip 同 SHA 已验证过则本门禁一并跳过
         if: success() && steps.skip.outputs.should_skip != 'true'
@@ -136,6 +147,11 @@ jobs:
           # PR 事件: base tip sha (事件 payload) — checkout 链已 fetch 其对象, 且
           # deploy key 已清理无法再补 fetch, 只能就地取材做三点 diff
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # nix 启动期 state dir (temproots GC 记账) 重定向: parse 不读 state 内容,
+          # 落 /tmp 即可。run_id 后缀隔离跨 run 记账 — run_id 是 per-repo 编号,
+          # 共享 runner 下不同 repo 可能撞号同路径, re-run 亦复用同号, 撞号无害
+          # (残留 temproots 是惰性垃圾且无 GC 扫此目录)。nix 自动 mkdir, 无需预建。
+          NIX_STATE_DIR: /tmp/nix-syntax-state-${{ github.run_id }}
         run: |
           set -euo pipefail
           if [ -n "${BASE_SHA:-}" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
