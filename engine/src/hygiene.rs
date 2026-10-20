@@ -1,46 +1,54 @@
-//! 发布面卫生检查 (机械防线) — issue #18 (发布面暴露内网端点) 后的 publish 门禁。
+//! 凭据形态卫生检查 (机械防线) — 同树镜像模型 (2026-10-20 转向) 下本仓树即公开树,
+//! 凭据误提交零容忍 (关键隐私红线 — 唯一机械防线)。
 //!
-//! 职责边界: 装载内网模式清单 (外置数据文件, 一行一字面 substring 模式) → 递归
-//!   扫描待发布内容树 → 命中即 publish fail (CLI 退出码 1), 零命中放行。
-//!   清单与逻辑分离 (同构于规则集 folksonomy): 清单本身是内网端点情报, 为内网
-//!   专用件 (justfile publish-stage 排除, 不入发布面) — 本文件只有装载与扫描
-//!   逻辑, 零内网字面量, 可全树自扫无豁免洞。
-//!   实现约束: 模式均为字面量匹配, 无 regex 必要; 二进制文件 (NUL 探测) 跳过;
-//!   符号链接不跟随 (扫描域 = 发布树自身); 路径字典序遍历, 报告稳定可 diff。
+//! 职责边界: 装载凭据形态清单 (外置数据文件 data/secret-patterns.txt, 一行一正则,
+//!   regex crate 语法; 清单全为通用凭据形态, 零内网情报, 可公开) → 递归扫描待发布
+//!   内容树 → 命中即 fail (CLI 退出码 1), 零命中放行。
+//!   演进: 此前为字面子串的内网端点模式扫描 (issue #18 快照式时代的 publish 门禁);
+//!   同树转向后内网情报治理改源头脱敏, 本防线转性为凭据形态门禁并升级正则语义
+//!   (形态约束需要字符类/量词, 子串表达不了)。
+//!   实现约束: 二进制文件 (NUL 探测) 跳过; 符号链接不跟随 (扫描域 = 目标树自身);
+//!   路径字典序遍历, 报告稳定可 diff。
 
 use std::path::{Path, PathBuf};
 
-/// 单条命中记录 (file:line 级定位, publish fail 报告直接消费)。
+use regex::Regex;
+
+/// 单条命中记录 (file:line 级定位, 门禁报告直接消费)。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HygieneHit {
     /// 相对所扫目录根的路径
     pub path: PathBuf,
     /// 命中行号 (1-based)
     pub line: usize,
-    /// 命中的内网模式
+    /// 命中的模式原文
     pub pattern: String,
     /// 命中行摘要 (去首尾空白, 上限 120 字符)
     pub text: String,
 }
 
-/// 模式清单装载 (noun=模式) — 语义契约见 [load_lines]。
-pub fn load_patterns(path: &Path) -> Result<Vec<String>, String> {
-    load_lines(path, "模式")
+/// 模式清单装载 (noun=模式): 行式装载 + 逐条正则编译 (原文保留作命中报告)。
+/// 编译失败即 Err — 清单笔误 (非法正则) 在装载期暴露, 不静默失明。
+pub fn load_patterns(path: &Path) -> Result<Vec<(String, Regex)>, String> {
+    load_lines(path, "模式")?
+        .into_iter()
+        .map(|p| {
+            let re = Regex::new(&p)
+                .map_err(|e| format!("{}: 模式非法正则 — {p:?}: {e}", path.display()))?;
+            Ok((p, re))
+        })
+        .collect()
 }
 
-/// 行式清单装载器 (模式/排除条目共用; noun 为错误文案名词)。
+/// 行式清单装载器 (通用; noun 为错误文案名词)。
 /// 语义: 一行一条目; 空行与 `#` 独占的注释行忽略; 两端 trim; 返回排序序
 /// (命中报告稳定可 diff)。
 /// 校验: 文件可读 / 至少一条有效条目 (空清单 = 防线失效, 拒绝) / 无重复
 /// (清单手维护, 重复是笔误信号) / 条目行不含 `#` (行内注释是 gitignore 事故
-/// 同款笔误形态 — 整行成为永不匹配的字面模式, 防线静默失效)。
+/// 同款笔误形态 — 整行成为含 `#` 的字面模式, 防线静默失效)。
 pub(crate) fn load_lines(path: &Path, noun: &str) -> Result<Vec<String>, String> {
-    let raw = std::fs::read_to_string(path).map_err(|e| {
-        format!(
-            "{}: {e} (清单为内网专用件, 须随 dev 仓在场)",
-            path.display()
-        )
-    })?;
+    let raw = std::fs::read_to_string(path)
+        .map_err(|e| format!("{}: {e} (清单须随仓在场)", path.display()))?;
     let mut pats: Vec<String> = raw
         .lines()
         .map(str::trim)
@@ -67,7 +75,7 @@ pub(crate) fn load_lines(path: &Path, noun: &str) -> Result<Vec<String>, String>
 }
 
 /// 扫描目录 (递归); 返回全部命中 (路径字典序), 空 = 树干净。
-pub fn scan(dir: &Path, patterns: &[String]) -> Vec<HygieneHit> {
+pub fn scan(dir: &Path, patterns: &[(String, Regex)]) -> Vec<HygieneHit> {
     let mut files = Vec::new();
     walk(dir, &mut files);
     files.sort();
@@ -85,11 +93,11 @@ pub fn scan(dir: &Path, patterns: &[String]) -> Vec<HygieneHit> {
             hits.extend(
                 patterns
                     .iter()
-                    .filter(|pat| line.contains(pat.as_str()))
-                    .map(|pat| HygieneHit {
+                    .filter(|(_, re)| re.is_match(line))
+                    .map(|(raw, _)| HygieneHit {
                         path: rel.to_path_buf(),
                         line: i + 1,
-                        pattern: pat.clone(),
+                        pattern: raw.clone(),
                         text: line.trim().chars().take(120).collect(),
                     }),
             );

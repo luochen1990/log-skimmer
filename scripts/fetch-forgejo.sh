@@ -2,7 +2,7 @@
 # fetch-forgejo.sh — Forgejo 侧语料现场拉取 (私有内网实例, 数据永不出内网)
 #
 # 职责边界: 按 data/forgejo-runs.json 固定清单 (run/job id + 不可变元数据固化) 从
-#   forgejo API 拉取 job 日志到语料根的 git.lambda.lc__lc-studio__nixos/ — 与
+#   forgejo API 拉取 job 日志到语料根的 <实例host>/lc-studio/nixos/ — 与
 #   fetch-corpus.sh (GitHub 公开语料仓) 组成 L0 门禁的双源语料。
 # 隐私红线: 本仓日志含内网拓扑 (域名/网段/主机名), **禁止进入任何外网仓**
 #   (事故记录: 2026-10-16 曾推 GitHub 语料仓 ~1h, 已重写历史并重建; 见 AGENTS.md)。
@@ -16,7 +16,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DL="${CORPUS_DIR:-$ROOT/data/logs}"
 MANIFEST="$ROOT/data/forgejo-runs.json"
-API="https://git.lambda.lc/api/v1"
+# 实例地址从仓 origin remote 推导 (仓零实例域名字面量 — 同树公开模型):
+# ssh://forgejo@<host>:<port>/... → <host>; API 走 https, 语料目录名同 host 值。
+HOST="$(git -C "$ROOT" remote get-url origin | sed 's|^[a-z+]*://[^@]*@\([^:/]*\).*|\1|')"
+API="https://${HOST}/api/v1"
 
 log() { printf '[fetch-forgejo %(%H:%M:%S)T] %s\n' -1 "$*" >&2; }
 
@@ -24,7 +27,7 @@ need_token=0
 [ -n "${FORGEJO_API_TOKEN:-}" ] || need_token=1
 [ -f "$MANIFEST" ] || { echo "清单不存在: $MANIFEST" >&2; exit 1; }
 
-OUT="$DL/git.lambda.lc/lc-studio/nixos"
+OUT="$DL/${HOST}/lc-studio/nixos"
 n=0
 while IFS=$'\t' read -r run_id job_id; do
   [ -n "$run_id" ] || continue

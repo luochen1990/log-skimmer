@@ -75,9 +75,10 @@ jobs:
     steps:
       # ── checkout 链 (与 ci-merge.skeleton.yml 逐字节同构; 无法 action 化, 见其
       #    文件头设计修正记录) — 不用 actions/checkout: 实例 DISABLE_HTTP_GIT=true
-      #    + SSH 用户名 forgejo + 端口 5522, 官方 action 硬编码不兼容。host key
-      #    TOFU: 优先 SSH_KNOWN_HOSTS secret 固定 (消除动态 keyscan 的 MITM 窗口,
-      #    directory-algebra #89); secret 缺失退回动态 keyscan + stderr 警告。
+      #    + SSH 用户名 forgejo + 端口 5522, 官方 action 硬编码不兼容。host 从 runner
+      #    注入的 GITHUB_SERVER_URL 推导 (仓零实例域名字面量 — 同树公开模型)。
+      #    host key TOFU: 优先 SSH_KNOWN_HOSTS secret 固定 (消除动态 keyscan 的
+      #    MITM 窗口, directory-algebra #89); secret 缺失退回动态 keyscan + stderr 警告。
       #    服务端 host key 变更须同步轮换该 secret。
       #    PR 事件 fetch base+head (支持三点 diff); 其他事件浅克隆 --depth 1 省时
       #    (本 workflow 无 PR 事件, 恒走浅克隆分支)。
@@ -88,6 +89,7 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
+          INSTANCE_HOST="$(printf '%s' "$GITHUB_SERVER_URL" | sed 's|^\(https\?://\)\?||; s|[:/].*||')"
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -95,10 +97,10 @@ jobs:
             printf '%s\n' "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
           else
             echo "WARN: repo secret SSH_KNOWN_HOSTS 未设置 (TOFU 固定要求), 退回动态 ssh-keyscan (存在 MITM 窗口)." >&2
-            ssh-keyscan -p 5522 git.lambda.lc >> ~/.ssh/known_hosts
+            ssh-keyscan -p 5522 "$INSTANCE_HOST" >> ~/.ssh/known_hosts
           fi
           git init
-          git remote add origin "ssh://forgejo@git.lambda.lc:5522/${GITHUB_REPOSITORY}.git"
+          git remote add origin "ssh://forgejo@${INSTANCE_HOST}:5522/${GITHUB_REPOSITORY}.git"
           if [ -n "$BASE_REF" ]; then
             git fetch --no-tags origin "$BASE_REF"
             git fetch --no-tags origin "$GITHUB_SHA"

@@ -8,7 +8,6 @@
 pub mod hygiene;
 pub mod l0;
 pub mod manifest;
-pub mod tag_guard;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};

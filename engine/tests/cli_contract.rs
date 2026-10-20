@@ -451,9 +451,9 @@ fn l0_help_documents_pairing_semantics() {
     );
 }
 
-// #38: hygiene 是内部发布链工具 (publish-stage 机械防线), 保持隐藏于公共帮助面
+// #38: hygiene 是内部门禁工具 (secret-scan 凭据形态防线), 保持隐藏于公共帮助面
 // (可见性口径见 l0_listed_in_public_help: 公开工具可见 / 内部工具隐藏, issue #45);
-// 但 hide ≠ 移除 — 子命令级帮助与解析路径保留 (justfile publish-stage
+// 但 hide ≠ 移除 — 子命令级帮助与解析路径保留 (justfile secret-scan
 // 直接调用不受影响)。断言钉住两面: 公共面不列 hygiene, 直接调用仍走 hygiene 解析。
 #[test]
 fn hygiene_hidden_from_public_help() {

@@ -33,7 +33,7 @@ The project consists of three public repositories, with all dependencies one-way
 
 | Repo | Role | Cadence | Dependencies |
 | --- | --- | --- | --- |
-| `luochen1990/log-skimmer` (this repo) | **Engine** — CLI + MCP server | Irregular releases | None (consumed by the rules repo CI) |
+| `luochen1990/log-skimmer` (this repo) | **Engine** — CLI + MCP server | Mirrored from the dev history (manual `just publish`) | None (consumed by the rules repo CI) |
 | `luochen1990/log-skimmer-rules` | **Rule library** — the project's core asset, community-maintained + agent-assisted | Community PRs | One-way runtime dependency on this repo's engine |
 | `luochen1990/log-skimmer-corpus` | **Corpus library** — regression corpus, source, self-contained | GHA weekly slot refresh | **Zero dependencies** |
 

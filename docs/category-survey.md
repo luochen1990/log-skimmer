@@ -1,6 +1,6 @@
 # Log Skimmer `category` 枚举调研报告
 
-- 调研主体: git.lambda.lc/lc-studio/nixos issue #1872 (Log Skimmer 立项)
+- 调研主体: lc-studio/nixos issue #1872 (内网仓, Log Skimmer 立项)
 - 调研问题: 规则元数据 `category` 封闭枚举应采用「pipeline 质量门类型」「失败根因类别」还是精选混合; 初始草案 (`fmt / lint / typecheck / security / proptest / unittest / uitest / test` — issue 原文称 7 类但列有 8 个 token, `test` 总类与三个测试变体并列, 本报告照录) 全是质量门, 是否遗漏 infra 类
 - 日期: 2026-10-16 | 方法: oss-research 5 阶段 pipeline, 8 方向证据源全覆盖 (≥6 要求达成)
 
@@ -208,7 +208,7 @@ C 候选构成 (≈20 值): B 的质量门域 6 值 + 环境域展开 — deps/n
 | pytest `FAILED tests/test_x.py::test_y - assert 1 == 2`; cargo test `test result: FAILED. 1 passed; 1 failed`; 本仓 VM 测试 `machine.succeed: command failed` | `test` | 测试断言 (VM 集成测试同) |
 | cargo audit `Crate 'openssl-sys' has an unpatched vulnerability (RUSTSEC-2023-XXXX)`; gitleaks `leak detected: AKIA...`; 本仓 secrets 审计命中 | `security` | 安全内容 (即使对象是依赖) |
 | npm `404 Not Found - GET https://registry.npmjs.org/xxx`; nix FOD `got: sha256:aaa..., specified: sha256:bbb...`; pip `Could not find a version that satisfies the requirement` | `deps` | 依赖获取/解析/哈希 |
-| kernel `Out of memory: Killed process 1234 (nix-daemon)`; `curl: (7) Failed to connect to 10.233.77.1 port 9123` / `SSL certificate problem: self signed certificate in certificate chain` (网络与凭据形态学不可分, 合并); GHA `The job running on runner X has timed out` / 本仓 ci.yml 轮询 HTTP 000 / `No space left on device` | `infra` | 资源/网络/凭据/超时/执行环境 |
+| kernel `Out of memory: Killed process 1234 (nix-daemon)`; `curl: (7) Failed to connect to 192.0.2.10 port 9123` / `SSL certificate problem: self signed certificate in certificate chain` (网络与凭据形态学不可分, 合并); GHA `The job running on runner X has timed out` / 本仓 ci.yml 轮询 HTTP 000 / `No space left on device` | `infra` | 资源/网络/凭据/超时/执行环境 |
 | nix `error: undefined variable 'foo'`; nginx `nginx: [emerg] unknown directive "..."`; 本仓 gen-lan-hosts 漂移哨兵 (systemd-analyze verify fatal 同族) | `config` | 配置/求值/生成物一致性 |
 | 裸 `Command failed with status (127)` 无前置上下文 (Rausch 提到的典型形态); 日志截断后仅有 exit code | `unknown` | 不可判定 (§7) |
 | 覆盖率门 `Coverage: 85% (threshold 90%)` 判红 | `test` (倾向) | 测试衍生质量门; 若 POC 高频出现再议 `metrics` (开放问题 #4) |

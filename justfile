@@ -25,82 +25,40 @@ l0-stats:
 
 # 语料获取 (幂等, 双源): GitHub 公开语料仓 (GHA 57 对) + forgejo 内网现场拉取
 # (固定清单 10 对, 隐私红线: 数据不出内网; 全在场时零凭据)。
-# fetch-forgejo 为内网专用件 (不入发布面, issue #18): 在场才拉 — 发布面克隆跑本 recipe 优雅降级。
 corpus-fetch:
     bash scripts/fetch-corpus.sh
-    if [ -f scripts/fetch-forgejo.sh ]; then bash scripts/fetch-forgejo.sh; else echo "跳过内网语料拉取 (scripts/fetch-forgejo.sh 不在场, 发布面形态)"; fi
+    bash scripts/fetch-forgejo.sh
 
 # 规则集获取 (幂等): log-skimmer-rules 仓 (public, 社区维护) → data/rules
 rules-fetch:
     bash scripts/fetch-rules.sh
 
-# 发布树暂存目录默认值 (publish-stage/publish 共用 SSOT; env PUBLISH_DIR 的覆盖
-# 逻辑在各 recipe bash 侧 `${PUBLISH_DIR:-...}` 运行期展开 — env 值不经 just 文本插值)
-publish_dir := '/tmp/opencode/log-skimmer-publish'
-
-# 发布树构造 + 卫生检查 (publish 必经前段; 可独立运行验证发布面形态)。
-# master git 树 → 临时目录 − 内网专用件 → `log-skimmer hygiene` 扫描 (命中即 fail)。
-# 排除清单 SSOT 在 data/publish-excludes.txt (本 recipe 的 rm 与 tag-guard 的
-# 远端 tag 面校验共源; 每条目理由注释随清单文件)。内网模式清单 SSOT 在
-# data/intranet-patterns.txt (同为内网专用件 — 清单本身是内网端点情报,
-# 逻辑与机密分离: engine/src/hygiene.rs 只随公开面逻辑零字面量)。
-publish-stage:
+# 凭据形态门禁 (hygiene + data/secret-patterns.txt, 一行一正则): 同树镜像模型下
+# 本仓树即公开树, 凭据误提交零容忍 (关键隐私红线 — 唯一机械防线)。
+# 扫 tracked 文件的工作区版本 (tar 清单直取, 非 git archive HEAD): 覆盖未提交
+# 修改 — 提交前跑即拦 (archive HEAD 有未提交盲区, run 20826 实证: fixture 假
+# token 本地漏检、CI 红); 亦避开未跟踪面 (target/ 与 data/logs 语料 clone 的
+# token 形态假阳性)。
+secret-scan:
     #!/usr/bin/env bash
     set -euo pipefail
-    dir="${PUBLISH_DIR:-{{publish_dir}}}" # env 由 bash 运行期展开; 插值恒为无特殊字符常量
-    # 机械断言: master 无 tracked-but-ignored 文件 — .gitignore pattern 失效 (target*/
-    # 行内注释事故, 已发生两次: 38MB 误提交 + 本次 target/ 入 index) 会破下方发布树不变量
-    if git ls-files -i -c --exclude-standard | grep -q .; then
-        echo "tracked-but-ignored 文件在场 (.gitignore pattern 失效?), 拒绝发布:" >&2
-        git ls-files -i -c --exclude-standard >&2
-        exit 1
-    fi
-    rm -rf "$dir" && mkdir -p "$dir"
-    git archive master | tar -x -C "$dir"
-    # 排除清单逐条 rm — 装载校验 (两端 trim / 笔误即拒 / 空清单拒) 的 SSOT 在
-    # engine 装载器 (load_excludes, 有单测); bash 只消费已校验条目, 不平行实现
-    # 校验 (2026-10-20 二轮精雕: 平行实现曾致 rm 侧尾随空白静默落空)。
-    # 先赋值再 heredoc — <<< 内的命令替换退出码不传播, set -e 接不住。
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/log-skimmer-secret-scan.XXXXXX")"
+    trap 'rm -rf "$tmp"' EXIT
+    tar -C . --null -T <(git ls-files -z) -cf - | tar -C "$tmp" -xf -
     cargo build --release -q -p log-skimmer
-    bin="${CARGO_TARGET_DIR:-target}/release/log-skimmer"
-    entries="$("$bin" excludes data/publish-excludes.txt)"
-    while IFS= read -r entry; do rm -rf "${dir:?}/${entry:?}"; done <<< "$entries"
-    cp scripts/release/justfile "$dir/justfile"
-    # 不变量: 发布树文件集 ≡ master git 树 − data/publish-excludes.txt + 精简 justfile 覆盖
-    # (tracked-but-ignored 断言已在上方把守前提)
-    "$bin" hygiene --patterns data/intranet-patterns.txt "$dir"
-    echo "发布树就绪: $dir (hygiene 通过)"
+    "${CARGO_TARGET_DIR:-target}/release/log-skimmer" hygiene --patterns data/secret-patterns.txt "$tmp"
 
-# 发布面同步 (手动节奏, 需求方裁决): master → GitHub luochen1990/log-skimmer。
-# 快照式 (orphan 单 commit): 发布面无累计历史 — 内网专用件不仅当前树不入,
-# 历史亦不残留 (issue #18: 此前整树镜像把内网端点连同历史带了出去)。
-# 排除与卫生检查必经 publish-stage (机械防线); 发布后 rules 仓 lint CI 的
-# 引擎引用自动取新 (发布面空壳期 lint 显式降级)。
-# tag 面终态断言 (2026-10-20 tag 残留事故补口): 快照式只 force master 不触碰
-# tags — 此前 10-17 的 v0.1.0 携带 dev 历史链经 tag 在公开面存活。publish 必经
-# tag-guard: 远端每 tag 须指向 orphan 快照且树无排除件, 违规即红。
-publish: publish-stage
+# 发布面同步 (同树镜像, 需求方裁决 2026-10-20): master + tags → GitHub
+# luochen1990/log-skimmer — 两边同 SHA 同历史同 tags。
+# 快照式时代 (issue #18 → #84 tag 残留事故) 已退役: 差异即复杂度; 隐私治理改
+# 源头脱敏 + 凭据形态门禁 (secret-scan, 上方), 见 AGENTS「公开镜像纪律」。
+# 在 master 上运行; 首次镜像 push 需一次性 force 覆盖旧 orphan 快照
+# (两边无共同祖先): git push --force github master --tags — 之后恒 fast-forward。
+publish: secret-scan
     #!/usr/bin/env bash
     set -euo pipefail
-    sha="$(git rev-parse --short master)"
-    dir="${PUBLISH_DIR:-{{publish_dir}}}"
-    remote_url="https://github.com/luochen1990/log-skimmer.git"
-    ( cd "$dir"
-      git init -q # 全新仓 (publish-stage 刚 rm -rf 重建): orphan 首提交, 无历史残留
-      git add -A
-      git -c user.name="log-skimmer publish" -c user.email="publish@localhost" \
-          commit -qm "publish: snapshot of master@$sha (intranet-only files excluded, hygiene-checked)"
-      git remote add github "$remote_url"
-      git fetch -q github master || true # lease 基准 (首次 publish 前远端可无 master)
-      expected="$(git rev-parse --verify -q github/master || true)"
-      if [ -n "$expected" ]; then
-          git push --force-with-lease=refs/heads/master:"$expected" github HEAD:master
-      else
-          git push github HEAD:master
-      fi
-    )
-    echo "发布面已同步: github.com/luochen1990/log-skimmer master ← master@$sha 快照"
-    "${CARGO_TARGET_DIR:-target}/release/log-skimmer" tag-guard --remote "$remote_url" --excludes data/publish-excludes.txt
+    git push https://github.com/luochen1990/log-skimmer.git master --tags
+    echo "发布面已镜像: github.com/luochen1990/log-skimmer master+tags ← $(git rev-parse --short master)"
 
 # ci-periodic — org 标准 P2 周期兜底契约 (非超集/阻塞级/幂等): 内网现场语料补抓
 # (fetch-forgejo 是内网 API 调用, 零出网流量) + 语料仓新鲜度哨兵 (GHA weekly 自刷
@@ -110,15 +68,16 @@ ci-periodic: corpus-fetch
     age=$(( $(date +%s) - $(date -d "$(git -C data/logs log -1 --format=%cI)" +%s) )); [ "$age" -lt $((8*86400)) ] || { echo "语料仓陈旧 ($((age/86400)) 天未刷新, GHA 刷新链疑似故障"; exit 1; }; echo "语料新鲜度 OK ($((age/86400)) 天)"
 
 # ci-merge — org 标准 CI P0 合入门禁契约:
-#   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (fmt→clippy→test→L0,
+#   阻塞级 (失败即红, 阻塞 PR 合入) / 零参数 / 幂等 / 快步骤先行 (secret-scan→fmt→clippy→test→L0,
 #   check 内部步骤顺序不变)。
+#   secret-scan 前置: 凭据形态门禁 (关键隐私红线 — 同树镜像模型下 PR 树即将全量公开)。
 #   rules-fetch 前置于 check: rules_load 测试消费 RULES_DIR env (CI job env 穿透指向
 #   持久缓存, check 先行则首跑缓存未建必红 — PR #40 run 19848 实证), 规则必须在场;
 #   这也是该 env 覆盖特性的设计意图 — CI 中 rules_load 升级为真实规则集回归
 #   (本地无 env 走 fixture, 零影响)。
-# CI runner (vm-nix) 契约: 预装工具链直用, 禁 nix develop (VM ro store + temproots
+# CI runner 契约: 预装工具链直用, 禁 nix develop (VM ro store + temproots
 # 无写权限, nix 求值必炸 — forgejo-runner-vm config 头注释; secret-guard 同模式)。
 # 本地开发: 系统无 rust 时 `nix develop -c just check` 进 devShell (flake.nix)。
 ci-merge: _ci-merge
 
-_ci-merge: rules-fetch check corpus-fetch l0-gate
+_ci-merge: rules-fetch secret-scan check corpus-fetch l0-gate

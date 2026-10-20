@@ -33,7 +33,7 @@ POC 回测语料: **3 个 GitHub 公开仓 + 1 个私有语料源, 67 对成败�
 
 | 仓 | 定位 | 演进节奏 | 依赖 |
 | --- | --- | --- | --- |
-| `luochen1990/log-skimmer` (本仓) | **引擎** — CLI + MCP server | 不定期发布 | 零 (被 rules 仓 CI 消费) |
+| `luochen1990/log-skimmer` (本仓) | **引擎** — CLI + MCP server | 镜像同步 dev 历史 (手动 `just publish`) | 零 (被 rules 仓 CI 消费) |
 | `luochen1990/log-skimmer-rules` | **规则库** — 项目核心资产, 社区维护 + Agent 辅助 | 社区 PR | 运行时单向依赖本仓引擎 |
 | `luochen1990/log-skimmer-corpus` | **语料库** — 回归语料, 源头, 自包含 | GHA weekly 自刷槽位 | **零依赖** |
 
