@@ -24,14 +24,28 @@ use std::process::{Command, Stdio};
 /// 以指定 LOG_SKIMMER_RULES 起真实 server 子进程, 返回 (exit_code, stderr)。
 /// 启动失败发生在 stdin 消费之前 — 无须握手, stdin 默认 null 即可。
 fn run_with_env(rules: &str) -> (i32, String) {
-    let out = Command::new(env!("CARGO_BIN_EXE_log-skimmer-mcp"))
-        .env("LOG_SKIMMER_RULES", rules)
-        .output()
-        .expect("spawn log-skimmer-mcp 失败");
+    run_with_env_in(Path::new(rules), None)
+}
+
+/// 同 [run_with_env], 支持注入子进程 cwd 与 Path 形态的 env 值
+/// (项目层叠加的探测点, spec §1.S)。
+fn run_with_env_in(rules: &Path, cwd: Option<&Path>) -> (i32, String) {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_log-skimmer-mcp"));
+    cmd.env("LOG_SKIMMER_RULES", rules);
+    if let Some(c) = cwd {
+        cmd.current_dir(c);
+    }
+    let out = cmd.output().expect("spawn log-skimmer-mcp 失败");
     (
         out.status.code().unwrap_or(-1),
         String::from_utf8_lossy(&out.stderr).into_owned(),
     )
+}
+
+/// server fixture 规则集目录 (env 级合法规则集的锚点)。lib 的同名 cfg(test)
+/// 项不对集成测试可见, 故本文件自持一份。
+fn fixture_rules_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules")
 }
 
 // #47c: env 空串 → 明确点名 LOG_SKIMMER_RULES 为空串 (不空值裸奔), 指向 README
@@ -136,15 +150,23 @@ fn startup_stderr_in(exe: &Path, env_rules: Option<&Path>, cwd: Option<&Path>) -
     stderr
 }
 
-/// 拷贝真实 bin 到自持沙箱 `<tmp>/log-skimmer-startup-{tag}-{pid}/x/bin/mcp`, 返回
-/// (bin 路径, 沙箱根)。三级探测路径 (bin 旁 rules / x/rules / 沙箱根 rules)
-/// 全部落在沙箱内 — 命中与否完全由测试铺设决定, 与原 bin 位置/系统布局无关。
-/// 隔离性双维度: 进程内各测试由 tag 区分; 跨进程由 pid 区分 (issue #66 —
-/// 固定路径下并发测试进程的 fs::copy 写句柄与对方 exec 重叠 → ETXTBSY)。
-fn sandbox(tag: &str) -> (PathBuf, PathBuf) {
+/// 沙箱根 `<tmp>/log-skimmer-startup-{tag}-{pid}/`。隔离性双维度: 进程内各测试由
+/// tag 区分; 跨进程由 pid 区分 (issue #66 — 固定路径下并发测试进程的 fs::copy
+/// 写句柄与对方 exec 重叠 → ETXTBSY)。项目层 e2e 只需可控 cwd, 直接取根目录即可;
+/// bin 隔离形态由 [sandbox] 加铺。
+fn sandbox_root(tag: &str) -> PathBuf {
     let root =
         std::env::temp_dir().join(format!("log-skimmer-startup-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    root
+}
+
+/// 拷贝真实 bin 到 [sandbox_root] 下 `x/bin/mcp`, 返回 (bin 路径, 沙箱根)。
+/// 三级探测路径 (bin 旁 rules / x/rules / 沙箱根 rules) 全部落在沙箱内 —
+/// 命中与否完全由测试铺设决定, 与原 bin 位置/系统布局无关。
+fn sandbox(tag: &str) -> (PathBuf, PathBuf) {
+    let root = sandbox_root(tag);
     std::fs::create_dir_all(root.join("x/bin")).unwrap();
     let exe = root.join("x/bin/mcp");
     std::fs::copy(env!("CARGO_BIN_EXE_log-skimmer-mcp"), &exe).expect("拷贝 bin");
@@ -167,10 +189,9 @@ fn fixture_fallback_emits_loud_warning() {
 /// 且警示不得出现 (警示语义绑定「兜底层级命中」, 不绑定装载成功)。
 #[test]
 fn env_ruleset_no_fallback_warning() {
-    let rules_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules");
     let stderr = startup_stderr(
         Path::new(env!("CARGO_BIN_EXE_log-skimmer-mcp")),
-        Some(&rules_dir),
+        Some(&fixture_rules_dir()),
     );
     assert!(
         !stderr.contains(log_skimmer_server::FIXTURE_FALLBACK_WARNING),
@@ -186,11 +207,7 @@ fn env_ruleset_no_fallback_warning() {
 /// 走同一装载函数, 无独立分支可分叉)。
 #[test]
 fn project_layer_overlay_startup_log() {
-    let root = std::env::temp_dir().join(format!(
-        "log-skimmer-startup-overlay-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
+    let root = sandbox_root("overlay");
     let proj = root.join(".log-skimmer/rules");
     std::fs::create_dir_all(&proj).unwrap();
     std::fs::write(
@@ -198,10 +215,9 @@ fn project_layer_overlay_startup_log() {
         "id: proj-own-check\ntitle: 项目自研检查\ntool: proj\nkind: signal\npatterns:\n  - regex: '^\\[projci\\] '\n",
     )
     .unwrap();
-    let rules_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules");
     let stderr = startup_stderr_in(
         Path::new(env!("CARGO_BIN_EXE_log-skimmer-mcp")),
-        Some(&rules_dir),
+        Some(&fixture_rules_dir()),
         Some(&root),
     );
     assert!(
@@ -221,27 +237,10 @@ fn project_layer_overlay_startup_log() {
 /// 排障引向错误方向)。
 #[test]
 fn project_layer_failure_attributed_e2e() {
-    let root = std::env::temp_dir().join(format!(
-        "log-skimmer-startup-projfail-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    let proj = root.join(".log-skimmer/rules");
-    std::fs::create_dir_all(&proj).unwrap(); // 空目录 (无 *.yaml)
-    let out = Command::new(env!("CARGO_BIN_EXE_log-skimmer-mcp"))
-        .env(
-            "LOG_SKIMMER_RULES",
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules"),
-        )
-        .current_dir(&root)
-        .output()
-        .expect("spawn log-skimmer-mcp 失败");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert_eq!(
-        out.status.code(),
-        Some(2),
-        "项目层失败 fail-fast exit 2, stderr:\n{stderr}"
-    );
+    let root = sandbox_root("projfail");
+    std::fs::create_dir_all(root.join(".log-skimmer/rules")).unwrap(); // 空目录 (无 *.yaml)
+    let (code, stderr) = run_with_env_in(&fixture_rules_dir(), Some(&root));
+    assert_eq!(code, 2, "项目层失败 fail-fast exit 2, stderr:\n{stderr}");
     // 归因断言 (路径去重不适用: engine LoadErrors 按设计带源路径 — issue #14B
     // 的 grep-ability 契约, 与 #47 的预检文案族是两条文案轴)
     assert!(
