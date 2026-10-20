@@ -141,7 +141,9 @@ Claude Desktop (`claude_desktop_config.json` 的 `mcpServers` 段; 环境变量�
 2. 缺省探测 — 可执行文件所在目录依次尝试相邻的 `rules/` → `../rules/` → `../../rules/` (首个为目录者生效; 覆盖「rules 与 bin 同级」部署布局与 cargo `target/{debug,release}/` 构建布局)。注意探测基准是**真实二进制路径** (`current_exe` 会解析 symlink): symlink 安装形态 (如 `/usr/local/bin/x -> /opt/pkg/bin/x`) 下, 放在 **symlink 旁**的 `rules/` **不会**被找到 — 请将规则集置于真实二进制旁, 或直接用 `LOG_SKIMMER_RULES`;
 3. 编译时嵌入的本仓源码树 fixture 路径 — 开发/单测形态兜底, 部署后通常不存在。**注意**: 构建机上源码树在场且未配置 env/相邻 rules 时, 此级会**装载成功** — 但装的是开发 fixture 规则集 (覆盖面远小于真规则集), 失败日志可能漏检。每次命中此级启动都会在 stderr 打一行醒目的 `⚠ fixture 兜底` 警示; 生产环境看到它即说明该配置 `LOG_SKIMMER_RULES` 了。
 
-**规则集 manifest (可选版本契约)**: 规则集根目录可携带 `manifest.yaml`, 声明 `format_version` (规则格式版本, 当前 1) 与选填的 `min_engine_version` (引擎版本下限, `major.minor.patch`)。装载时引擎校验: 声明的格式版本超出引擎支持 / 引擎版本低于下限 → 拒载 (exit 2, 文案自解释 — 指明失败的校验项与补救动作); 规则文件与 manifest 的未知字段同样显式拒载而非静默忽略。无 manifest 的规则集照常装载 (向后兼容窗口)。由此「引擎 × 规则集」兼容性可静态判定 — 下游打包方双源 pin 可单侧升级, 一次装载即知兼容与否, 无需全量回归 (规范: docs/rule-format.md §1.M)。
+以上三级解析的是**全局层**规则集。在此之上, MCP server 还会探测可选的**项目层** (规范 §1.S): 启动 cwd 下 `.log-skimmer/rules/` 是目录时, 其规则**叠加装载**于全局层之上 (仅对本项目生效; 不在场则仅全局层, 行为不变); 两层出现同 id 规则 = 启动装载错误 (fail-fast, 文案含冲突 id 与两侧来源)。CLI 无此探测 — `--rules` 指定什么就装载什么。详见下方「项目仓规则」。
+
+**规则集 manifest (可选版本契约)**: 规则集根目录可携带 `manifest.yaml`, 声明 `format_version` (规则格式版本, 当前 2 — v2 = scope/repo 字段弃用窗口: 旧字段在场容忍、值被忽略; 旧规则集零破坏装载) 与选填的 `min_engine_version` (引擎版本下限, `major.minor.patch`)。装载时引擎校验: 声明的格式版本超出引擎支持 / 引擎版本低于下限 → 拒载 (exit 2, 文案自解释 — 指明失败的校验项与补救动作); 规则文件与 manifest 的未知字段同样显式拒载而非静默忽略。无 manifest 的规则集照常装载 (向后兼容窗口)。由此「引擎 × 规则集」兼容性可静态判定 — 下游打包方双源 pin 可单侧升级, 一次装载即知兼容与否, 无需全量回归 (规范: docs/rule-format.md §1.M)。
 
 输入上限 (**仅 MCP 侧**): 单条 `log_text` 超过 32MB 报 invalid_params 并建议 `tail -c` 截取后分段提交; CLI 文件输入 (`skim <log>`) 无此限制。
 
@@ -155,6 +157,29 @@ nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt +
 ```
 
 回归语料: [log-skimmer-corpus](https://github.com/luochen1990/log-skimmer-corpus) (公开仓 CI 日志滚动快照, GHA weekly 自刷)。
+
+### 项目仓规则 (可选 — 项目维护者向)
+
+中央规则仓之外, 你的仓库可以自带一层项目规则, 住在 `<repo>/.log-skimmer/rules/` (一文件一规则, 格式与中央仓同款)。**默认不需要** — 先对照判定表:
+
+| 场景 | 落点 |
+| --- | --- |
+| 只用标准工具 (cargo/nix/gha/…) | 中央仓已覆盖, 无需项目层 |
+| 自研检查, 但输出带项目特异标记 (如 `[opencode]` 前缀) | 以项目工具名贡献进中央仓 (正则自带特异锚, 不会误撞其他项目日志) |
+| 自研检查且输出无特异标记 (宽正则会误撞其他项目日志) | 项目层 — 只有这种情况需要 |
+
+行为要点 (规范: docs/rule-format.md §1.S):
+
+- **生效范围随存储位置**: 项目层规则仅对本项目生效; fork 携带目录即对新仓自动生效, 无需改任何字段。
+- **探测点**: `log-skimmer-mcp` 启动时在 cwd 下探测 `.log-skimmer/rules/`, 在场则叠加于全局规则集 (上文三级定位) 之上; 不在场仅全局层, 行为不变。CLI 无探测语义 — `--rules` 指定什么就装载什么。
+- **跨层 id 冲突 = 启动装载错误** (fail-fast, 文案含冲突 id 与两侧来源): 项目层规则 id 不得与中央规则集重复。
+
+本地验证 (提交前跑一次; 项目层目录直接作为 `--rules` 值):
+
+```bash
+log-skimmer skim 样例.log --rules .log-skimmer/rules
+# 退出码 3 = 该样例日志零命中 (规则没写对或日志形态超出预期), 0 且有块 = 命中
+```
 
 ## 贡献指引
 

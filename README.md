@@ -146,7 +146,9 @@ Rule set resolution (resolved once at startup; a missing directory / no `*.yaml`
 2. Default probing — from the executable's directory, try adjacent `rules/` → `../rules/` → `../../rules/` in order (the first that is a directory wins; covers both the "rules next to bin" deployment layout and the cargo `target/{debug,release}/` build layout). Note the probing base is the **real binary path** (`current_exe` resolves symlinks): with a symlinked install (e.g. `/usr/local/bin/x -> /opt/pkg/bin/x`), a `rules/` placed next to the *symlink* is **not** found — put the rules next to the real binary or use `LOG_SKIMMER_RULES`;
 3. A source-tree fixture path embedded at compile time — a dev/unit-test fallback, usually absent after deployment. **Caution**: on a build machine with the source tree present and no env/adjacent config, this level *succeeds* — but with the small dev fixture rule set (far smaller coverage than the real ruleset), which means silent under-detection on failed logs. Every such start prints a loud `⚠ fixture fallback` warning line to stderr; if you see it in production, configure `LOG_SKIMMER_RULES`.
 
-**Ruleset manifest (optional version contract)**: a ruleset may carry a root-level `manifest.yaml` declaring `format_version` (rule-format version, currently 1) and an optional `min_engine_version` (engine version floor, `major.minor.patch`). At load time the engine rejects the ruleset (exit 2, self-explanatory message naming the failed check and the remedy) when the declared format version is newer than the engine supports or the engine is older than the floor; unknown fields in rule files or the manifest are likewise rejected instead of silently ignored. A ruleset without a manifest loads exactly as before (backward-compatibility window). This makes engine × ruleset compatibility statically decidable — downstream packagers pinning both sources can upgrade either side alone and learn compatibility from one load attempt instead of a full regression (spec: docs/rule-format.md §1.M).
+These three levels resolve the **global layer**. On top of it, the MCP server probes an optional **project layer** (spec §1.S): if `.log-skimmer/rules/` under the startup cwd is a directory, its rules are **overlay-loaded** on top of the global ruleset (effective for that project only; absent → global layer only, behavior unchanged); the same rule id appearing in both layers = a startup load error (fail-fast, message naming the conflicting ids and both sources). The CLI has no such probing — `--rules` loads exactly what you point it at. See "Project-repo rules" below.
+
+**Ruleset manifest (optional version contract)**: a ruleset may carry a root-level `manifest.yaml` declaring `format_version` (rule-format version, currently 2 — v2 = the scope/repo deprecation window: those legacy fields are tolerated if present with values ignored; old rulesets load unbroken) and an optional `min_engine_version` (engine version floor, `major.minor.patch`). At load time the engine rejects the ruleset (exit 2, self-explanatory message naming the failed check and the remedy) when the declared format version is newer than the engine supports or the engine is older than the floor; unknown fields in rule files or the manifest are likewise rejected instead of silently ignored. A ruleset without a manifest loads exactly as before (backward-compatibility window). This makes engine × ruleset compatibility statically decidable — downstream packagers pinning both sources can upgrade either side alone and learn compatibility from one load attempt instead of a full regression (spec: docs/rule-format.md §1.M).
 
 Input cap (**MCP side only**): a single `log_text` above 32MB reports invalid_params and suggests truncating with `tail -c` and submitting in segments; CLI file input (`skim <log>`) has no such limit.
 
@@ -160,6 +162,29 @@ nix develop -c just check  # no system rust: quick loop inside the devShell (fmt
 ```
 
 Regression corpus: [log-skimmer-corpus](https://github.com/luochen1990/log-skimmer-corpus) (rolling snapshots of public-repo CI logs, auto-refreshed weekly by GHA).
+
+### Project-repo rules (optional — for project maintainers)
+
+Beyond the central rules repo, your repository can carry its own layer of rules under `<repo>/.log-skimmer/rules/` (one rule per file, same format as the central repo). **The default is not to need one** — check the decision table first:
+
+| Scenario | Where it goes |
+| --- | --- |
+| Standard tools only (cargo/nix/gha/…) | Central repo already covers them — no project layer |
+| In-house check whose output carries a project-specific marker (e.g. an `[opencode]` prefix) | Contribute to the central repo under the project's tool name (the regex carries its own specific anchor; no cross-project false hits) |
+| In-house check whose output has no specific marker (a wide regex would false-hit other projects' logs) | The project layer — only this case needs it |
+
+Behavior essentials (spec: docs/rule-format.md §1.S):
+
+- **Effective scope follows storage location**: project-layer rules take effect for that project only; a fork carrying the directory gets them for the new repo automatically, no field to change.
+- **Probing point**: at startup `log-skimmer-mcp` probes `.log-skimmer/rules/` under its cwd; if present it is overlay-loaded on top of the global ruleset (the three-level resolution above); if absent, global layer only, behavior unchanged. The CLI has no probing semantics — `--rules` loads exactly what you point it at.
+- **Cross-layer id conflict = startup load error** (fail-fast, message naming the conflicting ids and both sources): a project-layer rule id must not duplicate the central ruleset.
+
+Local verification (run once before committing; pass the project-layer directory directly as `--rules`):
+
+```bash
+log-skimmer skim sample.log --rules .log-skimmer/rules
+# exit 3 = zero hits on that sample (rule not right, or the log shape is unexpected); 0 with blocks = hit
+```
 
 ## Contributing
 
