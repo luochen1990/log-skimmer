@@ -94,7 +94,7 @@ list_failure_candidates() { # list_failure_candidates <repo> — 失败 run 候�
 
 process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
   # 返回: 0=新落盘 (配额 +1); 1=跳过; 2=早已存在 (已计入初始存量, 勿重复计数)
-  local repo=$1 dir=$2 run_id=$3 wf=$4 concl=$5 created=$6 jobs job_id jname date out
+  local repo=$1 dir=$2 run_id=$3 wf=$4 concl=$5 created=$6 jobs job_id jname attempt date out
   if run_already_fetched "$dir" "$run_id"; then
     log "  run $run_id 样本已存在 (已计入初始存量)"
     return 2
@@ -115,6 +115,9 @@ process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
   fi
   jname=$(jq -r --argjson id "$job_id" '.jobs[]? | select(.id==$id) | .name // "?"' <<<"$jobs" | head -1)
   jname=$(tr '/ ' '--' <<<"${jname:-unknown}" | cut -c1-30)
+  # attempt (spec §5 必带, P0-2): jobs 列表自带 run_attempt, 与 jname 同法提取;
+  #   字段缺失的旧 API 形态兜底 1。
+  attempt=$(jq -r --argjson id "$job_id" '.jobs[]? | select(.id==$id) | .run_attempt // 1' <<<"$jobs" | head -1)
   date=${created%%T*}; [ -n "$date" ] || date=unknown
   out="$dir/$date/$run_id-$job_id-$jname-$concl.log"
   # 嵌套布局 date 目录必须先建 (2026-10-16 事故: 布局迁移加 $date/ 层而未建目录,
@@ -122,8 +125,9 @@ process_run() { # process_run <repo> <dir> <run_id> <wf_name> <failure|success>
   mkdir -p "$dir/$date"
   if download_log "repos/$repo/actions/jobs/$job_id/logs" "$out"; then
     jq -n --arg repo "github.com/$repo" --argjson run_id "$run_id" --argjson job_id "$job_id" \
-      --arg concl "$concl" --arg wf "$wf" --arg ca "$created" --arg jn "$jname" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '{repo:$repo, run_id:$run_id, job_id:$job_id, conclusion:$concl, workflow_name:$wf, created_at:$ca, job_name:$jn, ci:"github", fetched_at:$at}' \
+      --arg concl "$concl" --arg wf "$wf" --arg ca "$created" --arg jn "$jname" --argjson attempt "${attempt:-1}" \
+      --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '{repo:$repo, run_id:$run_id, job_id:$job_id, conclusion:$concl, workflow_name:$wf, created_at:$ca, job_name:$jn, attempt:$attempt, ci:"github", fetched_at:$at}' \
       >"$out.json"
     log "  已存 run=$run_id job=$job_id (${concl}, $(wc -l <"$out") 行, wf=${wf})"
     return 0
