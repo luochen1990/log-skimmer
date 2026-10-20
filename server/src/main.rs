@@ -42,8 +42,11 @@ fn main() {
             std::process::exit(2);
         }
         Err(log_skimmer_server::OverlayError::Project(pdir, e)) => {
-            // 项目层失败: 目录由错误变体携带 (消息本体不带路径, 路径只出现一次),
-            // 不得误挂全局层来源前缀 — 错层归因会把排障引向错误方向。
+            // 项目层失败: 目录由错误变体携带, 不得误挂全局层来源前缀 — 错层归因
+            // 会把排障引向错误方向。注意「路径只出现一次」在此**不适用**: engine
+            // LoadErrors 按设计自带源路径 (issue #14B grep-ability 契约), 与 #47
+            // 的预检文案族是两条文案轴 — 前缀与消息本体路径双现是该契约下的
+            // 既定形态 (测试侧 startup_diagnostics 同口径)。
             eprintln!("规则集装载失败 (项目层 来源 {}): {e}", pdir.display());
             std::process::exit(2);
         }

@@ -109,11 +109,12 @@ pub fn resolve_rules() -> (PathBuf, RulesLevel) {
 /// 零条视为错误: engine `load_rules` 对空目录静默返回 Ok(vec![]), 而「至少一条规则」
 /// 是 server 可用性底线 (双侧安全网依赖规则集在场, spec §0)。
 ///
-/// #47 诊断文案契约: 本层 Err 消息**不带路径** — 调用方 (main) 的「来源 <path>」
-/// 前缀已含路径一次, 消息再带路径会在整条报错里出现两次; 空串路径
-/// (resolve_rules_dir 对 env 空串的返回, 唯一来源) 点名 LOG_SKIMMER_RULES
-/// 并指向 README 三级解析文档, 不空值裸奔。
-pub fn load_ruleset_at(dir: &Path) -> Result<Vec<Rule>, String> {
+/// Err 消息的路径形态分两族: 本函数自构的**预检族** (目录缺失/非目录/空串) 不带
+/// 路径 (#47 契约 — 调用方「来源 <path>」前缀只出现一次); engine LoadErrors 的
+/// **透传族** (规则集非法) 按设计自带源路径 (#14B grep-ability) — 与前缀双现是
+/// 既定形态, 两条文案轴互不覆盖。空串路径 (env 空串, 唯一来源) 点名
+/// LOG_SKIMMER_RULES 并指向 README 三级解析文档, 不空值裸奔。
+pub(crate) fn load_ruleset_at(dir: &Path) -> Result<Vec<Rule>, String> {
     if dir.as_os_str().is_empty() {
         return Err("LOG_SKIMMER_RULES 为空串 — 请设置为规则集目录路径, 或 unset 后走缺省探测 (三级定位次序见 README)".into());
     }
@@ -142,8 +143,9 @@ fn oversized_msg(n: usize) -> String {
 /// 项目层规则探测 (spec §1.S): cwd 下 `.log-skimmer/rules/` 是目录则 Some。
 /// cwd 由调用方注入 (main 传 current_dir, 测试传 tmpdir) — 本函数不取进程状态,
 /// 保持纯函数可测。路径存在但非目录 (如误建同名文件) 视为无项目层 — 项目层是
-/// 可选增强, 不以硬错误阻塞启动 (与全局层 fail-fast 语义刻意不对称)。
-pub fn resolve_project_rules(cwd: &Path) -> Option<PathBuf> {
+/// 可选增强, 不以硬错误阻塞启动 (与「在场但装载失败 fail-fast」的语义不对称
+/// 见 spec §1.S 存在谓词: 非目录 = 未声明, 声明了 = 必须能装载)。
+pub(crate) fn resolve_project_rules(cwd: &Path) -> Option<PathBuf> {
     let dir = cwd.join(".log-skimmer/rules");
     dir.is_dir().then_some(dir)
 }
@@ -180,7 +182,14 @@ pub enum OverlayError {
     Conflict(String),
 }
 
-/// 双层叠加装载 (spec §1.S): 全局层照旧 ([load_ruleset_at] 的 fail-fast 语义
+/// 两侧目录是否同一 (canonicalize 失败时回退字面比较 — 判定仅用于报错分形,
+/// 误判代价只是一段次优文案, 不值得为它 fail)。
+fn same_dir(a: &Path, b: &Path) -> bool {
+    let canon = |p: &Path| p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+    canon(a) == canon(b)
+}
+
+/// 双层叠加装载 (spec §1.S): 全局层照旧 (load_ruleset_at 的 fail-fast 语义
 /// 原样保留) → 项目层在场则装载追加 → 合并前跨层 id 冲突检查 (冲突 = 装载错误,
 /// fail-fast, 文案含冲突 id 列表与两侧来源)。cwd 为 None (current_dir 获取失败)
 /// 时容错为无项目层 — cwd 不可知则探测无从谈起, 不因环境异常阻塞启动。
@@ -199,6 +208,16 @@ pub fn load_ruleset_overlay(
     };
     let project =
         load_ruleset_at(&project_dir).map_err(|e| OverlayError::Project(project_dir.clone(), e))?;
+    // 同目录自撞特判 (先于逐 id 检查 — 同目录必然全量冲突, 逐 id 报错会把排障
+    // 引向"改名规则"的错误方向): README 本地验证指引演示了把项目层目录直接喂给
+    // --rules, 用户照搬 export LOG_SKIMMER_RULES 后启动 server 即触发此形态,
+    // 正确修复是 unset env 而非删规则。
+    if same_dir(global_dir, &project_dir) {
+        return Err(OverlayError::Conflict(format!(
+            "全局层与项目层为同一目录 {} — LOG_SKIMMER_RULES 指向了项目层目录, 请 unset 或改指全局规则集目录",
+            project_dir.display()
+        )));
+    }
     // 跨层 id 冲突 (spec §1.S): 同 id 双层各载一份 → 叠加后 id 不再全局唯一,
     // 破坏「rule-id 全局唯一」约束 — fail-fast 并列冲突 id 与两侧来源
     // (文案自带两侧路径: 冲突归因优先于 #47 的单层路径去重偏好)。
@@ -917,6 +936,23 @@ mod tests {
             }
             other => panic!("全局层失败须 Global 变体, got: {other:?}"),
         }
+    }
+
+    /// 同目录自撞 (LOG_SKIMMER_RULES 指到项目层目录 — README 本地验证指引的
+    /// 照搬形态): 特判文案指向 env 配置, 不把排障引向「改名规则」(逐 id 冲突
+    /// 形态由上一用例把守)。
+    #[test]
+    fn overlay_same_dir_conflict_points_to_env() {
+        let root = overlay_root("same-dir");
+        lay_project_layer(&root, "same-dir-probe", "same");
+        let proj = root.join(".log-skimmer/rules");
+        let e = match load_ruleset_overlay(&proj, Some(&root)) {
+            Err(OverlayError::Conflict(e)) => e,
+            other => panic!("同目录须 Conflict 装载错误, got: {other:?}"),
+        };
+        assert!(e.contains("同一目录"), "{e}");
+        assert!(e.contains("LOG_SKIMMER_RULES"), "指向 env 配置: {e}");
+        assert!(!e.contains("改名或删除其一"), "不得引导改名规则: {e}");
     }
 
     /// 项目层装载失败归因: 目录在场但零 yaml → Project 变体携带项目层目录

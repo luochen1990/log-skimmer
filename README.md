@@ -177,7 +177,8 @@ Behavior essentials (spec: docs/rule-format.md §1.S):
 
 - **Effective scope follows storage location**: project-layer rules take effect for that project only; a fork carrying the directory gets them for the new repo automatically, no field to change.
 - **Probing point**: at startup `log-skimmer-mcp` probes `.log-skimmer/rules/` under its cwd; if present it is overlay-loaded on top of the global ruleset (the three-level resolution above); if absent, global layer only, behavior unchanged. The CLI has no probing semantics — `--rules` loads exactly what you point it at.
-- **Cross-layer id conflict = startup load error** (fail-fast, message naming the conflicting ids and both sources): a project-layer rule id must not duplicate the central ruleset.
+- **Cross-layer id conflict = startup load error** (fail-fast, message naming the conflicting ids and both sources): a project-layer rule id must not duplicate the central ruleset. If both layers resolve to the same directory (e.g. `LOG_SKIMMER_RULES` pointed at the project-layer directory), the error points at the env misconfiguration.
+- **Declared, so it must load**: `.log-skimmer/rules/` present but failing to load (e.g. an empty directory holding only `.gitkeep`) = startup load error, fail-fast — a broken declaration fails loudly rather than degrading silently; a missing or non-directory path counts as undeclared and is skipped silently (spec §1.S).
 
 Local verification (run once before committing; pass the project-layer directory directly as `--rules`):
 

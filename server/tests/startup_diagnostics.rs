@@ -14,6 +14,10 @@
 //! 本测试组首个红即坐实该形态: 相邻探测合法装载 30 条真规则, 兜底未命中)。
 //! 故兜底/相邻用例把 bin 拷贝到完全自持的临时沙箱 (`<tag>/x/bin/mcp` 布局使三级
 //! 探测路径全部落在沙箱内) 再 spawn, 层级判定只取决于测试铺设的目录形态。
+//! cwd 前提: 未注入 cwd 的 spawn (run_with_env 族 / startup_stderr 无 cwd 形态)
+//! 继承测试进程 cwd (= server/ crate 目录), 其正确性依赖该目录下永不出现
+//! `.log-skimmer/` — 若出现, 项目层探测会叠加装载并以 id 全量冲突**响亮红出**
+//! (spec §1.S fail-fast), 非静默漂移; 排障时优先检查该前提。
 
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
@@ -270,6 +274,42 @@ fn project_layer_failure_attributed_e2e() {
     assert!(
         !stderr.contains("tests/fixtures/rules"),
         "不得误挂全局层来源: {stderr}"
+    );
+}
+
+/// 跨层 id 冲突 e2e (spec §1.S): main 的 Conflict 渲染臂是独立分支 (不加来源
+/// 前缀, 防路径双现 — 恰是最易被「统一报错渲染」重构改坏的分支), 冲突构造由
+/// lib 单测把守, 此处 spawn 级锁定渲染契约: exit 2 + 冲突文案 + 两侧来源 +
+/// 无任何「来源」前缀形态。
+#[test]
+fn cross_layer_conflict_e2e_no_prefix() {
+    let root = sandbox_root("conflict");
+    let proj = root.join(".log-skimmer/rules");
+    std::fs::create_dir_all(&proj).unwrap();
+    // fixture 全局层已含 cargo-fixture-build-fail — 项目层再造同 id 必然冲突
+    std::fs::write(
+        proj.join("cargo-fixture-build-fail.yaml"),
+        "id: cargo-fixture-build-fail\ntitle: 项目层撞全局\ntool: cargo\nkind: signal\npatterns:\n  - regex: '^__NEVER_MATCH__'\n",
+    )
+    .unwrap();
+    let (code, stderr) = run_with_env_in(&fixture_rules_dir(), Some(&root));
+    assert_eq!(code, 2, "冲突 fail-fast exit 2, stderr:\n{stderr}");
+    assert!(stderr.contains("跨层 id 冲突"), "{stderr}");
+    assert!(
+        stderr.contains("cargo-fixture-build-fail"),
+        "文案含冲突 id: {stderr}"
+    );
+    assert!(
+        stderr.contains(".log-skimmer/rules"),
+        "自带项目层来源: {stderr}"
+    );
+    assert!(
+        stderr.contains("tests/fixtures/rules"),
+        "自带全局层来源: {stderr}"
+    );
+    assert!(
+        !stderr.contains("规则集装载失败 ("),
+        "Conflict 臂不加来源前缀 (Global/Project 臂形态均为带括号前缀): {stderr}"
     );
 }
 

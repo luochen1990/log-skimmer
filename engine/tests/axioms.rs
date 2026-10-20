@@ -275,6 +275,7 @@ fn v1_form_scope_repo_fields_tolerated_and_ignored() {
         ("v1-repo-bare", "scope: repo\nrepo: sst/opencode\n"), // v1 报「repo 形态非法」
         ("v1-global-with-repo", "scope: global\nrepo: o/r\n"), // v1 报「repo 非 null」
         ("v1-scope-non-enum", "scope: banana\n"), // v1 serde 直接解析失败
+        ("v1-repo-only", "repo: github.com/sst/opencode\n"), // v1 报「scope 必填缺失」
         ("v2-absent", ""),                    // v2 形态: 两字段均缺省
     ] {
         let dir = std::env::temp_dir().join(format!("ls-test-dep-window-{name}"));
