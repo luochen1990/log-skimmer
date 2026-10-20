@@ -99,6 +99,25 @@ enum Cmd {
         /// 待扫描目录 (发布树根, 递归)
         dir: PathBuf,
     },
+    /// 发布面 tag 卫生检查: 远端 refs/tags 每 tag 须指向 orphan 快照 commit 且树无内网专用件
+    /// (publish 必经机械防线, 2026-10-20 tag 残留事故补口; 0=合规 / 1=违规 / 2=远端或清单非法)
+    #[command(hide = true)] // 内部发布链工具, 不占公共帮助面 (与 hygiene/l0 同款)
+    TagGuard {
+        /// 发布面远端 (https://... / ssh://... / 本地 bare 仓路径)
+        #[arg(long, value_parser = clap::builder::NonEmptyStringValueParser::new())]
+        remote: String,
+        /// 排除清单文件 (一行一路径前缀, # 注释; 与 publish-stage 发布树构造 rm 共源 SSOT)
+        #[arg(long, value_parser = non_empty_arg("--excludes", "须为排除清单文件"))]
+        excludes: PathBuf,
+    },
+    /// 排除清单装载校验 + 条目逐行输出 (publish-stage 的 rm 消费入口;
+    /// 校验 SSOT 在 engine 装载器 — bash 只消费已校验条目, 不平行实现校验)
+    #[command(hide = true)] // 内部发布链工具, 不占公共帮助面 (与 hygiene/l0 同款)
+    Excludes {
+        /// 排除清单文件
+        #[arg(value_parser = non_empty_arg("排除清单路径", "位置参数"))]
+        file: PathBuf,
+    },
 }
 
 fn main() {
@@ -124,7 +143,62 @@ fn main() {
             require_all_rules_hit,
         } => l0_cmd(corpus, rules, base, emit_summary, require_all_rules_hit),
         Cmd::Hygiene { patterns, dir } => hygiene_cmd(patterns, dir),
+        Cmd::TagGuard { remote, excludes } => tag_guard_cmd(remote, excludes),
+        Cmd::Excludes { file } => excludes_cmd(file),
     }
+}
+
+fn excludes_cmd(file: PathBuf) {
+    let entries = log_skimmer::tag_guard::load_excludes(&file).unwrap_or_else(|e| {
+        eprintln!("excludes: 排除清单装载失败 — {e}");
+        std::process::exit(2);
+    });
+    for e in &entries {
+        println!("{e}");
+    }
+}
+
+fn tag_guard_cmd(remote: String, excludes: PathBuf) {
+    let ex = log_skimmer::tag_guard::load_excludes(&excludes).unwrap_or_else(|e| {
+        eprintln!("tag-guard: 排除清单装载失败 — {e}");
+        std::process::exit(2);
+    });
+    let audits = log_skimmer::tag_guard::guard(&remote, &ex).unwrap_or_else(|e| {
+        eprintln!("tag-guard: 采集失败 — {e}");
+        std::process::exit(2);
+    });
+    let violations: Vec<_> = audits.iter().filter(|a| !a.ok()).collect();
+    if violations.is_empty() {
+        println!(
+            "tag-guard: 通过 — 远端 tag 面 {} tags 全部为合法快照 (orphan + 无内网专用件): {remote}",
+            audits.len()
+        );
+        return;
+    }
+    eprintln!(
+        "tag-guard: 违规 {} / {} tags — 发布面 tag 须指向 orphan 快照 commit, 排除件连同历史不残留 (issue #18; 2026-10-20 tag 残留事故补口):",
+        violations.len(),
+        audits.len()
+    );
+    for a in &violations {
+        if let Some(kind) = &a.malformed {
+            eprintln!(
+                "  refs/tags/{}: 指向非 commit 对象 ({kind}) — 畸形 tag 面",
+                a.tag
+            );
+        }
+        if a.parents > 0 {
+            eprintln!(
+                "  refs/tags/{}: 携带 {} parent (非 orphan) — 历史链经 tag 可达, 内网专用件可能随历史泄露",
+                a.tag, a.parents
+            );
+        }
+        for h in &a.hits {
+            eprintln!("  refs/tags/{}: 树含内网专用件 {h}", a.tag);
+        }
+    }
+    eprintln!("修复: git push <remote> :refs/tags/<tag> 删除, 或将 tag 迁移至快照 commit");
+    std::process::exit(1);
 }
 
 fn hygiene_cmd(patterns: PathBuf, dir: PathBuf) {

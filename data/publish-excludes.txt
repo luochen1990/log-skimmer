@@ -1,0 +1,27 @@
+# 内网/开发面专用件排除清单 (issue #18) — publish 机械防线的口径 SSOT, 两个消费点:
+#   ① justfile publish-stage: 发布树构造时逐条 rm (发布树 ≡ master git 树 − 本清单 + 精简 justfile)
+#   ② log-skimmer tag-guard: 远端 tag 面校验 (tag 指向的树不得含本清单条目)
+# 格式: 一行一路径前缀 (目录条目尾斜杠保证组件边界, 如 data/ 不误伤 database/);
+# 注释须独占一行; 装载校验复用 engine hygiene (空清单/重复/行内 # 均拒绝)。
+
+# 内网维护者文档 (域名/网段/主机名/runner 契约/凭据叙述)
+AGENTS.md
+# 内网清单族 (forgejo run 固定清单 / 卫生模式清单 / POC 样本溯源 / 排除清单本体)
+data/
+# 立项调研 (内网 issue 引用 + 内网网段示例)
+docs/category-survey.md
+# 内网 CI 编排 (runner 标签/secret 名/持久卷路径)
+.forgejo/
+# POC 过程工件 (自述不入正式仓, 含内网建仓叙述)
+poc-dag.md
+# 国内镜像 source replacement (不绑架海外用户构建源)
+.cargo/
+# dev justfile (CI/发布 recipe + 内网叙述); 发布树由 scripts/release/justfile 精简版覆盖
+scripts/release/
+# scripts 内网门禁族 (内网语料拉取与 L0 门禁编排)
+scripts/fetch-forgejo.sh
+scripts/fetch-corpus.sh
+scripts/fetch-rules.sh
+scripts/l0-run.sh
+scripts/l0-base.sh
+# 注: scripts/fetch-logs.sh 保留 — 语料仓滚动执行器的公开同步源, 零内网内容

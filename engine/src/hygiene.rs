@@ -23,12 +23,18 @@ pub struct HygieneHit {
     pub text: String,
 }
 
-/// 装载模式清单 (一行一模式; 空行与 `#` 独占的注释行忽略; 返回为排序序 —
-/// 命中报告稳定可 diff)。
-/// 校验: 文件可读 / 至少一条有效模式 (空清单 = 防线失效, 拒绝) / 无重复
-/// (清单手维护, 重复是笔误信号) / 模式行不含 `#` (行内注释是 gitignore 事故
-/// 同款笔误形态 — 整行成为永不匹配的字面模式, 防线静默失效)。
+/// 模式清单装载 (noun=模式) — 语义契约见 [load_lines]。
 pub fn load_patterns(path: &Path) -> Result<Vec<String>, String> {
+    load_lines(path, "模式")
+}
+
+/// 行式清单装载器 (模式/排除条目共用; noun 为错误文案名词)。
+/// 语义: 一行一条目; 空行与 `#` 独占的注释行忽略; 两端 trim; 返回排序序
+/// (命中报告稳定可 diff)。
+/// 校验: 文件可读 / 至少一条有效条目 (空清单 = 防线失效, 拒绝) / 无重复
+/// (清单手维护, 重复是笔误信号) / 条目行不含 `#` (行内注释是 gitignore 事故
+/// 同款笔误形态 — 整行成为永不匹配的字面模式, 防线静默失效)。
+pub(crate) fn load_lines(path: &Path, noun: &str) -> Result<Vec<String>, String> {
     let raw = std::fs::read_to_string(path).map_err(|e| {
         format!(
             "{}: {e} (清单为内网专用件, 须随 dev 仓在场)",
@@ -43,16 +49,19 @@ pub fn load_patterns(path: &Path) -> Result<Vec<String>, String> {
         .collect();
     if let Some(bad) = pats.iter().find(|p| p.contains('#')) {
         return Err(format!(
-            "{}: 模式含 # (行内注释?) — {bad:?}; 注释须独占一行",
+            "{}: {noun}含 # (行内注释?) — {bad:?}; 注释须独占一行",
             path.display()
         ));
     }
     pats.sort_unstable();
     if let Some(i) = (1..pats.len()).find(|&i| pats[i - 1] == pats[i]) {
-        return Err(format!("{}: 模式重复 ({})", path.display(), pats[i]));
+        return Err(format!("{}: {noun}重复 ({})", path.display(), pats[i]));
     }
     if pats.is_empty() {
-        return Err(format!("{}: 零有效模式 — 空清单即防线失效", path.display()));
+        return Err(format!(
+            "{}: 零有效{noun} — 空清单即防线失效",
+            path.display()
+        ));
     }
     Ok(pats)
 }

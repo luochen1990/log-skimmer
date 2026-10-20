@@ -40,8 +40,10 @@ publish_dir := '/tmp/opencode/log-skimmer-publish'
 
 # 发布树构造 + 卫生检查 (publish 必经前段; 可独立运行验证发布面形态)。
 # master git 树 → 临时目录 − 内网专用件 → `log-skimmer hygiene` 扫描 (命中即 fail)。
-# 排除清单 SSOT 在此; 内网模式清单 SSOT 在 data/intranet-patterns.txt (同为内网专用件
-# — 清单本身是内网端点情报, 逻辑与机密分离: engine/src/hygiene.rs 只随公开面逻辑零字面量)。
+# 排除清单 SSOT 在 data/publish-excludes.txt (本 recipe 的 rm 与 tag-guard 的
+# 远端 tag 面校验共源; 每条目理由注释随清单文件)。内网模式清单 SSOT 在
+# data/intranet-patterns.txt (同为内网专用件 — 清单本身是内网端点情报,
+# 逻辑与机密分离: engine/src/hygiene.rs 只随公开面逻辑零字面量)。
 publish-stage:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -55,27 +57,18 @@ publish-stage:
     fi
     rm -rf "$dir" && mkdir -p "$dir"
     git archive master | tar -x -C "$dir"
-    # 内网/开发面专用件排除清单 (issue #18; 每项理由):
-    #   AGENTS.md                — 内网维护者文档 (域名/网段/主机名/runner 契约/凭据叙述)
-    #   data/                    — 内网清单族 (forgejo run 固定清单 / 卫生模式清单 / POC 样本溯源)
-    #   docs/category-survey.md  — 立项调研 (内网 issue 引用 + 内网网段示例)
-    #   .forgejo/                — 内网 CI 编排 (runner 标签/secret 名/持久卷路径)
-    #   poc-dag.md               — POC 过程工件 (自述不入正式仓, 含内网建仓叙述)
-    #   .cargo/                  — 国内镜像 source replacement (不绑架海外用户构建源)
-    #   scripts 内网门禁族       — fetch-forgejo/fetch-corpus/fetch-rules/l0-run/l0-base
-    #                             (内网语料拉取与 L0 门禁编排; fetch-logs.sh 保留 —
-    #                              语料仓滚动执行器的公开同步源, 零内网内容)
-    # dev justfile 同为开发面专用件 (CI/发布 recipe + 内网叙述), 发布树由精简版覆盖:
-    #   scripts/release/justfile — 发布面专用 (check/rules-load), cp 至发布树根。
-    rm -rf "$dir/AGENTS.md" "$dir/data" "$dir/docs/category-survey.md" "$dir/.forgejo" \
-        "$dir/poc-dag.md" "$dir/.cargo" "$dir/scripts/release" \
-        "$dir/scripts/fetch-forgejo.sh" "$dir/scripts/fetch-corpus.sh" \
-        "$dir/scripts/fetch-rules.sh" "$dir/scripts/l0-run.sh" "$dir/scripts/l0-base.sh"
-    cp scripts/release/justfile "$dir/justfile"
-    # 不变量: 发布树文件集 ≡ master git 树 − 上述排除清单 + 精简 justfile 覆盖
-    # (tracked-but-ignored 断言已在上方把守前提)
+    # 排除清单逐条 rm — 装载校验 (两端 trim / 笔误即拒 / 空清单拒) 的 SSOT 在
+    # engine 装载器 (load_excludes, 有单测); bash 只消费已校验条目, 不平行实现
+    # 校验 (2026-10-20 二轮精雕: 平行实现曾致 rm 侧尾随空白静默落空)。
+    # 先赋值再 heredoc — <<< 内的命令替换退出码不传播, set -e 接不住。
     cargo build --release -q -p log-skimmer
-    "${CARGO_TARGET_DIR:-target}/release/log-skimmer" hygiene --patterns data/intranet-patterns.txt "$dir"
+    bin="${CARGO_TARGET_DIR:-target}/release/log-skimmer"
+    entries="$("$bin" excludes data/publish-excludes.txt)"
+    while IFS= read -r entry; do rm -rf "${dir:?}/${entry:?}"; done <<< "$entries"
+    cp scripts/release/justfile "$dir/justfile"
+    # 不变量: 发布树文件集 ≡ master git 树 − data/publish-excludes.txt + 精简 justfile 覆盖
+    # (tracked-but-ignored 断言已在上方把守前提)
+    "$bin" hygiene --patterns data/intranet-patterns.txt "$dir"
     echo "发布树就绪: $dir (hygiene 通过)"
 
 # 发布面同步 (手动节奏, 需求方裁决): master → GitHub luochen1990/log-skimmer。
@@ -83,26 +76,31 @@ publish-stage:
 # 历史亦不残留 (issue #18: 此前整树镜像把内网端点连同历史带了出去)。
 # 排除与卫生检查必经 publish-stage (机械防线); 发布后 rules 仓 lint CI 的
 # 引擎引用自动取新 (发布面空壳期 lint 显式降级)。
+# tag 面终态断言 (2026-10-20 tag 残留事故补口): 快照式只 force master 不触碰
+# tags — 此前 10-17 的 v0.1.0 携带 dev 历史链经 tag 在公开面存活。publish 必经
+# tag-guard: 远端每 tag 须指向 orphan 快照且树无排除件, 违规即红。
 publish: publish-stage
     #!/usr/bin/env bash
     set -euo pipefail
     sha="$(git rev-parse --short master)"
     dir="${PUBLISH_DIR:-{{publish_dir}}}"
     remote_url="https://github.com/luochen1990/log-skimmer.git"
-    cd "$dir"
-    git init -q # 全新仓 (publish-stage 刚 rm -rf 重建): orphan 首提交, 无历史残留
-    git add -A
-    git -c user.name="log-skimmer publish" -c user.email="publish@localhost" \
-        commit -qm "publish: snapshot of master@$sha (intranet-only files excluded, hygiene-checked)"
-    git remote add github "$remote_url"
-    git fetch -q github master || true # lease 基准 (首次 publish 前远端可无 master)
-    expected="$(git rev-parse --verify -q github/master || true)"
-    if [ -n "$expected" ]; then
-        git push --force-with-lease=refs/heads/master:"$expected" github HEAD:master
-    else
-        git push github HEAD:master
-    fi
+    ( cd "$dir"
+      git init -q # 全新仓 (publish-stage 刚 rm -rf 重建): orphan 首提交, 无历史残留
+      git add -A
+      git -c user.name="log-skimmer publish" -c user.email="publish@localhost" \
+          commit -qm "publish: snapshot of master@$sha (intranet-only files excluded, hygiene-checked)"
+      git remote add github "$remote_url"
+      git fetch -q github master || true # lease 基准 (首次 publish 前远端可无 master)
+      expected="$(git rev-parse --verify -q github/master || true)"
+      if [ -n "$expected" ]; then
+          git push --force-with-lease=refs/heads/master:"$expected" github HEAD:master
+      else
+          git push github HEAD:master
+      fi
+    )
     echo "发布面已同步: github.com/luochen1990/log-skimmer master ← master@$sha 快照"
+    "${CARGO_TARGET_DIR:-target}/release/log-skimmer" tag-guard --remote "$remote_url" --excludes data/publish-excludes.txt
 
 # ci-periodic — org 标准 P2 周期兜底契约 (非超集/阻塞级/幂等): 内网现场语料补抓
 # (fetch-forgejo 是内网 API 调用, 零出网流量) + 语料仓新鲜度哨兵 (GHA weekly 自刷
