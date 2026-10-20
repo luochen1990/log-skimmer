@@ -136,6 +136,100 @@ fn oversized_msg(n: usize) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// 项目层叠加装载 (spec §1.S)
+// ---------------------------------------------------------------------------
+
+/// 项目层规则探测 (spec §1.S): cwd 下 `.log-skimmer/rules/` 是目录则 Some。
+/// cwd 由调用方注入 (main 传 current_dir, 测试传 tmpdir) — 本函数不取进程状态,
+/// 保持纯函数可测。路径存在但非目录 (如误建同名文件) 视为无项目层 — 项目层是
+/// 可选增强, 不以硬错误阻塞启动 (与全局层 fail-fast 语义刻意不对称)。
+pub fn resolve_project_rules(cwd: &Path) -> Option<PathBuf> {
+    let dir = cwd.join(".log-skimmer/rules");
+    dir.is_dir().then_some(dir)
+}
+
+/// 项目层装载元信息 (在场时): 目录与条数 — main 启动日志打印用。
+#[derive(Debug)]
+pub struct ProjectLayer {
+    pub dir: PathBuf,
+    pub count: usize,
+}
+
+/// 双层叠加装载结果 (spec §1.S)。
+#[derive(Debug)]
+pub struct OverlayRuleset {
+    /// 合并规则集 (全局层 + 项目层) — 消费面 (skim/list_rules) 与单层集无差别。
+    pub rules: Vec<Rule>,
+    /// 全局层条数 (启动日志区分两层计数用)。
+    pub global_count: usize,
+    /// 项目层元信息; None = 无项目层 (仅全局层, 行为与单层装载完全一致)。
+    pub project: Option<ProjectLayer>,
+}
+
+/// 叠加装载错误 (main 据此分形报错 — 归因到层, 各层文案契约不同):
+/// 全局层沿用 #47「消息不带路径 + main 加来源前缀一次」; 项目层失败由**变体**
+/// 携带目录 (main 渲染为项目层来源, 不套全局层前缀); 冲突文案自带两侧路径
+/// (main 原样输出)。
+#[derive(Debug)]
+pub enum OverlayError {
+    /// 全局层装载失败 — 消息不带路径 (load_ruleset_at 的 #47 契约原样透传)。
+    Global(String),
+    /// 项目层装载失败 — 携带项目层目录 (消息本体不带路径, 由本变体携带)。
+    Project(PathBuf, String),
+    /// 跨层 id 冲突 — 消息自带冲突 id 与两侧来源路径。
+    Conflict(String),
+}
+
+/// 双层叠加装载 (spec §1.S): 全局层照旧 ([load_ruleset_at] 的 fail-fast 语义
+/// 原样保留) → 项目层在场则装载追加 → 合并前跨层 id 冲突检查 (冲突 = 装载错误,
+/// fail-fast, 文案含冲突 id 列表与两侧来源)。cwd 为 None (current_dir 获取失败)
+/// 时容错为无项目层 — cwd 不可知则探测无从谈起, 不因环境异常阻塞启动。
+pub fn load_ruleset_overlay(
+    global_dir: &Path,
+    cwd: Option<&Path>,
+) -> Result<OverlayRuleset, OverlayError> {
+    let global = load_ruleset_at(global_dir).map_err(OverlayError::Global)?;
+    let global_count = global.len();
+    let Some(project_dir) = cwd.and_then(resolve_project_rules) else {
+        return Ok(OverlayRuleset {
+            rules: global,
+            global_count,
+            project: None,
+        });
+    };
+    let project =
+        load_ruleset_at(&project_dir).map_err(|e| OverlayError::Project(project_dir.clone(), e))?;
+    // 跨层 id 冲突 (spec §1.S): 同 id 双层各载一份 → 叠加后 id 不再全局唯一,
+    // 破坏「rule-id 全局唯一」约束 — fail-fast 并列冲突 id 与两侧来源
+    // (文案自带两侧路径: 冲突归因优先于 #47 的单层路径去重偏好)。
+    let global_ids: HashSet<&str> = global.iter().map(|r| r.id.as_str()).collect();
+    let conflicts: Vec<&str> = project
+        .iter()
+        .map(|r| r.id.as_str())
+        .filter(|id| global_ids.contains(id))
+        .collect();
+    if !conflicts.is_empty() {
+        return Err(OverlayError::Conflict(format!(
+            "跨层 id 冲突: {} — 全局层 {} 与项目层 {} 各有同名规则, 项目层规则 id 不得与全局规则集重复 (请改名或删除其一)",
+            conflicts.join(", "),
+            global_dir.display(),
+            project_dir.display()
+        )));
+    }
+    let count = project.len();
+    let mut rules = global;
+    rules.extend(project);
+    Ok(OverlayRuleset {
+        rules,
+        global_count,
+        project: Some(ProjectLayer {
+            dir: project_dir,
+            count,
+        }),
+    })
+}
+
+// ---------------------------------------------------------------------------
 // skim 视图
 // ---------------------------------------------------------------------------
 
@@ -726,5 +820,130 @@ mod tests {
             !e.contains("/nonexistent"),
             "路径只出现在 main 来源前缀: {e}"
         );
+    }
+
+    // ---------- 项目层叠加装载 (spec §1.S) ----------
+
+    /// 项目层叠加测试助手: `<tmp>/log-skimmer-overlay-{tag}-{pid}/` 沙箱根
+    /// (tag+pid 双维隔离并行测试进程, 与 startup_diagnostics 的 sandbox 同款纪律)。
+    fn overlay_root(tag: &str) -> PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("log-skimmer-overlay-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        root
+    }
+
+    /// 在沙箱根下铺设 `.log-skimmer/rules/` 项目层 (单条规则; tool 须为 id 前缀,
+    /// 引擎加载校验约束 — 冲突用例复用全局层既有 id 时 tool 随之取 cargo)。
+    fn lay_project_layer(root: &Path, id: &str, tool: &str) -> PathBuf {
+        let dir = root.join(".log-skimmer/rules");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("proj.yaml"),
+            format!(
+                "id: {id}\ntitle: 项目自研检查\ntool: {tool}\nkind: signal\npatterns:\n  - regex: '^\\[projci\\] '\n"
+            ),
+        )
+        .unwrap();
+        dir
+    }
+
+    /// 项目层探测: 目录在场 → Some; 不在场 → None; 路径存在但非目录 → None
+    /// (项目层是可选增强, 容错为无, 不以硬错误阻塞启动)。
+    #[test]
+    fn resolve_project_rules_detection() {
+        let root = overlay_root("detect");
+        assert_eq!(
+            resolve_project_rules(&root),
+            None,
+            "无 .log-skimmer → 无项目层"
+        );
+        let dir = lay_project_layer(&root, "proj-own-check", "proj");
+        assert_eq!(resolve_project_rules(&root), Some(dir));
+        // 误建同名文件 (非目录): 容错为无项目层
+        let root2 = overlay_root("detect-file");
+        std::fs::create_dir_all(root2.join(".log-skimmer")).unwrap();
+        std::fs::write(root2.join(".log-skimmer/rules"), "not a dir").unwrap();
+        assert_eq!(resolve_project_rules(&root2), None);
+    }
+
+    /// 叠加装载: 全局 (fixture) + 项目层 1 条 → 合并生效, 元信息计数正确,
+    /// 合并集对消费面 (list_rules) 与单层集无差别。
+    #[test]
+    fn overlay_loads_global_plus_project() {
+        let root = overlay_root("plus");
+        let pdir = lay_project_layer(&root, "proj-own-check", "proj");
+        let global = fixture_rules();
+        let rs = load_ruleset_overlay(&fixture_rules_dir(), Some(&root)).expect("叠加装载");
+        assert_eq!(rs.global_count, global.len(), "全局层计数 = 单层装载条数");
+        let p = rs.project.as_ref().expect("项目层元信息在场");
+        assert_eq!((p.count, p.dir.as_path()), (1, pdir.as_path()));
+        assert_eq!(rs.rules.len(), global.len() + 1, "合并 = 全局 + 项目");
+        assert!(
+            rs.rules.iter().any(|r| r.id == "proj-own-check"),
+            "项目层规则进场"
+        );
+        let ids: Vec<String> = list_rules_view(&rs.rules)
+            .into_iter()
+            .map(|v| v.id)
+            .collect();
+        assert!(
+            ids.iter().any(|i| i == "proj-own-check")
+                && ids.iter().any(|i| i == "cargo-fixture-build-fail"),
+            "两层规则同列: {ids:?}"
+        );
+    }
+
+    /// 跨层 id 冲突 = 装载错误 (fail-fast): Conflict 文案含冲突 id 与两侧来源;
+    /// 全局层失败保持 Global 变体 (#47 无路径契约由 main 加前缀)。
+    #[test]
+    fn overlay_cross_layer_id_conflict_fails_fast() {
+        let root = overlay_root("conflict");
+        // fixture 全局层已含 cargo-fixture-build-fail — 项目层再造同 id
+        lay_project_layer(&root, "cargo-fixture-build-fail", "cargo");
+        let e = match load_ruleset_overlay(&fixture_rules_dir(), Some(&root)) {
+            Err(OverlayError::Conflict(e)) => e,
+            other => panic!("须 Conflict 装载错误, got: {other:?}"),
+        };
+        assert!(e.contains("跨层 id 冲突"), "{e}");
+        assert!(e.contains("cargo-fixture-build-fail"), "文案含冲突 id: {e}");
+        assert!(e.contains(".log-skimmer/rules"), "文案含项目层来源: {e}");
+        assert!(e.contains("tests/fixtures/rules"), "文案含全局层来源: {e}");
+        // 全局层失败透传 Global 变体 (消息不带路径 — main 的来源前缀契约不变)
+        match load_ruleset_overlay(Path::new("/nonexistent-rules-dir"), Some(&root)) {
+            Err(OverlayError::Global(e)) => {
+                assert!(e.contains("规则目录不存在"), "{e}");
+                assert!(!e.contains("/nonexistent"), "消息本体不带路径: {e}");
+            }
+            other => panic!("全局层失败须 Global 变体, got: {other:?}"),
+        }
+    }
+
+    /// 项目层装载失败归因: 目录在场但零 yaml → Project 变体携带项目层目录
+    /// (main 据此报「项目层 来源」, 不误挂全局层前缀)。
+    #[test]
+    fn overlay_project_layer_failure_attributed() {
+        let root = overlay_root("proj-fail");
+        let proj = root.join(".log-skimmer/rules");
+        std::fs::create_dir_all(&proj).unwrap(); // 空目录 (无 *.yaml)
+        match load_ruleset_overlay(&fixture_rules_dir(), Some(&root)) {
+            Err(OverlayError::Project(pdir, e)) => {
+                assert_eq!(pdir, proj, "变体携带项目层目录");
+                assert!(e.contains("无 *.yaml"), "零规则集失败文案: {e}");
+            }
+            other => panic!("项目层失败须 Project 变体, got: {other:?}"),
+        }
+    }
+
+    /// 无项目层 (目录不在场 / cwd 不可知): 仅全局层, 行为与单层装载完全一致。
+    #[test]
+    fn overlay_without_project_layer_equals_global() {
+        let global = fixture_rules();
+        for cwd in [Some(overlay_root("absent").as_path()), None] {
+            let rs = load_ruleset_overlay(&fixture_rules_dir(), cwd).expect("仅全局层装载");
+            assert!(rs.project.is_none(), "无项目层元信息");
+            assert_eq!(rs.rules.len(), global.len());
+            assert_eq!(rs.global_count, global.len());
+        }
     }
 }

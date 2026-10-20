@@ -93,6 +93,11 @@ const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","param
 /// (stdio_smoke 的握手请求同款); initialize 响应 (~1KB) 远小于 pipe 容量,
 /// 无读写并发死锁风险。
 fn startup_stderr(exe: &Path, env_rules: Option<&Path>) -> String {
+    startup_stderr_in(exe, env_rules, None)
+}
+
+/// 同 [startup_stderr], 支持注入子进程 cwd (项目层叠加的探测点, spec §1.S)。
+fn startup_stderr_in(exe: &Path, env_rules: Option<&Path>, cwd: Option<&Path>) -> String {
     let mut cmd = Command::new(exe);
     match env_rules {
         Some(p) => {
@@ -102,6 +107,9 @@ fn startup_stderr(exe: &Path, env_rules: Option<&Path>) -> String {
             cmd.env_remove("LOG_SKIMMER_RULES");
         }
     };
+    if let Some(c) = cwd {
+        cmd.current_dir(c);
+    }
     let mut child = cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped()) // 协议通道占位 (响应无人读, 量级安全见上)
@@ -167,6 +175,82 @@ fn env_ruleset_no_fallback_warning() {
     assert!(
         !stderr.contains(log_skimmer_server::FIXTURE_FALLBACK_WARNING),
         "env 级命中不得有兜底警示, stderr 实际:\n{stderr}"
+    );
+}
+
+// ---------- 项目层叠加装载 (spec §1.S) ----------
+
+/// 项目层叠加 e2e: cwd 下 `.log-skimmer/rules/` 在场 → 全局层 (env 指向 server
+/// fixture, 4 条) 之上叠加项目层, stderr 打印叠加行 (条数 + 路径), 全局层
+/// 计数与警示行为不变。跨层冲突的文案断言由 lib 单测把守 (spawn 链路与单测
+/// 走同一装载函数, 无独立分支可分叉)。
+#[test]
+fn project_layer_overlay_startup_log() {
+    let root = std::env::temp_dir().join(format!(
+        "log-skimmer-startup-overlay-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    let proj = root.join(".log-skimmer/rules");
+    std::fs::create_dir_all(&proj).unwrap();
+    std::fs::write(
+        proj.join("proj-own-check.yaml"),
+        "id: proj-own-check\ntitle: 项目自研检查\ntool: proj\nkind: signal\npatterns:\n  - regex: '^\\[projci\\] '\n",
+    )
+    .unwrap();
+    let rules_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules");
+    let stderr = startup_stderr_in(
+        Path::new(env!("CARGO_BIN_EXE_log-skimmer-mcp")),
+        Some(&rules_dir),
+        Some(&root),
+    );
+    assert!(
+        !stderr.contains(log_skimmer_server::FIXTURE_FALLBACK_WARNING),
+        "env 级命中不得有兜底警示, stderr 实际:\n{stderr}"
+    );
+    assert!(stderr.contains("装载 4 条规则"), "全局层计数不变: {stderr}");
+    assert!(
+        stderr.contains("项目层规则叠加: +1 条")
+            && stderr.contains(proj.display().to_string().as_str()),
+        "项目层在场须打印条数与路径, stderr 实际:\n{stderr}"
+    );
+}
+
+/// 项目层装载失败归因 e2e (spec §1.S): `.log-skimmer/rules/` 在场但零 yaml →
+/// fail-fast exit 2, 报错点名项目层来源 — 不得误挂全局层前缀 (错层归因会把
+/// 排障引向错误方向)。
+#[test]
+fn project_layer_failure_attributed_e2e() {
+    let root = std::env::temp_dir().join(format!(
+        "log-skimmer-startup-projfail-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    let proj = root.join(".log-skimmer/rules");
+    std::fs::create_dir_all(&proj).unwrap(); // 空目录 (无 *.yaml)
+    let out = Command::new(env!("CARGO_BIN_EXE_log-skimmer-mcp"))
+        .env(
+            "LOG_SKIMMER_RULES",
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rules"),
+        )
+        .current_dir(&root)
+        .output()
+        .expect("spawn log-skimmer-mcp 失败");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "项目层失败 fail-fast exit 2, stderr:\n{stderr}"
+    );
+    // 归因断言 (路径去重不适用: engine LoadErrors 按设计带源路径 — issue #14B
+    // 的 grep-ability 契约, 与 #47 的预检文案族是两条文案轴)
+    assert!(
+        stderr.contains("项目层 来源") && stderr.contains("无 *.yaml"),
+        "报错须归因到项目层: {stderr}"
+    );
+    assert!(
+        !stderr.contains("tests/fixtures/rules"),
+        "不得误挂全局层来源: {stderr}"
     );
 }
 
