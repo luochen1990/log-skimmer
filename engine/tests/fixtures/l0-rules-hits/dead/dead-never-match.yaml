@@ -3,7 +3,6 @@
 id: dead-never-match
 title: 恒不匹配锚 (l0 dead fixture)
 tool: dead
-scope: global
 patterns:
   - regex: '^__NEVER_MATCH__'
 kind: signal

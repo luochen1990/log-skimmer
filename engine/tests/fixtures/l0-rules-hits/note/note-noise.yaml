@@ -3,7 +3,6 @@
 id: note-noise
 title: "note: 噪音行 (l0 noise fixture)"
 tool: note
-scope: global
 patterns:
   - regex: '^note:'
 kind: noise

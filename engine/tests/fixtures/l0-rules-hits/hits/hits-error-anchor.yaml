@@ -3,7 +3,6 @@
 id: hits-error-anchor
 title: "error: 锚行 (l0 hits fixture)"
 tool: hits
-scope: global
 patterns:
   - regex: '^error:'
 kind: signal

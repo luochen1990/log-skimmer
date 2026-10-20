@@ -7,9 +7,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 /// failure 规则 (intent 缺省默认 failure, category=test)。
-const RULE_FAILURE: &str = "id: t-hit\ntitle: h\ntool: t\nscope: global\nkind: signal\ncategory: test\npatterns:\n  - regex: '^ERR'\n";
+const RULE_FAILURE: &str =
+    "id: t-hit\ntitle: h\ntool: t\nkind: signal\ncategory: test\npatterns:\n  - regex: '^ERR'\n";
 /// warning 规则 (相邻行可与 RULE_FAILURE 合并进同块, 验证代表 fragment 选择)。
-const RULE_WARNING: &str = "id: t-warn\ntitle: w\ntool: t\nscope: global\nkind: signal\nintent: warning\ncategory: lint\npatterns:\n  - regex: '^WARN'\n";
+const RULE_WARNING: &str = "id: t-warn\ntitle: w\ntool: t\nkind: signal\nintent: warning\ncategory: lint\npatterns:\n  - regex: '^WARN'\n";
 
 /// 引擎仓 fixture 规则集 (l0 e2e 用 — 与 engine/tests/l0.rs 同源)。
 fn fixtures_rules() -> &'static str {

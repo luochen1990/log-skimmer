@@ -106,8 +106,10 @@ pub fn resolve_rules() -> (PathBuf, RulesLevel) {
 }
 
 /// 装载规则集 (fail-fast 判定点): 目录不存在 / 加载校验失败 / 零条规则均为 Err。
-/// 零条视为错误: engine `load_rules` 对空目录静默返回 Ok(vec![]), 而「至少一条规则」
-/// 是 server 可用性底线 (双侧安全网依赖规则集在场, spec §0)。
+/// 零条视为错误: engine `load_rules` 已对空规则集 Err (「规则集为空 = 引擎失明」,
+/// spec §3 exit 2 族), 本函数的 is_empty 分支因此是纵深冗余防线 (engine 语义
+/// 漂移时兜底) — 「至少一条规则」是 server 可用性底线 (双侧安全网依赖规则集
+/// 在场, spec §0)。
 ///
 /// Err 消息的路径形态分两族: 本函数自构的**预检族** (目录缺失/非目录/空串) 不带
 /// 路径 (#47 契约 — 调用方「来源 <path>」前缀只出现一次); engine LoadErrors 的
@@ -214,7 +216,7 @@ pub fn load_ruleset_overlay(
     // 正确修复是 unset env 而非删规则。
     if same_dir(global_dir, &project_dir) {
         return Err(OverlayError::Conflict(format!(
-            "全局层与项目层为同一目录 {} — LOG_SKIMMER_RULES 指向了项目层目录, 请 unset 或改指全局规则集目录",
+            "全局层与项目层为同一目录 {} — 同一目录不应同时充当两层来源: 若 LOG_SKIMMER_RULES 指向了项目层目录, 请 unset 或改指全局规则集目录; 若全局层来自 exe 相邻探测, 请调整布局 (bin 与项目层解耦) 或显式设置 LOG_SKIMMER_RULES",
             project_dir.display()
         )));
     }
@@ -222,11 +224,12 @@ pub fn load_ruleset_overlay(
     // 破坏「rule-id 全局唯一」约束 — fail-fast 并列冲突 id 与两侧来源
     // (文案自带两侧路径: 冲突归因优先于 #47 的单层路径去重偏好)。
     let global_ids: HashSet<&str> = global.iter().map(|r| r.id.as_str()).collect();
-    let conflicts: Vec<&str> = project
+    let mut conflicts: Vec<&str> = project
         .iter()
         .map(|r| r.id.as_str())
         .filter(|id| global_ids.contains(id))
         .collect();
+    conflicts.sort_unstable(); // 报错输出可复现 (与 list_rules 按 id 排序的偏好一致)
     if !conflicts.is_empty() {
         return Err(OverlayError::Conflict(format!(
             "跨层 id 冲突: {} — 全局层 {} 与项目层 {} 各有同名规则, 项目层规则 id 不得与全局规则集重复 (请改名或删除其一)",
@@ -944,8 +947,7 @@ mod tests {
     #[test]
     fn overlay_same_dir_conflict_points_to_env() {
         let root = overlay_root("same-dir");
-        lay_project_layer(&root, "same-dir-probe", "same");
-        let proj = root.join(".log-skimmer/rules");
+        let proj = lay_project_layer(&root, "same-dir-probe", "same");
         let e = match load_ruleset_overlay(&proj, Some(&root)) {
             Err(OverlayError::Conflict(e)) => e,
             other => panic!("同目录须 Conflict 装载错误, got: {other:?}"),

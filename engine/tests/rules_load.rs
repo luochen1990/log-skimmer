@@ -76,7 +76,7 @@ fn rule_context_bound_follows_engine_const() {
     std::fs::create_dir_all(&dir).unwrap();
     let rule_yaml = |n: u32| {
         format!(
-            "id: t-x\ntitle: x\ntool: t\nscope: global\nkind: signal\ncontext: {{before: {n}, after: {n}}}\npatterns:\n  - regex: '^x'\n"
+            "id: t-x\ntitle: x\ntool: t\nkind: signal\ncontext: {{before: {n}, after: {n}}}\npatterns:\n  - regex: '^x'\n"
         )
     };
     std::fs::write(dir.join("r.yaml"), rule_yaml(log_skimmer::CONTEXT_MAX)).unwrap();

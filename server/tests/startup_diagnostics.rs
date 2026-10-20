@@ -156,7 +156,8 @@ fn startup_stderr_in(exe: &Path, env_rules: Option<&Path>, cwd: Option<&Path>) -
 /// 两次 + 精雕细琢 Check 一次), 窗口极窄且不可确定性复现, 故无复现测试 (守护 =
 /// 本组 e2e 自身, 修复后 stress 验证见 commit message)。issue #66 的 pid 唯一
 /// 路径已消除跨进程同路径形态, 本重试兜住残余的同进程瞬态形态。与 EAGAIN 同
-/// 类的瞬态 errno 处理: 上界 20×50ms ≈ 1s, 超界响亮失败 (带路径) 保留可诊断性。
+/// 类的瞬态 errno 处理: 至多 20 次尝试, 前 19 次失败各睡 50ms (上界 950ms),
+/// 超界响亮失败 (带路径) 保留可诊断性。
 fn spawn_with_busy_retry(mut cmd: Command, exe: &Path) -> std::process::Child {
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped()) // 协议通道占位 (响应无人读, 量级安全见上)
