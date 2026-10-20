@@ -291,7 +291,7 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 - `cancelled`: 截断日志**只记命中, 不记缺失** — 命中 failure-intent 规则计为弱 TP (fail-fast 连坐场景下命中是真信号), 单独报告不进主指标; 未命中不计 FN (信息不完整)。
 - `timed_out` (GHA 独立 conclusion): 单独留意 — timeout 日志本身是可规则化的失败模式, 语料标注时专门收集。
 
-**rerun 处理** (取数层元数据, 不用正则): sidecar 必带 `attempt`; rerun-through (attempt>1 且最终成功) 排除出主指标; 其失败 attempt 是优质 failure 语料, 按 attempt 结论打标签收进语料库。
+**rerun 处理** (取数层元数据, 不用正则): sidecar 必带 `attempt` (缺失时引擎按 attempt=1 处理并聚合计数单行警告 — 兜底行为入规范, 不静默); rerun-through (attempt>1 且最终成功) 排除出主指标; 其失败 attempt 是优质 failure 语料, 按 attempt 结论打标签收进语料库。
 
 **退出码分层** (CLI 契约, issue #44): 采集层非法 — 语料目录不存在 / 零配对样本 / 规则集非法 — 属数据错误, exit 2 (与 skim 侧 exit 2 同族, 调用方修环境而非修规则); 判定层违例 → verdict=fail + exit 1。语料在场 ≥50 断言因此只对 0<n<50 生效: 定向验证小语料的 fail 属预期 (防空转下限, 正向信号以 per_rule_hits 为准), 全量语料下的样本不足才是获取链路故障信号 — corpus-missing note 必须分流这两种读法, 不可单指控后者。
 
