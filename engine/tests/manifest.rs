@@ -5,7 +5,9 @@
 
 use std::path::PathBuf;
 
-/// 最小合法规则 (spec §1 必填字段齐全)。
+/// 最小合法规则 (spec §1 必填字段齐全)。刻意保留 v1 形态 (scope: global) —
+/// 弃用窗口 (format_version 2) 下须零破坏装载, 本文件全部用例因此顺带锁定
+/// 「带 scope 的旧规则文件经完整 load_rules 链正常装载且值被忽略」。
 const RULE: &str = "id: test-x\ntitle: t\ntool: test\nscope: global\npatterns:\n  - regex: '^error'\nkind: signal\n";
 
 /// 临时规则集目录: 单条合法规则 + 可选 manifest 内容。
@@ -22,10 +24,14 @@ fn ruleset(name: &str, manifest: Option<&str>) -> PathBuf {
 
 #[test]
 fn manifest_version_match_loads() {
-    // 有 manifest 且版本匹配 → 正常装载; manifest 保留名不计入规则
+    // 有 manifest 且版本匹配 (取引擎当前支持版本, 常量驱动 — bump FORMAT_VERSION
+    // 即本用例自动跟随) → 正常装载; manifest 保留名不计入规则
     let dir = ruleset(
         "match",
-        Some("format_version: 1\nmin_engine_version: 0.0.1\n"),
+        Some(&format!(
+            "format_version: {}\nmin_engine_version: 0.0.1\n",
+            log_skimmer::manifest::FORMAT_VERSION
+        )),
     );
     let rules = log_skimmer::load_rules(&dir).unwrap_or_else(|e| panic!("版本匹配须装载: {e}"));
     assert_eq!(rules.len(), 1, "manifest.yaml 不得计入规则");
@@ -44,8 +50,15 @@ fn manifest_absent_loads() {
 
 #[test]
 fn format_version_future_rejected() {
-    // format_version 未来值 → 拒载, 文案自解释 (版本数值 + 升级建议)
-    let dir = ruleset("future-fmt", Some("format_version: 2\n"));
+    // format_version 未来值 (当前支持版本 +1, 常量驱动 — bump FORMAT_VERSION
+    // 即本用例自动跟随) → 拒载, 文案自解释 (版本数值 + 升级建议)
+    let dir = ruleset(
+        "future-fmt",
+        Some(&format!(
+            "format_version: {}\n",
+            log_skimmer::manifest::FORMAT_VERSION + 1
+        )),
+    );
     let e = log_skimmer::load_rules(&dir).expect_err("未来格式版本须拒载");
     let msg = e.to_string();
     assert!(msg.contains("format_version"), "须指明失败校验项: {msg}");

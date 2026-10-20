@@ -10,9 +10,11 @@
 use serde::Deserialize;
 use std::path::Path;
 
-/// 本引擎支持的规则格式版本 (spec §1.M: 当前 1)。
+/// 本引擎支持的规则格式版本 (spec §1.M: 当前 2)。
+/// v2 = scope/repo 弃用窗口 (spec §1.S): v2 引擎同时接受带/不带该两字段的规则
+/// 文件 (值忽略); 声明 format_version: 2 的规则集在 v1 引擎上拒载。
 /// 规则格式不兼容演进时 bump; 兼容演进 (已知字段内) 不 bump。
-pub const FORMAT_VERSION: u32 = 1;
+pub const FORMAT_VERSION: u32 = 2;
 
 /// manifest 保留文件名 (规则集根目录, 集级非每规则; load_rules 跳过其规则解析)。
 pub const MANIFEST_FILENAME: &str = "manifest.yaml";

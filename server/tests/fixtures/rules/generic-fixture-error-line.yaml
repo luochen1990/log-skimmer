@@ -3,7 +3,6 @@
 id: generic-fixture-error-line
 title: server fixture — 通用 error 行
 tool: generic
-scope: global
 intent: failure
 patterns:
   - regex: '^error: '

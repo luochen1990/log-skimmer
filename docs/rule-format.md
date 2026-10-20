@@ -2,7 +2,7 @@
 
 > 职责边界: 本文是规则 YAML 格式、逐行状态机语义、fragment 输出协议与 L0 统计口径的**单一事实来源**, 是规则编写者与引擎实现者的共同契约。两者对语义的任何疑问以本文为准; 本文未定义的行为视为未指定 (实现不应依赖)。
 > 英文译本: [rule-format.en.md](rule-format.en.md) (non-normative, 语义歧义以本文为准)。
-> 版本: v0.5 (POC)。v0.1 吸收 T2 实测反馈 (A0); v0.2 吸收第二轮增量建议 (intent/坐标恒带/双粒度/三态与 rerun); v0.3 intent 三分化 (failure|warning|info, 需求方反馈: 非 failure 信息区分问题倾向与纯环境快照); v0.4 规则集 manifest 版本协商 + 未知字段拒载 (issue #59: 引擎 × 规则集兼容性静态可判定); v0.5 输入三分类 SSOT (issue #71: 纯空白归 exit 2 数据错误族, 零块警示文案分流退役) + A0 首部 BOM 剥除 (issue #78) — 行为语义变更但不触及规则文件格式 (`format_version` 恒 1, 规则零迁移)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
+> 版本: v0.6 (POC)。v0.1 吸收 T2 实测反馈 (A0); v0.2 吸收第二轮增量建议 (intent/坐标恒带/双粒度/三态与 rerun); v0.3 intent 三分化 (failure|warning|info, 需求方反馈: 非 failure 信息区分问题倾向与纯环境快照); v0.4 规则集 manifest 版本协商 + 未知字段拒载 (issue #59: 引擎 × 规则集兼容性静态可判定); v0.5 输入三分类 SSOT (issue #71: 纯空白归 exit 2 数据错误族, 零块警示文案分流退役) + A0 首部 BOM 剥除 (issue #78) — 行为语义变更但不触及规则文件格式 (`format_version` 恒 1, 规则零迁移); v0.6 scope/repo 字段退役 — 生效范围改由**存储位置**唯一决定 (§1.S: 双层装载域 + 项目层叠加装载), 字段进入弃用窗口 (在场容忍、值忽略, v3 物理删除; `format_version` 1 → 2, 规则零迁移 — 旧文件照常装载)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
 
 ## 0. 设计灵魂 (约束一切后续演进)
 
@@ -22,14 +22,12 @@
 id: nix-eval-error            # <tool-id>-<语义名>, 全局唯一
 title: nix 求值错误树          # 一句话人类可读描述
 tool: nix                     # 工具维度 (与目录名一致)
-scope: global                 # global | repo
 patterns:                     # 状态机 pattern 链, ≥1 项 (见 §2)
   - regex: '^error: '          # patterns[0] 是锚 (anchor)
   - regex: '^\s'              # 后续缩进行
     loop: true                 # 贪心重复消费
 kind: signal                  # signal (提取) | noise (标记噪音)
 # ---- 选填 (默认值如下) ----
-repo: null                    # scope: repo 时必填, "host/owner/repo" (如 github.com/sst/opencode; 多 CI 平台 host 消歧)
 category: unknown             # 封闭枚举 10 值 (见下表); 省缺 = unknown (装载入口统一注入, 宁缺勿错)
 intent: failure               # failure|warning|info — 见下方语义表; noise 规则必须缺省
 confidence: medium            # high|medium|low (片段继承, 排序参考)
@@ -54,12 +52,12 @@ warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊�
 | 字段 | 约束 |
 | --- | --- |
 | id | 匹配 `^[a-z0-9-]+$`, 且以 `tool` 值为前缀 |
-| scope/repo | `scope: repo` 时 repo 必填; `scope: global` 时 repo 必须为 null |
 | patterns | 非空数组; 每项 regex 必填; loop 默认 false |
 | context.before/after | 0 ≤ 值 ≤ 10 |
 | kind/confidence/category | 枚举值; category 省缺视为 unknown (装载入口统一注入) |
 | intent | 枚举 `failure`/`warning`/`info`, 省缺 = failure; kind: noise 时必须缺省 |
-| repo | `host/owner/repo` 完整形态; 裸 `owner/repo` 缺 host 视为非法 |
+
+**弃用字段 (v0.6 起, 勿写)**: `scope` / `repo` 已退役 — 生效范围由存储位置唯一决定 (§1.S)。两字段进入**弃用窗口**: 在场容忍、值被完全忽略 (不做任何校验 — 含 v1 时代视为非法的组合形态也放行, 旧规则集零破坏装载); **禁止新规则使用**; v3 物理删除。
 
 `category` 封闭枚举 (调研定稿, 见 docs/category-survey.md; 两域混合, 域归属仅作文档/WebPage 分组, 不进枚举值):
 
@@ -78,13 +76,38 @@ warning 与 info 的区分是「问题倾向」: 前者可能提示根因 (诊�
 
 打标纪律 (**宁缺勿错**): 错标污染查询语义 (agent 程序化过滤, 不可检测), unknown 只损失该规则自身的过滤价值。多因混合/类别超出枚举 (集合演化信号, PR 记录样例)/样例不足/L0 回测发现规则命中多类日志 → 打 unknown。unknown 占比长期 >40% 触发集合审视; unknown 升级具名走 PR 人工确认。flaky 是属性不是类别, 不进 category (未来独立维度)。
 
+### 1.S 生效范围与存储位置 (v0.6)
+
+规则的生效范围由**存储位置**唯一决定 — 位置是结构性事实, 字段只是声明性副本 (fork 场景下位置自动正确, 字段会腐坏)。`scope`/`repo` 字段由此退役 (弃用窗口见 §1 字段约束表后注)。
+
+**双层装载域**:
+
+| 层 | 存储位置 | 生效范围 | 维护主体 |
+| --- | --- | --- | --- |
+| 全局层 | 中央规则仓 (log-skimmer-rules, 工具主轴) | 所有项目 | 社区维护 + Agent 辅助 (PR 演进) |
+| 项目层 | `<repo>/.log-skimmer/rules/` (可选) | 仅该项目 | 项目自维护 |
+
+**何时需要项目层规则** (判定表 — 默认不需要, 前两行是常态):
+
+| 场景 | 落点 |
+| --- | --- |
+| 只用标准工具 (cargo/nix/gha/…) | 不需要 — 中央仓已覆盖 |
+| 自研检查, 但输出带项目特异标记 (如 `[opencode]` 前缀) | 以项目工具名进中央仓即可 (正则自带特异锚, 不会误撞其他项目日志) |
+| 自研检查且输出无特异标记 (宽正则会误撞其他项目日志) | 项目层 — 只有这种情况需要 |
+
+**fork 语义**: 规则随目录走 — fork 携带 `.log-skimmer/rules/` 后对新仓自动生效, 无需改任何字段 (这正是退役 scope/repo 字段的动机)。
+
+**跨层 id 冲突 = 装载错误**: 双层叠加装载时同 id 出现于两层 → fail-fast (id 全局唯一约束跨层不变), 报错列出冲突 id 与两侧来源。
+
+**项目层探测 (仅 MCP server)**: server 启动时在 cwd 下探测 `.log-skimmer/rules/`, 在场则与全局规则集 (三级定位, 见 README) **叠加装载** (全局层照旧 + 项目层追加); 不在场仅全局层, 行为不变。CLI 无探测语义 — `--rules` 显式指定的目录即所载即所得 (项目层目录可直接作为 `--rules` 值验证)。
+
 ### 1.M 规则集 manifest (集级版本协商, 可选)
 
 规则集根目录可携带一个 `manifest.yaml` (集级单文件, 非每规则字段; 文件名精确为 `manifest.yaml`, 是规则集根目录的保留文件名 — 不作为规则解析)。引擎与规则集独立演化 (README「仓库拓扑」), 版本协商使「引擎 × 规则集」组合的兼容性**可静态判定**: 下游打包方双源 pin (引擎 tag + 规则集 rev) 各自单侧升级时, 一次装载即知兼容与否, 无需全量回归。
 
 ```yaml
 # manifest.yaml (规则集根目录, 可选)
-format_version: 1          # 必填。规则格式版本, 整数 (当前为 1)
+format_version: 2          # 必填。规则格式版本, 整数 (当前为 2)
 min_engine_version: 0.1.0  # 选填。引擎版本下限, major.minor.patch 完整数字三元组
 ```
 
@@ -97,6 +120,7 @@ min_engine_version: 0.1.0  # 选填。引擎版本下限, major.minor.patch 完�
 | manifest 自身 | YAML 解析失败 / 未知字段 / `min_engine_version` 形态非法 | 指明 manifest 非法细节 |
 
 - **无 manifest → 照常装载** (向后兼容窗口): 不在场即无约束, 现存规则集零破坏。manifest 是规则集 (如 log-skimmer-rules) 后续采纳的接口, 采纳时机由规则仓自行决定。
+- **版本史**: v2 = scope/repo 弃用窗口 (§1.S) — v2 引擎同时接受带/不带该两字段的规则文件 (值忽略, 规则零迁移); 声明 `format_version: 2` 的规则集在 v1 引擎上拒载 (v1 引擎 scope 视为必填且校验值域, v2 形态规则文件亦无法解析)。v1 = 初版格式。
 - **版本比较**: 两侧版本号均按朴素 `major.minor.patch` 数字三元组比较, 不引入 semver 库; 三元组须完整且纯数字 (`1` / `1.2` / `1.x.0` 均非法)。
 - **未知字段拒载 (deny_unknown_fields)**: 规则文件 (含 patterns 项与 context 项) 与 manifest 的反序列化均拒绝未知字段 — 未来新字段在旧引擎上从「静默忽略」变为「显式拒载」。静默偏移 (规则语义已变而提取结果无感知漂移) 比拒载更危险; 新字段的引入须伴随引擎侧支持, 否则旧引擎以本段校验显式拒绝。
 - 拒载文案自解释: 指明哪个校验失败 + 建议动作, 消费方一读即知该升级哪一侧。
@@ -244,7 +268,7 @@ skim 入参校验 (均 `invalid_params`, 含类型错/缺字段, 通道统一见
 
 **read_around 响应**: `{total_lines, window_start, window_end, truncated, note?, lines[]}` — `window_start`/`window_end` 为实际返回窗口 (末尾收缩与截断之后, 1-based 含端点); `truncated` = 是否因 200 行窗口上限截断 (`line_end` 超出日志末尾收缩到末行**不算**截断); `note` 仅截断时在场, 给出续读起点行号; `lines[]` 为带 `L{n}: ` 前缀的原文行。入参校验 (均 `invalid_params`): `log_text` 空或纯空白或超 32MB; `line_start < 1` 或 `line_start > line_end`; `line_start` 超出日志末行。
 
-**list_rules 响应**: 规则清单数组, 按 id 升序 (输出可预测, 与装载顺序解耦); 每条 `{id, tool, kind, intent, category, scope, repo}` — `intent` 在 kind: noise 时恒 `null` (signal 恒有效值), `repo` 仅 `scope: repo` 时非 `null`。
+**list_rules 响应**: 规则清单数组, 按 id 升序 (输出可预测, 与装载顺序解耦); 每条 `{id, tool, kind, intent, category}` — `intent` 在 kind: noise 时恒 `null` (signal 恒有效值)。(v0.6: `scope`/`repo` 输出字段随规则字段退役 — 生效范围由存储位置决定, 见 §1.S, 不再出现在清单输出。)
 
 ## 4. L0 统计口径 (POC)
 

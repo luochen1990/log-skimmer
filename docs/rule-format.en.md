@@ -3,7 +3,7 @@
 > Non-normative English translation. In case of any discrepancy, the normative reference is [docs/rule-format.md](rule-format.md) (Chinese, SSOT).
 >
 > Scope: this specification — normative in its Chinese version — is the **single source of truth** for the rule YAML format, the line-by-line state machine semantics, the fragment output protocol, and the L0 statistics criteria; it is the shared contract between rule authors and engine implementers. For either side, any question about semantics is settled by the normative version; behavior not defined there is unspecified (implementations must not rely on it).
-> Version: v0.5 (POC). v0.1 absorbed T2 field-test feedback (A0); v0.2 absorbed a second round of incremental suggestions (intent/always-on coordinates/dual granularity/three states & rerun); v0.3 split intent three ways (failure|warning|info, requester feedback: distinguish problem-prone signals from pure environment snapshots among non-failure information); v0.4 added the ruleset manifest version negotiation + unknown-field rejection (issue #59: engine × ruleset compatibility becomes statically decidable); v0.5 made input classification a single-source predicate (issue #71: whitespace-only input joins the exit-2 data-error family; the zero-block warning's input-shape branching retired) and added leading-BOM stripping to A0 (issue #78) — behavioral semantics change that does not touch the rule file format (`format_version` stays 1, zero rule migration). Fields evolve forward by addition only, never removal; semantic changes must bump the version and migrate rules.
+> Version: v0.6 (POC). v0.1 absorbed T2 field-test feedback (A0); v0.2 absorbed a second round of incremental suggestions (intent/always-on coordinates/dual granularity/three states & rerun); v0.3 split intent three ways (failure|warning|info, requester feedback: distinguish problem-prone signals from pure environment snapshots among non-failure information); v0.4 added the ruleset manifest version negotiation + unknown-field rejection (issue #59: engine × ruleset compatibility becomes statically decidable); v0.5 made input classification a single-source predicate (issue #71: whitespace-only input joins the exit-2 data-error family; the zero-block warning's input-shape branching retired) and added leading-BOM stripping to A0 (issue #78) — behavioral semantics change that does not touch the rule file format (`format_version` stays 1, zero rule migration); v0.6 retired the scope/repo fields — a rule's effective scope is now decided solely by its **storage location** (§1.S: two-layer loading domain + project-layer overlay loading), and the fields enter a deprecation window (tolerated if present, values ignored, physically removed in v3; `format_version` 1 → 2, zero rule migration — old files load as before). Fields evolve forward by addition only, never removal; semantic changes must bump the version and migrate rules.
 
 ## 0. Design Soul (constrains all future evolution)
 
@@ -23,14 +23,12 @@
 id: nix-eval-error            # <tool-id>-<semantic-name>, globally unique
 title: nix evaluation error tree   # one-line human-readable description
 tool: nix                     # tool dimension (matches the directory name)
-scope: global                 # global | repo
 patterns:                     # state machine pattern chain, ≥1 item (see §2)
   - regex: '^error: '          # patterns[0] is the anchor
   - regex: '^\s'              # subsequent indented lines
     loop: true                 # greedy repeated consumption
 kind: signal                  # signal (extract) | noise (mark as noise)
 # ---- optional (defaults shown) ----
-repo: null                    # required when scope: repo, "host/owner/repo" (e.g. github.com/sst/opencode; the host disambiguates multiple CI platforms)
 category: unknown             # closed enum of 10 values (see table below); omitted = unknown (injected uniformly at the load entry — prefer missing over wrong)
 intent: failure               # failure|warning|info — see the semantics table below; must be omitted for noise rules
 confidence: medium            # high|medium|low (inherited by fragments, used for ordering)
@@ -55,12 +53,12 @@ Field constraints (validated at load time; violation = invalid rule set, rejecte
 | Field | Constraint |
 | --- | --- |
 | id | matches `^[a-z0-9-]+$`, and is prefixed by the `tool` value |
-| scope/repo | when `scope: repo`, repo is required; when `scope: global`, repo must be null |
 | patterns | non-empty array; each item requires regex; loop defaults to false |
 | context.before/after | 0 ≤ value ≤ 10 |
 | kind/confidence/category | enum values; category omitted counts as unknown (injected uniformly at the load entry) |
 | intent | enum `failure`/`warning`/`info`, omitted = failure; must be omitted when kind: noise |
-| repo | full `host/owner/repo` form; a bare `owner/repo` lacking the host is invalid |
+
+**Deprecated fields (since v0.6 — do not write them)**: `scope` / `repo` are retired — a rule's effective scope is decided solely by its storage location (§1.S). Both fields are in a **deprecation window**: tolerated if present, values completely ignored (no validation at all — combinations that v1 deemed illegal are also let through, so old rulesets load unbroken); **new rules must not use them**; physically removed in v3.
 
 Closed `category` enum (finalized by survey, see docs/category-survey.md; two mixed domains — domain membership is only for docs/WebPage grouping, not part of the enum values):
 
@@ -79,13 +77,38 @@ Closed `category` enum (finalized by survey, see docs/category-survey.md; two mi
 
 Labeling discipline (**prefer missing over wrong**): mislabeling pollutes query semantics (agents filter programmatically; undetectable), while unknown only loses that one rule's filtering value. Use unknown when: multiple causes mixed / category outside the enum (a signal for set evolution — record samples in the PR) / insufficient samples / L0 backtesting finds a rule matching multiple categories. An unknown share persistently >40% triggers a set review; upgrading an unknown to a named category goes through PR with human confirmation. flaky is an attribute, not a category — it does not enter category (a separate dimension in the future).
 
+### 1.S Effective Scope & Storage Location (v0.6)
+
+A rule's effective scope is decided solely by its **storage location** — location is a structural fact, a field is merely a declarative copy (under forking, location is automatically correct while fields rot). The `scope`/`repo` fields are retired for this reason (deprecation window: see the note after the §1 field-constraint table).
+
+**Two-layer loading domain**:
+
+| Layer | Storage location | Effective scope | Maintained by |
+| --- | --- | --- | --- |
+| Global layer | central rules repo (log-skimmer-rules, tool-axis) | all projects | community-maintained + agent-assisted (PR evolution) |
+| Project layer | `<repo>/.log-skimmer/rules/` (optional) | that project only | the project itself |
+
+**When is a project layer needed** (decision table — the default is *not* needed; the first two rows are the common case):
+
+| Scenario | Where it goes |
+| --- | --- |
+| Standard tools only (cargo/nix/gha/…) | Not needed — the central repo already covers them |
+| In-house check whose output carries a project-specific marker (e.g. an `[opencode]` prefix) | The central repo, named after the project's tool (the regex carries its own specific anchor; no cross-project false hits) |
+| In-house check whose output has no specific marker (a wide regex would false-hit other projects' logs) | The project layer — only this case needs it |
+
+**Fork semantics**: rules travel with the directory — a fork carrying `.log-skimmer/rules/` takes effect for the new repo automatically, no field to change (this is precisely the motivation for retiring scope/repo).
+
+**Cross-layer id conflict = load error**: the same id appearing in both layers during overlay loading → fail-fast (the global-id-uniqueness constraint holds across layers); the error lists the conflicting ids and both sources.
+
+**Project-layer probing (MCP server only)**: at startup the server probes `.log-skimmer/rules/` under its cwd; if present it **overlay-loads** it on top of the global ruleset (three-level resolution, see README) — global layer as before + project layer appended; if absent, global layer only, behavior unchanged. The CLI has no probing semantics — the directory given by `--rules` is exactly what gets loaded (a project-layer directory can be passed directly as the `--rules` value to verify it).
+
 ### 1.M Ruleset Manifest (set-level version negotiation, optional)
 
 A ruleset root may carry a `manifest.yaml` (a single set-level file, not a per-rule field; the exact filename `manifest.yaml` is a reserved filename at the ruleset root — it is not parsed as a rule). The engine and the ruleset evolve independently (README "Repository Topology"); version negotiation makes the compatibility of an "engine × ruleset" combination **statically decidable**: a downstream packager pinning both sources (engine tag + ruleset rev) can upgrade either side alone and learn compatibility from a single load attempt instead of a full regression.
 
 ```yaml
 # manifest.yaml (ruleset root, optional)
-format_version: 1          # required. Rule-format version, integer (currently 1)
+format_version: 2          # required. Rule-format version, integer (currently 2)
 min_engine_version: 0.1.0  # optional. Engine version floor, full major.minor.patch numeric triple
 ```
 
@@ -98,6 +121,7 @@ Loading semantics (validated when the engine loads a ruleset; a violation = **in
 | Manifest itself | YAML parse failure / unknown field / malformed `min_engine_version` | State the manifest's specific defect |
 
 - **No manifest → loads as before** (backward-compatibility window): absence means no constraint; existing rulesets are unaffected. The manifest is an interface for rulesets (e.g. log-skimmer-rules) to adopt later; the adoption timing is the rules repo's own decision.
+- **Version history**: v2 = the scope/repo deprecation window (§1.S) — a v2 engine accepts rule files both with and without those two fields (values ignored, zero rule migration); a ruleset declaring `format_version: 2` is rejected by v1 engines (a v1 engine treats scope as required and validates its value domain; v2-form rule files also fail to parse there). v1 = the initial format.
 - **Version comparison**: both sides compare as plain `major.minor.patch` numeric triples, no semver library; the triple must be complete and purely numeric (`1` / `1.2` / `1.x.0` are all invalid).
 - **Unknown-field rejection (deny_unknown_fields)**: deserialization of rule files (including pattern items and context items) and of the manifest rejects unknown fields — a future new field changes on old engines from "silently ignored" to "explicitly rejected". Silent drift (rule semantics changed while extraction results drift unnoticed) is more dangerous than rejection; introducing a new field must come with engine-side support, otherwise old engines reject explicitly via this section's checks.
 - Rejection messages are self-explanatory: which check failed + a suggested action, so the consumer immediately knows which side to upgrade.
@@ -241,7 +265,7 @@ skim input validation (all `invalid_params`): `log_text` empty or whitespace-onl
 
 **read_around response**: `{total_lines, window_start, window_end, truncated, note?, lines[]}` — `window_start`/`window_end` are the actually returned window (after end-shrink and truncation, 1-based, inclusive); `truncated` = whether truncated by the 200-line window cap (`line_end` beyond the log's last line shrinking to the last line does **not** count as truncation); `note` present only on truncation, giving the line number to continue reading from; `lines[]` are the original lines prefixed with `L{n}: `. Input validation (all `invalid_params`): `log_text` empty, whitespace-only, or over 32MB; `line_start < 1` or `line_start > line_end`; `line_start` beyond the log's last line.
 
-**list_rules response**: an array of the rule inventory, sorted by id ascending (predictable output, decoupled from load order); each entry `{id, tool, kind, intent, category, scope, repo}` — `intent` is always `null` when kind: noise (always a valid value for signal), `repo` is non-`null` only when `scope: repo`.
+**list_rules response**: an array of the rule inventory, sorted by id ascending (predictable output, decoupled from load order); each entry `{id, tool, kind, intent, category}` — `intent` is always `null` when kind: noise (always a valid value for signal). (v0.6: the `scope`/`repo` output fields retire along with the rule fields — the effective scope is decided by storage location, see §1.S, and no longer appears in the inventory output.)
 
 ## 4. L0 Statistics Criteria (POC)
 

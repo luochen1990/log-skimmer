@@ -3,7 +3,6 @@
 id: github-actions-fixture-runner-info
 title: server fixture — GHA runner 镜像版本行 (环境快照)
 tool: github-actions
-scope: global
 category: infra
 intent: info
 patterns:

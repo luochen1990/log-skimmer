@@ -232,7 +232,8 @@ fn a8_regex_compile_gate() {
     assert!(err.0.iter().any(|e| e.contains("编译失败")));
 }
 
-// 加载校验: 重复 id / scope-repo 互斥 / patterns 空。
+// 加载校验: 重复 id / patterns 空。(scope/repo 校验已随字段退役 — v0.6 弃用窗口,
+// 见下方 v1_form_scope_repo_fields_tolerated_and_ignored。)
 #[test]
 fn load_validation_errors() {
     let dir = std::env::temp_dir().join("ls-test-load");
@@ -240,66 +241,57 @@ fn load_validation_errors() {
     std::fs::create_dir_all(dir.join("t")).unwrap();
     std::fs::write(
         dir.join("t/a.yaml"),
-        "id: t-dup\ntitle: a\ntool: t\nscope: repo\nkind: signal\npatterns:\n  - regex: '^a'\n",
+        "id: t-dup\ntitle: a\ntool: t\nkind: signal\npatterns:\n  - regex: '^a'\n",
     )
     .unwrap();
     std::fs::write(
         dir.join("t/b.yaml"),
-        "id: t-dup\ntitle: b\ntool: t\nscope: global\nrepo: o/r\nkind: signal\npatterns:\n  - regex: '^b'\n",
+        "id: t-dup\ntitle: b\ntool: t\nkind: signal\npatterns:\n  - regex: '^b'\n",
     )
     .unwrap();
     std::fs::write(
         dir.join("t/c.yaml"),
-        "id: t-empty\ntitle: c\ntool: t\nscope: global\nkind: signal\npatterns: []\n",
+        "id: t-empty\ntitle: c\ntool: t\nkind: signal\npatterns: []\n",
     )
     .unwrap();
     let err = load_rules(&dir).unwrap_err();
     assert!(err.0.iter().any(|e| e.contains("id 重复")));
-    assert!(err.0.iter().any(|e| e.contains("scope=repo 但缺")));
-    assert!(err.0.iter().any(|e| e.contains("scope=global 但 repo")));
     assert!(err.0.iter().any(|e| e.contains("patterns 为空")));
 }
 
-// 加载校验 (issue #14 A): scope=repo 时 repo 须 `host/owner/repo` 完整形态
-// (spec §1: 裸 owner/repo 缺 host 视为非法) — 裸两段/单段/空段/多余段均整体拒载。
+// 弃用窗口 (format_version 2, spec §1.S): scope/repo 字段在场容忍、值被完全
+// 忽略 — 含 v1 时代全部非法形态 (scope: repo 缺 repo / repo 裸两段 / scope:
+// global 携 repo / scope 非枚举值) 一律正常装载。锁界迁移信号: 规则仓删字段
+// PR 合并前, fetch-rules 拉到的旧规则集 (带 scope) 须零破坏装载。
 #[test]
-fn load_validation_repo_form() {
-    for bad in [
-        "sst/opencode",  // 裸两段 (缺 host) — issue MRE 形态
-        "opencode",      // 单段
-        "sst//opencode", // 空中段
-        "sst/opencode/", // 空尾段
-        "/sst/opencode", // 空首段
-        "a/b/c/d",       // 多余段
+fn v1_form_scope_repo_fields_tolerated_and_ignored() {
+    for (name, extra) in [
+        ("v1-global", "scope: global\n"), // v1 最常见形态
+        (
+            "v1-repo-full",
+            "scope: repo\nrepo: github.com/sst/opencode\n",
+        ),
+        ("v1-repo-missing", "scope: repo\n"), // v1 报「缺 repo 字段」
+        ("v1-repo-bare", "scope: repo\nrepo: sst/opencode\n"), // v1 报「repo 形态非法」
+        ("v1-global-with-repo", "scope: global\nrepo: o/r\n"), // v1 报「repo 非 null」
+        ("v1-scope-non-enum", "scope: banana\n"), // v1 serde 直接解析失败
+        ("v2-absent", ""),                    // v2 形态: 两字段均缺省
     ] {
-        let dir = std::env::temp_dir().join("ls-test-repo-form");
+        let dir = std::env::temp_dir().join(format!("ls-test-dep-window-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("t")).unwrap();
         std::fs::write(
-            dir.join("t/bad.yaml"),
-            format!("id: t-bad\ntitle: b\ntool: t\nscope: repo\nrepo: {bad}\nkind: signal\npatterns:\n  - regex: '^a'\n"),
+            dir.join("t/r.yaml"),
+            format!(
+                "id: t-x\ntitle: x\ntool: t\n{extra}kind: signal\npatterns:\n  - regex: '^a'\n"
+            ),
         )
         .unwrap();
-        let err = load_rules(&dir).unwrap_err();
-        let msg = err
-            .0
-            .iter()
-            .find(|e| e.contains("repo 形态非法"))
-            .unwrap_or_else(|| panic!("repo={bad:?} 须报形态非法, got: {err}"));
-        assert!(msg.contains("t/bad.yaml"), "报错带源文件: {msg}");
-        assert!(msg.contains(bad), "报错带非法值: {msg}");
+        let rs = load_rules(&dir)
+            .unwrap_or_else(|e| panic!("{name}: 弃用窗口下须正常装载 (值忽略), got: {e}"));
+        assert_eq!(rs.len(), 1, "{name}: 恰装载该单条规则");
+        assert_eq!(rs[0].id, "t-x");
     }
-
-    // 完整形态回归: 不误伤合法规则。
-    let dir = std::env::temp_dir().join("ls-test-repo-form-ok");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(dir.join("t")).unwrap();
-    std::fs::write(
-        dir.join("t/ok.yaml"),
-        "id: t-ok\ntitle: o\ntool: t\nscope: repo\nrepo: github.com/sst/opencode\nkind: signal\npatterns:\n  - regex: '^a'\n",
-    )
-    .unwrap();
-    load_rules(&dir).expect("完整形态 host/owner/repo 须放行");
 }
 
 // 加载校验 (issue #14 B): id 重复报错须并列两个冲突源文件 — 多文件规则仓

@@ -4,7 +4,6 @@
 id: cargo-could-not-compile
 title: cargo 编译失败汇总行 (could not compile ... due to N previous errors)
 tool: cargo
-scope: global
 category: build
 confidence: high
 patterns:

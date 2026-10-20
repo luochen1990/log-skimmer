@@ -3,7 +3,6 @@
 id: github-actions-fixture-group-noise
 title: server fixture — GHA group 折叠标记 (噪音行)
 tool: github-actions
-scope: global
 patterns:
   - regex: '^::group::'
 kind: noise

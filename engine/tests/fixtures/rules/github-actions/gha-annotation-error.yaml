@@ -2,7 +2,6 @@
 id: github-actions-annotation-error
 title: GHA annotation 错误行
 tool: github-actions
-scope: global
 patterns:
   - regex: '^##\[error\]'
 kind: signal

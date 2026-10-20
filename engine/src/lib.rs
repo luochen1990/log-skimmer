@@ -35,13 +35,6 @@ pub struct Pattern {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum Scope {
-    Global,
-    Repo,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum Kind {
     Signal,
     Noise,
@@ -157,9 +150,16 @@ pub struct Rule {
     pub id: String,
     pub title: String,
     pub tool: String,
-    pub scope: Scope,
+    /// 弃用窗口 (format_version 2, spec §1.S): scope/repo 字段退役 — 生效范围由
+    /// 存储位置唯一决定 (中央仓 = 全局层 / 项目仓 `.log-skimmer/rules/` = 项目层)。
+    /// 在场容忍但值被完全忽略: 不校验任何约束 (含 v1 视为非法的组合形态也放行,
+    /// 保证 fetch-rules 拉到的旧规则集零破坏装载); 禁止新规则使用; v3 物理删除。
+    /// 类型取 serde_yaml::Value 而非旧枚举: 既然忽略值, 就不对值域做任何假设。
     #[serde(default)]
-    pub repo: Option<String>,
+    pub scope: Option<serde_yaml::Value>,
+    /// 同上 — scope 的伴生字段, 一同进入弃用窗口。
+    #[serde(default)]
+    pub repo: Option<serde_yaml::Value>,
     pub patterns: Vec<Pattern>,
     pub kind: Kind,
     /// None = YAML 缺省 (signal 语义默认 Failure; noise 必须缺省, 见校验)。
@@ -290,13 +290,6 @@ fn is_valid_id(id: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
-/// repo 字段形态 (spec §1): `host/owner/repo` 完整形态 (oss-cache 同构) —
-/// 恰好三段且均非空; 裸 `owner/repo` 缺 host 视为非法。
-fn is_full_repo_form(repo: &str) -> bool {
-    let parts: Vec<&str> = repo.split('/').collect();
-    parts.len() == 3 && parts.iter().all(|p| !p.is_empty())
-}
-
 /// 递归读取目录下全部 `*.yaml`, 解析 + 校验 + 编译 regex。
 pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
     let mut errs = LoadErrors::default();
@@ -401,14 +394,8 @@ fn validate_rule(rule: &mut Rule, rel: &str, errs: &mut LoadErrors) {
             rule.id, rule.tool
         ));
     }
-    match (rule.scope, &rule.repo) {
-        (Scope::Repo, None) => errs.0.push(format!("{rel}: scope=repo 但缺 repo 字段")),
-        (Scope::Repo, Some(repo)) if !is_full_repo_form(repo) => errs.0.push(format!(
-            "{rel}: repo 形态非法 (须 host/owner/repo 三段非空): {repo}"
-        )),
-        (Scope::Global, Some(_)) => errs.0.push(format!("{rel}: scope=global 但 repo 非 null")),
-        _ => {}
-    }
+    // scope/repo: 弃用窗口 (format_version 2) — 字段在场容忍、值被完全忽略,
+    // 不做任何校验 (v1 的 scope/repo 约束已随字段退役, spec §1.S)。
     if rule.patterns.is_empty() {
         errs.0.push(format!("{rel}: patterns 为空"));
     }

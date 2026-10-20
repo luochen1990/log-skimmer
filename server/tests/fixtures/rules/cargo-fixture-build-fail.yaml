@@ -5,7 +5,6 @@
 id: cargo-fixture-build-fail
 title: server fixture — cargo 编译失败汇总行
 tool: cargo
-scope: global
 category: build
 confidence: high
 intent: failure

@@ -3,7 +3,6 @@
 id: github-actions-runner-image-info
 title: GHA runner 镜像版本行 (环境快照)
 tool: github-actions
-scope: global
 category: infra
 patterns:
   - regex: '^Runner Image: '

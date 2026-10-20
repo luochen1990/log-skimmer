@@ -2,7 +2,6 @@
 id: nix-eval-error-tree
 title: nix eval 错误树
 tool: nix
-scope: global
 patterns:
   - regex: '^error:'
 kind: signal

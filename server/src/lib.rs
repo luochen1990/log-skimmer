@@ -8,7 +8,7 @@
 //! 状态机与提取逻辑全部复用 engine lib (本层禁止复制实现, 只做包装聚合)。
 
 use log_skimmer::{
-    load_rules, override_context, skim, Category, Fragment, Intent, Kind, Rule, Scope, CONTEXT_MAX,
+    load_rules, override_context, skim, Category, Fragment, Intent, Kind, Rule, CONTEXT_MAX,
 };
 use serde::Serialize;
 use std::collections::HashSet;
@@ -400,6 +400,7 @@ pub fn read_around_view(
 
 /// 规则清单条目 (agent 判断规则集覆盖面用)。
 /// kind 为补充字段: noise 规则无 intent (恒 null), 无 kind 则该行不可自解释。
+/// (v0.6: scope/repo 输出字段随规则字段退役 — 生效范围由存储位置决定, spec §1.S。)
 #[derive(Debug, Serialize)]
 pub struct RuleView {
     pub id: String,
@@ -408,8 +409,6 @@ pub struct RuleView {
     /// 有效 intent (signal 语义默认 failure); noise 规则无 intent (null, spec §1)。
     pub intent: Option<Intent>,
     pub category: Category,
-    pub scope: Scope,
-    pub repo: Option<String>,
 }
 
 /// 装载规则清单, 按 id 排序 (输出可预测, 与装载顺序解耦)。
@@ -422,8 +421,6 @@ pub fn list_rules_view(rules: &[Rule]) -> Vec<RuleView> {
             kind: r.kind,
             intent: (r.kind != Kind::Noise).then(|| Fragment::effective_intent(r)),
             category: r.category,
-            scope: r.scope,
-            repo: r.repo.clone(),
         })
         .collect();
     views.sort_by(|a, b| a.id.cmp(&b.id));

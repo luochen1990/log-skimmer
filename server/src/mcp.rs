@@ -89,7 +89,7 @@ impl SkimServer {
     }
 
     #[tool(
-        description = "列出已装载规则集清单 (id/tool/kind/intent/category/scope/repo, 按 id 升序), 用于判断规则集对目标日志的覆盖面。"
+        description = "列出已装载规则集清单 (id/tool/kind/intent/category, 按 id 升序), 用于判断规则集对目标日志的覆盖面。"
     )]
     fn list_rules(&self) -> std::result::Result<CallToolResult, McpError> {
         json_result(list_rules_view(&self.rules))
@@ -371,9 +371,12 @@ mod tests {
         let arr = v.as_array().expect("规则清单数组");
         assert!(arr.len() >= 2, "fixture 规则集基线");
         let first = &arr[0];
-        for key in ["id", "tool", "kind", "intent", "category", "scope", "repo"] {
+        for key in ["id", "tool", "kind", "intent", "category"] {
             assert!(first.get(key).is_some(), "缺字段 {key}");
         }
+        // v0.6: scope/repo 输出字段随规则字段退役 (spec §1.S), 不得再出现在清单
+        assert!(first.get("scope").is_none(), "scope 已退役: {first}");
+        assert!(first.get("repo").is_none(), "repo 已退役: {first}");
     }
 
     /// issue #28 锁界: SkimParams 生成的 inputSchema 中 context 数值约束

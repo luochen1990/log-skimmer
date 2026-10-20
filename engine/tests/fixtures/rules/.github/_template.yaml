@@ -13,8 +13,9 @@
 id: template-my-rule # 必填: <tool-id>-<语义名>, 全局唯一 (重复加载为错误); ^[a-z0-9-]+$
 title: 规则模板 (一句话人类可读描述) # 必填
 tool: template # 必填: 工具维度, 与所在目录名一致 (目录 folksonomy 约定名)
-scope: global # 必填: global (全仓适用) | repo (单仓适用)
-repo: null # scope: repo 时必填, "host/owner/repo" 完整形态 (如 github.com/sst/opencode); global 时必须 null
+# 生效范围由存储位置唯一决定 (spec §1.S): 本仓 = 全局层; 项目特异规则住
+#   <repo>/.log-skimmer/rules/ (项目层)。scope/repo 字段已退役 (弃用窗口:
+#   在场容忍值忽略, 勿写)。
 category: unknown # 选填: 封闭枚举 10 值 (fmt/lint/typecheck/build/test/security/deps/infra/config/unknown);
 #   省缺 = unknown。判定基准见 ../docs/category-survey.md; 宁缺勿错, 把握不足打 unknown
 intent: failure # 选填: failure (失败证据, 默认) | warning (问题倾向非失败) | info (纯环境快照);
