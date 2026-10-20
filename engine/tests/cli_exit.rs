@@ -283,6 +283,15 @@ fn prepare(tag: &str, corpus: &std::path::Path) {
             )
             .unwrap();
         }
+        // P0-2: sidecar 缺失 attempt — 统计按 1 兜底, 缺口单行 stderr 警告可见
+        "no-attempt" => {
+            std::fs::write(corpus.join("a.log"), "##[error]boom\n").unwrap();
+            std::fs::write(
+                corpus.join("a.log.json"),
+                r#"{"repo":"github.com/x/y","conclusion":"success"}"#,
+            )
+            .unwrap();
+        }
         _ => unreachable!("未布景的 tag: {tag}"),
     }
 }
@@ -339,6 +348,31 @@ fn l0_orphan_only_corpus_exits_2_with_warning() {
         "stderr:\n{stderr}"
     );
     assert!(stderr.contains("零配对样本"), "stderr:\n{stderr}");
+}
+
+// P0-2: sidecar 缺失 attempt 字段 — 不中断判定 (exit 1 来自小语料下限, 与
+// 缺口无关), 但缺口以聚合计数单行警告出现在 stderr (计数 + 按 attempt=1
+// 处理说明), 不得静默。
+#[test]
+fn l0_missing_attempt_warns_on_stderr() {
+    let (code, _, stderr) = run_l0_on("no-attempt");
+    assert_eq!(
+        code, 1,
+        "缺失 attempt 不升级采集层错误 (统计按 1 兜底), stderr:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("1 个 sidecar 缺失 attempt 字段"),
+        "stderr:\n{stderr}"
+    );
+    assert!(stderr.contains("按 attempt=1 处理"), "stderr:\n{stderr}");
+    assert_eq!(
+        stderr
+            .lines()
+            .filter(|l| l.contains("缺失 attempt"))
+            .count(),
+        1,
+        "单行聚合警告 (非逐样本): stderr:\n{stderr}"
+    );
 }
 
 #[test]

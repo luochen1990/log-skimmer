@@ -76,15 +76,14 @@ pub struct FragRec {
 }
 
 /// sidecar 的最小投影 (l0 只消费这三个字段; 全量 sidecar schema 见 spec §5)。
+/// attempt 为 Option (P0-2): 缺失信号由类型承载 — 统计按 unwrap_or(1) 口径
+/// 不变, 缺口聚合计数进 Collected.sidecars_missing_attempt (可见性配套,
+/// 渲染归 CLI — 与孤儿警告同族, 不静默)。
 #[derive(Deserialize)]
 struct Sidecar {
     repo: String,
     conclusion: String,
-    #[serde(default = "one")]
-    attempt: u32,
-}
-fn one() -> u32 {
-    1
+    attempt: Option<u32>,
 }
 
 /// 递归收集语料文件 (路径字典序, 确定性遍历 — 等价 `find | sort`): *.log.json
@@ -138,12 +137,30 @@ fn orphan(corpus_dir: &Path, present: &Path, missing: MissingSide) -> OrphanSamp
 
 /// 采集产物: 样本记录 × 装载规则全集 id × 孤儿清单 — rule_ids 是 per_rule_hits
 /// 的定义域 (零命中规则只有对照装载清单才能显形, issue #19 B); orphans 是
-/// 配对缺口的可见性数据 (渲染归 CLI)。
+/// 配对缺口的可见性数据 (渲染归 CLI); sidecars_missing_attempt 是 sidecar
+/// 缺失 attempt 字段的聚合计数 (P0-2 可见性: 统计按 attempt=1 兜底不中断,
+/// 缺口单行警告渲染走 attempt_missing_warning)。
 #[derive(Debug, Clone)]
 pub struct Collected {
     pub samples: Vec<L0Sample>,
     pub rule_ids: Vec<String>,
     pub orphans: Vec<OrphanSample>,
+    pub sidecars_missing_attempt: usize,
+}
+
+impl Collected {
+    /// sidecar 缺失 attempt 的单行警告文本 (P0-2): None = 无缺口 (N=0 静默,
+    /// 警告只对真实缺口发出); 文本必须含 计数 N 与 按 attempt=1 处理 的说明
+    /// — spec §5 必带字段的可见性配套, 消除「rerun 排除永不触发」的静默漂移。
+    pub fn attempt_missing_warning(&self) -> Option<String> {
+        (self.sidecars_missing_attempt > 0).then(|| {
+            format!(
+                "l0: 警告: {} 个 sidecar 缺失 attempt 字段 \
+                 (按 attempt=1 处理; 规范 §5 要求必带, 建议 refetch)",
+                self.sidecars_missing_attempt
+            )
+        })
+    }
 }
 
 /// 采集全语料: 规则单次加载, 逐样本 skim。非法规则集/语料目录不存在/日志读取失败
@@ -164,6 +181,7 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
     let log_set: HashSet<String> = logs.iter().map(|p| p.display().to_string()).collect();
     let sidecar_set: HashSet<String> = sidecars.iter().map(|p| p.display().to_string()).collect();
     let mut orphans = Vec::new();
+    let mut sidecars_missing_attempt = 0usize;
     let mut samples = Vec::with_capacity(sidecars.len());
     for j in &sidecars {
         let sc_str = j.display().to_string();
@@ -210,11 +228,14 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
                 });
             }
         }
-        let excluded = sc.attempt > 1 && sc.conclusion == "success";
+        // P0-2: 缺失 attempt 按 1 处理 (统计口径不变), 缺口聚合计数不静默。
+        let attempt = sc.attempt.unwrap_or(1);
+        sidecars_missing_attempt += usize::from(sc.attempt.is_none());
+        let excluded = attempt > 1 && sc.conclusion == "success";
         samples.push(L0Sample {
             repo: sc.repo,
             conclusion: sc.conclusion,
-            attempt: sc.attempt,
+            attempt,
             sample,
             excluded,
             input_lines: r.input_lines,
@@ -240,6 +261,7 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
         samples,
         rule_ids: rules.iter().map(|r| r.id.clone()).collect(),
         orphans,
+        sidecars_missing_attempt,
     })
 }
 

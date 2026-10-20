@@ -255,6 +255,12 @@ fn l0_cmd(
         };
         eprintln!("l0: 警告: 孤儿样本 {} 缺 {side}, 已跳过 (不计数)", o.path);
     }
+    // sidecar 缺失 attempt 可见性 (P0-2): 聚合计数单行警告 — 统计按 attempt=1
+    // 兜底不中断, 但缺口不得静默 (规范 §5 必带字段; 存量语料曾 57/57 缺失,
+    // rerun-through 排除逻辑因此永不触发)。
+    if let Some(w) = collected.attempt_missing_warning() {
+        eprintln!("{w}");
+    }
     // 零配对样本 = 采集层面失败: 语料非法 exit 2 (issue #44, 与规则侧对称) —
     // 拒绝在空语料上判定/出 summary (防空转假绿); 孤儿警告已先行给出线索。
     if collected.samples.is_empty() {

@@ -321,6 +321,55 @@ fn gate_require_all_rules_hit() {
     assert_eq!(v.verdict, "pass");
 }
 
+/// P0-2 (走查): sidecar 缺失 attempt — 统计语义不变 (按 attempt=1 处理), 缺口
+/// 可见化: 采集聚合计数 + 单行警告渲染 (计数 N 与 按 1 处理说明必须在场);
+/// success 样本不因字段缺失被误排 (rerun-through 判定 attempt>1 不触发)。
+#[test]
+fn collect_missing_attempt_defaults_to_one_and_warns() {
+    let c = l0::collect(
+        &fixtures().join("l0-attempt-corpus"),
+        &fixtures().join("rules"),
+    )
+    .expect("fixture 语料采集失败");
+    assert_eq!(
+        c.sidecars_missing_attempt, 1,
+        "缺失 attempt 的 sidecar 聚合计数 (非逐条)"
+    );
+    let missing = c
+        .samples
+        .iter()
+        .find(|s| s.sample.ends_with("10-10-build-success.log"))
+        .expect("缺失 attempt 样本在场");
+    assert_eq!(missing.attempt, 1, "按 attempt=1 处理 (统计语义不变)");
+    assert!(
+        !missing.excluded,
+        "success + 缺失 attempt 不触发 rerun 排除"
+    );
+    let warn = c
+        .attempt_missing_warning()
+        .expect("缺口在场时警告渲染非 None");
+    assert!(!warn.contains('\n'), "单行警告: {warn}");
+    assert!(warn.contains("1 个"), "计数 N 在场: {warn}");
+    assert!(warn.contains("attempt=1"), "按 1 处理说明在场: {warn}");
+    assert!(warn.contains("§5"), "指向规范必带要求: {warn}");
+}
+
+/// P0-2 回归保护 + 静默条件: attempt>1 且 success → excluded (rerun-through
+/// 口径不回归); 全部带 attempt → 零计数无警告 (N=0 静默, 警告只对真实缺口发出)。
+#[test]
+fn collect_all_attempts_present_no_warning_and_rerun_excluded() {
+    let c = l0::collect(&fixtures().join("l0-corpus"), &fixtures().join("rules"))
+        .expect("fixture 语料采集失败");
+    assert_eq!(c.sidecars_missing_attempt, 0, "fixture 全带 attempt");
+    assert!(c.attempt_missing_warning().is_none(), "N=0 不输出警告");
+    let rerun = c
+        .samples
+        .iter()
+        .find(|s| s.sample.ends_with("3-3-check-success.log"))
+        .expect("attempt=2 success 样本在场");
+    assert!(rerun.excluded, "attempt>1 且 success → rerun-through 排除");
+}
+
 fn ok_summary() -> Summary {
     let agg = |blk: f64| Agg {
         runs: 30,
