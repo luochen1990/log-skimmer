@@ -124,12 +124,7 @@ fn startup_stderr_in(exe: &Path, env_rules: Option<&Path>, cwd: Option<&Path>) -
     if let Some(c) = cwd {
         cmd.current_dir(c);
     }
-    let mut child = cmd
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped()) // 协议通道占位 (响应无人读, 量级安全见上)
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap_or_else(|e| panic!("spawn {}: {e}", exe.display()));
+    let mut child = spawn_with_busy_retry(cmd, exe);
     {
         let stdin = child.stdin.take().expect("stdin piped");
         let mut w = BufWriter::new(stdin);
@@ -150,6 +145,30 @@ fn startup_stderr_in(exe: &Path, env_rules: Option<&Path>, cwd: Option<&Path>) -
     stderr
 }
 
+/// spawn 沙箱 bin, 对 ETXTBSY (raw errno 26, ExecutableBusy) 有界重试。
+///
+/// 环境级瞬态竞态 (非代码逻辑缺陷): sandbox() 的 fs::copy 写句柄与 exec 的重叠
+/// 窗口在 tmpfs 高负载下被放大 — 三次事故均发生于多 cargo 进程并发 (T1 开发链
+/// 两次 + 精雕细琢 Check 一次), 窗口极窄且不可确定性复现, 故无复现测试 (守护 =
+/// 本组 e2e 自身, 修复后 stress 验证见 commit message)。issue #66 的 pid 唯一
+/// 路径已消除跨进程同路径形态, 本重试兜住残余的同进程瞬态形态。与 EAGAIN 同
+/// 类的瞬态 errno 处理: 上界 20×50ms ≈ 1s, 超界响亮失败 (带路径) 保留可诊断性。
+fn spawn_with_busy_retry(mut cmd: Command, exe: &Path) -> std::process::Child {
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped()) // 协议通道占位 (响应无人读, 量级安全见上)
+        .stderr(Stdio::piped());
+    for attempt in 0..20 {
+        match cmd.spawn() {
+            Ok(child) => return child,
+            Err(e) if e.raw_os_error() == Some(26) && attempt < 19 => {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            Err(e) => panic!("spawn {}: {e}", exe.display()),
+        }
+    }
+    unreachable!("重试环恒于循环体内返回或 panic")
+}
+
 /// 沙箱根 `<tmp>/log-skimmer-startup-{tag}-{pid}/`。隔离性双维度: 进程内各测试由
 /// tag 区分; 跨进程由 pid 区分 (issue #66 — 固定路径下并发测试进程的 fs::copy
 /// 写句柄与对方 exec 重叠 → ETXTBSY)。项目层 e2e 只需可控 cwd, 直接取根目录即可;
@@ -165,6 +184,7 @@ fn sandbox_root(tag: &str) -> PathBuf {
 /// 拷贝真实 bin 到 [sandbox_root] 下 `x/bin/mcp`, 返回 (bin 路径, 沙箱根)。
 /// 三级探测路径 (bin 旁 rules / x/rules / 沙箱根 rules) 全部落在沙箱内 —
 /// 命中与否完全由测试铺设决定, 与原 bin 位置/系统布局无关。
+/// 残余同进程瞬态形态由 [spawn_with_busy_retry] 有界重试兜住。
 fn sandbox(tag: &str) -> (PathBuf, PathBuf) {
     let root = sandbox_root(tag);
     std::fs::create_dir_all(root.join("x/bin")).unwrap();
