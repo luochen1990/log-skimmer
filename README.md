@@ -223,7 +223,7 @@ target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --
 
 `--base` and `--emit-summary` are advanced/maintainer-facing options contributors normally don't need: `--base` supplies the comparison-side summary JSON to enable the dual-run compression compare (relative regression >2% fails); `--emit-summary` only outputs the summary JSON for empirical exchange (no verdict); see `l0 --help` for details.
 
-Note on exit codes (l0): a missing corpus dir or zero paired samples is a data error (exit 2 — fix the environment/fetch); running ③ on a hand-assembled mini corpus (<50 paired samples) fails the presence assertion by design (exit 1) — for targeted verification read `per_rule_hits` instead. Samples are `*.log` + same-name `*.log.json` pairs; unpaired orphans are warned on stderr and skipped (not counted).
+Note on exit codes (l0): a missing corpus dir or zero paired samples is a data error (exit 2 — fix the environment/fetch); running ③ on a hand-assembled mini corpus (<50 paired samples) fails the presence assertion by design (exit 1) — for targeted verification read `per_rule_hits` instead. Samples are `*.log` + same-name `*.log.json` pairs; unpaired orphans are warned on stderr and skipped (not counted); sidecars missing the `attempt` field trigger one aggregated stderr warning (treated as attempt=1, spec §5).
 
 Corpus accounting: the public corpus repo currently holds 57 paired samples; the README's backtest figure of 67 = 57 public + 10 from the private source (slots rotate weekly, so the pass/fail mix drifts with each snapshot).
 
