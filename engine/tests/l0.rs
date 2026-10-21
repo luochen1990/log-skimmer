@@ -597,6 +597,7 @@ fn lit(repo: &str, conclusion: &str, gate_exempt: bool) -> L0Sample {
 /// 若入门禁必红。
 fn exempt_collected() -> l0::Collected {
     l0::Collected {
+        rule_tools: BTreeMap::new(),
         samples: vec![
             L0Sample {
                 input_lines: 2,
@@ -717,6 +718,7 @@ fn old_sidecar_without_gate_exempt_defaults_false() {
     // 行为层: 零豁免时 exempt 报告面全零、状态行静默 (None) — 豁免通道
     // 对存量判定零漂移 (全 gated 语义与豁免特性合入前一致)
     let c = l0::Collected {
+        rule_tools: BTreeMap::new(),
         samples: vec![
             L0Sample {
                 input_lines: 2,
@@ -781,6 +783,7 @@ fn per_repo_breakdown_rows() {
 #[test]
 fn rule_repo_matrix_counts() {
     let c = l0::Collected {
+        rule_tools: BTreeMap::new(),
         samples: vec![
             L0Sample {
                 input_lines: 2,
@@ -904,4 +907,205 @@ fn ok_summary() -> Summary {
     };
     s.per_repo.insert("github.com/r/kept".into(), agg(98.0));
     s
+}
+
+// ---- 规则健康档案 (2026-10-21 落地): 内存直测 — 分级断崖/Wilson/样本级去重/覆盖率 ----
+
+fn hsample(conclusion: &str, frags: &[(&str, Intent)]) -> L0Sample {
+    L0Sample {
+        repo: "github.com/r/t".into(),
+        conclusion: conclusion.into(),
+        attempt: 1,
+        sample: format!("{conclusion}.log"),
+        excluded: false,
+        gate_exempt: false,
+        input_lines: 10,
+        output_lines: 2,
+        signature_output_lines: 1,
+        failure_frags: frags.iter().filter(|(_, i)| *i == Intent::Failure).count() as u64,
+        failure_frag_lines: 0,
+        warning_frags: frags.iter().filter(|(_, i)| *i == Intent::Warning).count() as u64,
+        info_frags: frags.iter().filter(|(_, i)| *i == Intent::Info).count() as u64,
+        zero_block: 0,
+        boundary_violations: 0,
+        frags: frags
+            .iter()
+            .map(|(r, i)| FragRec {
+                rule: r.to_string(),
+                intent: *i,
+                lines: 1,
+            })
+            .collect(),
+        noise_hits: BTreeMap::new(),
+    }
+}
+
+/// 分级断崖 (实测形态注入): 注解地板 → restating; 工具规则 → diagnostic;
+/// 中间带与纯成功异常 → boundary。
+#[test]
+fn rule_health_grading_cliff() {
+    let (nf, ns) = (943usize, 375usize);
+    let base = nf as f64 / (nf + ns) as f64;
+    // 地板: P_f=932/943=0.988, P_s=2/375=0.005 → restating, 高可靠零信息
+    let floor = l0::rule_health(
+        l0::RuleFire {
+            fire_failure: 932,
+            fire_success: 2,
+        },
+        nf,
+        ns,
+        base,
+        Intent::Failure,
+        "t".to_string(),
+    );
+    assert_eq!(floor.grade, l0::RuleGrade::Restating);
+    assert!((floor.ppv - 0.998).abs() < 0.001, "ppv={}", floor.ppv);
+    assert!(floor.ppv_lo >= 0.99, "Wilson 下界={}", floor.ppv_lo);
+    assert!(floor.spec_bits < 0.1, "零信息: {}", floor.spec_bits);
+    // 工具规则: a=42,b=0 → diagnostic, spec≈4.49b, lift=1.40 (基率上限)
+    let tool = l0::rule_health(
+        l0::RuleFire {
+            fire_failure: 42,
+            fire_success: 0,
+        },
+        nf,
+        ns,
+        base,
+        Intent::Failure,
+        "t".to_string(),
+    );
+    assert_eq!(tool.grade, l0::RuleGrade::Diagnostic);
+    assert!((tool.spec_bits - 4.49).abs() < 0.02);
+    assert!((tool.lift - 1.0 / base).abs() < 0.01, "lift 封顶 1/基率");
+    // 边界带: P_f=0.5 → boundary (断裂带中不应存在, 出现即人工审)
+    let mid = l0::rule_health(
+        l0::RuleFire {
+            fire_failure: 471,
+            fire_success: 0,
+        },
+        nf,
+        ns,
+        base,
+        Intent::Failure,
+        "t".to_string(),
+    );
+    assert_eq!(mid.grade, l0::RuleGrade::Boundary);
+    // 纯成功触发 (FP 形态): a=0,b=5 → boundary, ppv=0
+    let fp_only = l0::rule_health(
+        l0::RuleFire {
+            fire_failure: 0,
+            fire_success: 5,
+        },
+        nf,
+        ns,
+        base,
+        Intent::Failure,
+        "t".to_string(),
+    );
+    assert_eq!(fp_only.grade, l0::RuleGrade::Boundary);
+    assert_eq!(fp_only.ppv, 0.0);
+    // 阈值不变性: 断裂带内 (0.2, 0.8) 任意 P_f 同判 boundary — 抽 0.21/0.79 复核
+    for a in [200u32, 746] {
+        let g = l0::rule_health(
+            l0::RuleFire {
+                fire_failure: a,
+                fire_success: 0,
+            },
+            nf,
+            ns,
+            base,
+            Intent::Failure,
+            "t".to_string(),
+        );
+        assert_eq!(g.grade, l0::RuleGrade::Boundary, "a={a}");
+    }
+    // info 常数签名: 全触发 → lift=1.00 精确独立
+    let info = l0::rule_health(
+        l0::RuleFire {
+            fire_failure: 943,
+            fire_success: 375,
+        },
+        nf,
+        ns,
+        base,
+        Intent::Info,
+        "t".to_string(),
+    );
+    assert!((info.lift - 1.0).abs() < 0.01, "info lift={}", info.lift);
+}
+
+/// Wilson 下界数值锚 (与百仓实测对齐): (932,2)→≥0.99; (16,1)→≈0.73; (0,0)→0。
+#[test]
+fn wilson_lower_bound_sanity() {
+    assert!(l0::wilson_lo(932.0, 2.0) >= 0.99);
+    let lo = l0::wilson_lo(16.0, 1.0);
+    assert!((0.72..0.76).contains(&lo), "ninja 形态下界={lo}");
+    assert_eq!(l0::wilson_lo(0.0, 0.0), 0.0);
+}
+
+/// health() 聚合口径: 样本级去重 / 三级分级各归其位 / 覆盖只认非 restating 块。
+/// 场景 30 失败 + 10 成功: floor 30/30 失败 + 0/10 成功 (restating); diag 2 样本
+/// (其一双 fragment 验去重) p_f=0.067 (diagnostic); mid 14 样本 p_f=0.467 (boundary,
+/// 亦计覆盖); 仅 floor 的失败样本不计覆盖。
+#[test]
+fn health_aggregates_sample_level_and_coverage() {
+    let mut samples: Vec<L0Sample> = Vec::new();
+    for i in 0..30 {
+        let mut frags: Vec<(&str, Intent)> = vec![("floor", Intent::Failure)];
+        match i {
+            0 => frags.extend([("diag", Intent::Failure), ("diag", Intent::Failure)]), // 去重验证
+            1 => frags.push(("diag", Intent::Failure)),
+            3..=16 => frags.push(("mid", Intent::Failure)),
+            _ => {}
+        }
+        samples.push(hsample("failure", &frags));
+    }
+    for _ in 0..10 {
+        samples.push(hsample("success", &[]));
+    }
+    let refs: Vec<&L0Sample> = samples.iter().collect();
+    let tools: BTreeMap<String, String> = [
+        ("floor".to_string(), "floor".to_string()),
+        ("diag".to_string(), "diag".to_string()),
+        ("mid".to_string(), "mid".to_string()),
+    ]
+    .into_iter()
+    .collect();
+    let (fire, health_map, cov) = l0::health(&refs, &tools);
+    // 样本级去重: 样本0 的 diag 双 fragment 只计 1 → fire_failure=2
+    assert_eq!(
+        (fire["diag"].fire_failure, fire["diag"].fire_success),
+        (2, 0)
+    );
+    assert_eq!(
+        (fire["floor"].fire_failure, fire["floor"].fire_success),
+        (30, 0)
+    );
+    assert_eq!(
+        (fire["mid"].fire_failure, fire["mid"].fire_success),
+        (14, 0)
+    );
+    assert_eq!(health_map["floor"].grade, l0::RuleGrade::Restating);
+    assert_eq!(health_map["diag"].grade, l0::RuleGrade::Diagnostic);
+    assert_eq!(health_map["mid"].grade, l0::RuleGrade::Boundary);
+    // 覆盖: diag 2 + mid 14 = 16/30 (boundary 计覆盖, 仅 restating 不计);
+    // 其余 14 个仅 floor 的失败样本是 "泛化独撑" 形态, 不计
+    assert_eq!(cov.total, 30);
+    assert_eq!(cov.covered, 16);
+    assert!((cov.pct - 53.33).abs() < 0.01, "pct={}", cov.pct);
+}
+
+/// serde 兼容: 旧 summary JSON (无健康三字段) 可解析, 字段取默认空值。
+#[test]
+fn old_summary_without_health_fields_deserializes() {
+    let old = r#"{"per_repo_conclusion":{},"per_repo":{},"totals":{"runs":1,
+        "input_lines":10,"output_lines":2,"signature_output_lines":1,"fn":0,
+        "success_input_lines":4,"fp_frags":0,"fp_lines":0,
+        "success_warning_frags":0,"success_info_frags":0,
+        "comp_blk_pct":80.0,"comp_sig_pct":90.0,"fp_rate_pct":0.0},
+        "per_rule":{},"structural":{"zero_block":0,"boundary_violations":0,"samples_total":1,"samples_excluded":0}}"#;
+    let s: Summary = serde_json::from_str(old).expect("旧 summary 可解析");
+    assert!(s.per_rule_fire.is_empty());
+    assert!(s.per_rule_health.is_empty());
+    assert_eq!(s.diagnostic_coverage.covered, 0);
 }

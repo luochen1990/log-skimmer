@@ -170,6 +170,9 @@ fn orphan(corpus_dir: &Path, present: &Path, missing: MissingSide) -> OrphanSamp
 pub struct Collected {
     pub samples: Vec<L0Sample>,
     pub rule_ids: Vec<String>,
+    /// 规则 id → tool-id 映射 (健康档案浏览面链接: 目录名 = tool-id; 规则 id
+    /// 自身含连字符不可逆推 — SSOT 来自装载结果)。
+    pub rule_tools: BTreeMap<String, String>,
     pub orphans: Vec<OrphanSample>,
     pub sidecars_missing_attempt: usize,
 }
@@ -302,6 +305,10 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
     Ok(Collected {
         samples,
         rule_ids: rules.iter().map(|r| r.id.clone()).collect(),
+        rule_tools: rules
+            .iter()
+            .map(|r| (r.id.clone(), r.tool.clone()))
+            .collect(),
         orphans,
         sidecars_missing_attempt,
     })
@@ -383,6 +390,208 @@ pub struct RuleAgg {
     pub hit_repos: usize,
 }
 
+// ---- 规则健康档案 (2026-10-21 百仓调研落地产物) ----
+//
+// 语义 SSOT (信息论推导, 实测断裂带背书 — 断崖 98.8% ↔ ≤4.5%, 阈值在断裂带内
+// 任意取值判定不变, 分布随 latest.md 发布可审计):
+//   a = 失败族样本命中数 (样本级, ≥1 fragment 即命中, 非 fragment 计数)
+//   b = 成功样本命中数
+//   ppv     = a/(a+b)              P(失败|触发) — 触发推出结论的可靠度
+//   ppv_lo  = Wilson 95% 下界      小样本下健全性的保守证明
+//   lift    = ppv / 失败基率        与结论的相关性 (1.0 = 独立, 基率随槽位比浮动,
+//                                   判独立性用 lift 不用绝对 ppv — 采样比鲁棒)
+//   spec_bits = -log2(a/N_f)       触发携带的样本信息量 (选择性; 0 = 处处触发零信息)
+//
+// 分级 (grade):
+//   restating   P_f ≥ 0.8 ∧ P_s ≤ 0.05 — 触发由结论决定而非内容 (注解地板形态):
+//               高可靠零信息, 计入零块防线不计入诊断覆盖
+//   diagnostic  P_f ≤ 0.2 — 触发由内容决定 (≥2.3 比特/块), 计入诊断覆盖
+//   boundary    其余 (含 a=0∧b>0 的纯成功异常) — 分布中不应存在 (断裂带空无一
+//               物), 出现即列名人工审; 默认按 diagnostic 计入覆盖 (保守方向是
+//               高估覆盖, FN/FP 门禁仍是硬警察)
+//
+// 诊断覆盖率 (diagnostic_coverage) = 含 ≥1 诊断规则失败块的失败族样本 / 失败族
+// 样本 — 软指标 (报告面, 不入门禁断言): FN 保证"有块", 诊断覆盖保证"块由内容
+// 决定" (地板块的 ##[error]Process completed with exit code 1. 形态零诊断信息)。
+// intent 的统计可分性 (实测): {failure,warning}=证据类 vs {info}=快照类 (lift≈1
+// ∧ 近常数触发) 可分; failure↔warning 统计同签名 (warning 与失败强相关), 属内
+// 容语义 — 健康档案验证声明而非替代标注。
+
+/// 分级阈值 (断裂带内取值, 见上注释; 测试锁定判定不变性)。
+pub const RESTATE_PF_MIN: f64 = 0.8;
+pub const RESTATE_PS_MAX: f64 = 0.05;
+pub const DIAG_PF_MAX: f64 = 0.2;
+
+/// 每规则触发计数 (样本级) — 健康档案基数。域 = main (滤 rerun-through, 与
+/// per_rule 同域); noise 规则不产 fragment 天然缺席 (liveness 归 per_rule_hits)。
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct RuleFire {
+    pub fire_failure: u32,
+    pub fire_success: u32,
+}
+
+/// 规则分级 (serde 小写字符串 — 报告/徽章消费)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuleGrade {
+    Restating,
+    Diagnostic,
+    Boundary,
+}
+
+/// 每规则健康档案 (从 RuleFire + 样本总量推导的纯函数)。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleHealth {
+    pub ppv: f64,
+    pub ppv_lo: f64,
+    pub lift: f64,
+    pub spec_bits: f64,
+    pub grade: RuleGrade,
+    /// 声明意图 (fragment 首见 intent; 快照性核对: info 应 lift≈1.0)。
+    pub intent: Intent,
+    /// 工具目录名 (浏览面链接用; 规则 id 含连字符不可逆推目录)。
+    pub tool: String,
+}
+
+/// 诊断覆盖率 (软指标, 见模块注释)。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DiagCoverage {
+    pub covered: usize,
+    pub total: usize,
+    pub pct: f64,
+}
+
+/// Wilson 95% 置信下界 (单比例, z=1.96): 小样本下 "PPV=1.0" 的保守化。
+pub fn wilson_lo(a: f64, b: f64) -> f64 {
+    let n = a + b;
+    if n <= 0.0 {
+        return 0.0;
+    }
+    let z = 1.96_f64;
+    let p = a / n;
+    let lo = (p + z * z / (2.0 * n) - z * ((p * (1.0 - p) + z * z / (4.0 * n)) / n).sqrt())
+        / (1.0 + z * z / n);
+    lo.max(0.0)
+}
+
+/// 单规则健康推导 (纯函数, 测试直测): 基率 = n_f/(n_f+n_s), 由调用方给
+/// (与整批共享同一基率)。
+pub fn rule_health(
+    rf: RuleFire,
+    n_f: usize,
+    n_s: usize,
+    base_rate: f64,
+    intent: Intent,
+    tool: String,
+) -> RuleHealth {
+    let (a, b) = (rf.fire_failure as f64, rf.fire_success as f64);
+    let n = a + b;
+    let ppv = if n > 0.0 { a / n } else { 0.0 };
+    let p_f = if n_f > 0 { a / n_f as f64 } else { 0.0 };
+    let p_s = if n_s > 0 { b / n_s as f64 } else { 0.0 };
+    let grade = if a == 0.0 && b > 0.0 {
+        // 纯成功触发 = FP 形态异常, 进人工审桶 (ppv=0/lift=0 明示)
+        RuleGrade::Boundary
+    } else if p_f >= RESTATE_PF_MIN && p_s <= RESTATE_PS_MAX {
+        RuleGrade::Restating
+    } else if p_f <= DIAG_PF_MAX {
+        RuleGrade::Diagnostic
+    } else {
+        RuleGrade::Boundary
+    };
+    RuleHealth {
+        ppv: round2(ppv * 1000.0) / 1000.0,
+        ppv_lo: round2(wilson_lo(a, b) * 1000.0) / 1000.0,
+        lift: if base_rate > 0.0 {
+            round2(ppv / base_rate * 100.0) / 100.0
+        } else {
+            0.0
+        },
+        spec_bits: if a > 0.0 {
+            round2(-(a / n_f as f64).log2())
+        } else {
+            0.0
+        },
+        grade,
+        intent,
+        tool,
+    }
+}
+
+/// 健康档案整批计算 (summarize 内部 + 测试直测): 输入 main 域样本, 产出
+/// (per_rule_fire, per_rule_health, diagnostic_coverage) 三元组。
+pub fn health(
+    samples: &[&L0Sample],
+    rule_tools: &BTreeMap<String, String>,
+) -> (
+    BTreeMap<String, RuleFire>,
+    BTreeMap<String, RuleHealth>,
+    DiagCoverage,
+) {
+    let failure_family = |s: &L0Sample| s.conclusion == "failure" || s.conclusion == "timed_out";
+    let n_f = samples.iter().filter(|s| failure_family(s)).count();
+    let n_s = samples.iter().filter(|s| s.conclusion == "success").count();
+    let base_rate = if n_f + n_s > 0 {
+        n_f as f64 / (n_f + n_s) as f64
+    } else {
+        0.0
+    };
+    let mut fire: BTreeMap<String, RuleFire> = BTreeMap::new();
+    let mut intents: BTreeMap<String, Intent> = BTreeMap::new();
+    for &s in samples {
+        let mut seen: HashSet<&str> = HashSet::new();
+        for f in &s.frags {
+            if !seen.insert(f.rule.as_str()) {
+                continue; // 样本级去重: 一样本多 fragment 只计一次触发
+            }
+            let e = fire.entry(f.rule.clone()).or_default();
+            if failure_family(s) {
+                e.fire_failure += 1;
+            } else if s.conclusion == "success" {
+                e.fire_success += 1;
+            }
+            intents.entry(f.rule.clone()).or_insert(f.intent);
+        }
+    }
+    let health_map: BTreeMap<String, RuleHealth> = fire
+        .iter()
+        .map(|(rid, rf)| {
+            (
+                rid.clone(),
+                rule_health(
+                    *rf,
+                    n_f,
+                    n_s,
+                    base_rate,
+                    *intents.get(rid).unwrap_or(&Intent::Failure),
+                    rule_tools.get(rid).cloned().unwrap_or_default(),
+                ),
+            )
+        })
+        .collect();
+    // 诊断覆盖: 失败族样本含 ≥1 诊断规则的 failure fragment
+    let diag: HashSet<&str> = health_map
+        .iter()
+        .filter(|(_, h)| h.grade != RuleGrade::Restating)
+        .map(|(k, _)| k.as_str())
+        .collect();
+    let covered = samples
+        .iter()
+        .filter(|s| failure_family(s))
+        .filter(|s| {
+            s.frags
+                .iter()
+                .any(|f| f.intent == Intent::Failure && diag.contains(f.rule.as_str()))
+        })
+        .count();
+    let coverage = DiagCoverage {
+        covered,
+        total: n_f,
+        pct: round2(ratio_pct(covered as f64, n_f as f64)),
+    };
+    (fire, health_map, coverage)
+}
+
 /// 断言面哨兵聚合 (域分层, T-P2b-2): `zero_block` = gated 样本 (含
 /// rerun-through, 豁免不计 — 零块断言语义); `exempt_zero_block`/`exempt_boundary`
 /// = 豁免样本镜像 (报告面); `boundary_violations` = 全样本 (引擎构造不变量,
@@ -461,6 +670,17 @@ pub struct Summary {
     /// 真值化 + 死规则/盲区发现 (规则在哪些仓命中、哪些仓对哪些规则全盲)。
     #[serde(default)]
     pub rule_repo_hits: BTreeMap<String, BTreeMap<String, u64>>,
+    /// 每规则触发计数 (样本级, 健康档案基数) — 见 health() 模块注释。
+    /// serde(default): 旧 base summary 产自旧引擎时无此字段, 健康档案只消费
+    /// 当前侧 (双测对比不涉及), base 侧缺省无碍。
+    #[serde(default)]
+    pub per_rule_fire: BTreeMap<String, RuleFire>,
+    /// 每规则健康档案 (ppv/ppv_lo/lift/spec_bits/grade/intent)。
+    #[serde(default)]
+    pub per_rule_health: BTreeMap<String, RuleHealth>,
+    /// 诊断覆盖率 (软指标, 报告面): 见 health() 模块注释。
+    #[serde(default)]
+    pub diagnostic_coverage: DiagCoverage,
 }
 
 /// 样本三域划分 (T-P2b-2): main = 全样本滤 rerun-through; gated = main 滤
@@ -625,6 +845,8 @@ pub fn summarize(c: &Collected) -> Summary {
             }
         }
     }
+    // 健康档案三元组 (main 域 — 滤 rerun-through, 与 per_rule 同域)
+    let (per_rule_fire, per_rule_health, diagnostic_coverage) = health(&main, &c.rule_tools);
     Summary {
         per_repo_conclusion,
         per_repo,
@@ -635,6 +857,9 @@ pub fn summarize(c: &Collected) -> Summary {
         exempt_totals,
         per_repo_breakdown,
         rule_repo_hits,
+        per_rule_fire,
+        per_rule_health,
+        diagnostic_coverage,
     }
 }
 
