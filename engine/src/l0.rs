@@ -25,6 +25,12 @@
 //!   压缩率防退化 = 双测对比 (base summary 提供 per-repo 基准, 相对退化 >2% 判红;
 //!   未提供则单测模式显式声明 — 引擎仓传 base 引擎实测, 规则仓传 base 规则实测,
 //!   同语料下纯单变量归因)。
+//! 豁免通道 (T-P2b-2, 百仓语料门禁语义): sidecar `gate_exempt: true` 样本跳过
+//!   FN/FP率/零块三断言 (不进失败判定), 指标照常计算并进 exempt 组报告 —
+//!   未适配仓 (121/124) 扩容不红, P3 逐仓适配后移出豁免 (豁免余量=适配进度)。
+//!   不豁免的哨兵 (与规则适配正交): 边界违例断言 (引擎构造不变量, 域=全样本)、
+//!   语料在场 ≥50 (域=全样本含豁免)、压缩率双测 per_repo 域含豁免仓
+//!   (同语料同规则下纯引擎变量归因, 豁免≠引擎回归豁免)。
 //! 退出码分层 (issue #44, CLI 侧): 采集层语料非法 (目录不存在/零配对样本) →
 //!   exit 2 (与规则侧对称), 语料在场 ≥50 断言只对 0<n<50 生效 — 定向验证小语料
 //!   fail 属预期 (防空转), note 分流「定向验证」与「疑获取链路」两种读法。
@@ -56,6 +62,9 @@ pub struct L0Sample {
     pub attempt: u32,
     pub sample: String,
     pub excluded: bool,
+    /// 门禁豁免 (sidecar gate_exempt, T-P2b-2): 该样本的 FN/FP/零块不进失败
+    /// 判定 — 未适配仓的过渡通道, 指标仍进 exempt 组报告 (适配后移出)。
+    pub gate_exempt: bool,
     pub input_lines: usize,
     pub output_lines: usize,
     pub signature_output_lines: usize,
@@ -78,15 +87,18 @@ pub struct FragRec {
     pub lines: u64,
 }
 
-/// sidecar 的最小投影 (l0 只消费这三个字段; 全量 sidecar schema 见 spec §5)。
+/// sidecar 的最小投影 (l0 只消费这四个字段; 全量 sidecar schema 见 spec §5)。
 /// attempt 为 Option (P0-2): 缺失信号由类型承载 — 统计按 unwrap_or(1) 口径
 /// 不变, 缺口聚合计数进 Collected.sidecars_missing_attempt (可见性配套,
-/// 渲染归 CLI — 与孤儿警告同族, 不静默)。
+/// 渲染归 CLI — 与孤儿警告同族, 不静默)。gate_exempt 带默认值 (T-P2b-2):
+/// 旧 sidecar 无字段时兼容为 false — 存量语料语义零漂移。
 #[derive(Deserialize)]
 struct Sidecar {
     repo: String,
     conclusion: String,
     attempt: Option<u32>,
+    #[serde(default)]
+    gate_exempt: bool,
 }
 
 /// 递归收集语料文件 (路径字典序, 确定性遍历 — 等价 `find | sort`): *.log.json
@@ -257,6 +269,7 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
             attempt,
             sample,
             excluded,
+            gate_exempt: sc.gate_exempt,
             input_lines: r.input_lines,
             output_lines: r.output_lines,
             signature_output_lines: r.stats.signature_output_lines,
@@ -363,18 +376,57 @@ pub struct RuleAgg {
     pub hit_repos: usize,
 }
 
+/// 断言面哨兵聚合 (域分层, T-P2b-2): `zero_block` = gated 样本 (含
+/// rerun-through, 豁免不计 — 零块断言语义); `exempt_zero_block`/`exempt_boundary`
+/// = 豁免样本镜像 (报告面); `boundary_violations` = 全样本 (引擎构造不变量,
+/// 豁免不豁免引擎 bug); `samples_*` = 全样本计数 (语料在场哨兵含豁免 —
+/// 防空转全覆盖; `samples_exempt` = 豁免余量/适配进度度量)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Structural {
     pub zero_block: u32,
     pub boundary_violations: usize,
     pub samples_total: usize,
     pub samples_excluded: usize,
+    #[serde(default)]
+    pub exempt_zero_block: u32,
+    #[serde(default)]
+    pub exempt_boundary: usize,
+    #[serde(default)]
+    pub samples_exempt: usize,
+    /// 有 ≥1 个豁免主指标样本的仓数 (ANY 语义 — 混合仓也计)。
+    #[serde(default)]
+    pub exempt_repos: usize,
+}
+
+/// 逐仓分解行 (sweep 报告骨架, T-P2b-2): 样本数/FN/FP/零块/压缩率 + 豁免
+/// 样本数。行口径 = 主指标域 (滤 rerun-through), FN/FP 不分 gated/exempt
+/// (诊断视图 — 未适配仓离达标多远一眼可见); `exempt_samples` 标组属 (0 = 该仓
+/// 全入断言)。例外: 零块/边界为**全域口径** (含 rerun-through, 与组级哨兵
+/// 同域 — 行和 = gated + exempt 组值)。断言面组值以 totals/structural 为准
+/// (混合仓行值 ≠ 组值和)。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RepoRow {
+    pub runs: usize,
+    pub exempt_samples: usize,
+    pub fn_samples: usize,
+    pub fp_rate_pct: f64,
+    pub fp_lines: u64,
+    pub zero_block: u32,
+    pub boundary_violations: usize,
+    pub comp_blk_pct: f64,
+    pub comp_sig_pct: f64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Summary {
+    /// repo|conclusion 单样本聚合, 域 = gated 主指标样本 — gate FN violation
+    /// detail 的数据源 (豁免仓的 FN 不进断言细节)。
     pub per_repo_conclusion: BTreeMap<String, Agg>,
+    /// 逐仓聚合, 域 = 主指标样本 (gated + exempt 全部仓, 滤 rerun-through) —
+    /// 压缩率双测对比的比对域 (引擎变量归因, 豁免仓不豁免引擎回归)。
     pub per_repo: BTreeMap<String, Agg>,
+    /// gated 组聚合 — gate() FN/FP 断言的判定输入 (无豁免语料下与历史语义
+    /// 逐值等价)。
     pub totals: Agg,
     pub per_rule: BTreeMap<String, RuleAgg>,
     pub structural: Structural,
@@ -385,19 +437,52 @@ pub struct Summary {
     /// summary 产自旧引擎时无此字段, 判定侧只消费 PR 侧的值。
     #[serde(default)]
     pub per_rule_hits: BTreeMap<String, u64>,
+    /// exempt 组聚合 (报告面, 不进断言) — 与 totals 同构镜像。
+    #[serde(default)]
+    pub exempt_totals: Agg,
+    /// 逐仓分解表 (sweep 报告骨架, 124 仓规模) — 见 RepoRow 行口径。
+    #[serde(default)]
+    pub per_repo_breakdown: BTreeMap<String, RepoRow>,
+    /// per-rule × per-repo 命中矩阵 (T-P2b-2): 定义域 = 装载规则全集 (零命中
+    /// 规则 = 空 map), 计数口径与 per_rule_hits 同 (signal fragment ∪ noise
+    /// 剔除区块, 全样本域 liveness); 消费面 = projects.yaml tools 预期标签
+    /// 真值化 + 死规则/盲区发现 (规则在哪些仓命中、哪些仓对哪些规则全盲)。
+    #[serde(default)]
+    pub rule_repo_hits: BTreeMap<String, BTreeMap<String, u64>>,
 }
 
+/// 样本三域划分 (T-P2b-2): main = 全样本滤 rerun-through; gated = main 滤
+/// gate_exempt (断言面); exempt = main 中 gate_exempt (报告面)。豁免样本的
+/// rerun-through 照常滤除 (exempt 组内不双计重跑 attempt)。
 pub fn summarize(c: &Collected) -> Summary {
     let all = &c.samples;
     let main: Vec<&L0Sample> = all.iter().filter(|s| !s.excluded).collect();
+    let gated: Vec<&L0Sample> = main.iter().copied().filter(|s| !s.gate_exempt).collect();
+    let exempt: Vec<&L0Sample> = main.iter().copied().filter(|s| s.gate_exempt).collect();
     let mut per_repo_conclusion = BTreeMap::new();
-    let mut per_repo: BTreeMap<String, Vec<&L0Sample>> = BTreeMap::new();
-    for &s in &main {
+    for &s in &gated {
+        // FN violation detail 源 = gated 域 (豁免仓的 FN 不进断言细节)
         per_repo_conclusion.insert(format!("{}|{}", s.repo, s.conclusion), agg(&[s]));
-        per_repo.entry(s.repo.clone()).or_default().push(s);
     }
-    let per_repo: BTreeMap<String, Agg> =
-        per_repo.iter().map(|(k, v)| (k.clone(), agg(v))).collect();
+    // 全样本按仓分组 (单一分组源): per_repo (主指标域 Agg) 与逐仓表 (全域
+    // 零块/边界 + 主指标域其余行值) 共用 — 分组逻辑单点。
+    let mut per_repo_all: BTreeMap<String, Vec<&L0Sample>> = BTreeMap::new();
+    for s in all {
+        per_repo_all.entry(s.repo.clone()).or_default().push(s);
+    }
+    let per_repo: BTreeMap<String, Agg> = per_repo_all
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.clone(),
+                agg(&v
+                    .iter()
+                    .copied()
+                    .filter(|s| !s.excluded)
+                    .collect::<Vec<_>>()),
+            )
+        })
+        .collect();
     let mut per_rule: BTreeMap<String, Vec<(Intent, u64, String, String)>> = BTreeMap::new();
     for &s in &main {
         for f in &s.frags {
@@ -433,12 +518,55 @@ pub fn summarize(c: &Collected) -> Summary {
             )
         })
         .collect();
-    let totals = agg(&main);
+    let totals = agg(&gated);
+    let exempt_totals = agg(&exempt);
+    let per_repo_breakdown: BTreeMap<String, RepoRow> = per_repo_all
+        .iter()
+        .map(|(repo, samples)| {
+            let main_repo: Vec<&L0Sample> =
+                samples.iter().copied().filter(|s| !s.excluded).collect();
+            let a = agg(&main_repo);
+            (
+                repo.clone(),
+                RepoRow {
+                    runs: a.runs,
+                    exempt_samples: main_repo.iter().filter(|s| s.gate_exempt).count(),
+                    fn_samples: a.fn_samples,
+                    fp_rate_pct: a.fp_rate_pct,
+                    fp_lines: a.fp_lines,
+                    zero_block: samples.iter().map(|s| s.zero_block).sum(),
+                    boundary_violations: samples.iter().map(|s| s.boundary_violations).sum(),
+                    comp_blk_pct: a.comp_blk_pct,
+                    comp_sig_pct: a.comp_sig_pct,
+                },
+            )
+        })
+        .collect();
     let structural = Structural {
-        zero_block: all.iter().map(|s| s.zero_block).sum(),
+        zero_block: all
+            .iter()
+            .filter(|s| !s.gate_exempt)
+            .map(|s| s.zero_block)
+            .sum(),
+        exempt_zero_block: all
+            .iter()
+            .filter(|s| s.gate_exempt)
+            .map(|s| s.zero_block)
+            .sum(),
         boundary_violations: all.iter().map(|s| s.boundary_violations).sum(),
+        exempt_boundary: all
+            .iter()
+            .filter(|s| s.gate_exempt)
+            .map(|s| s.boundary_violations)
+            .sum(),
         samples_total: all.len(),
         samples_excluded: all.iter().filter(|s| s.excluded).count(),
+        samples_exempt: all.iter().filter(|s| s.gate_exempt).count(),
+        exempt_repos: exempt
+            .iter()
+            .map(|s| s.repo.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
     };
     // 正向验证: 装载全集补零 + 全样本域累计 (frags ∪ noise_hits, 二者按规则
     // kind 天然不相交 — signal 不进 noise_hits, noise 不产 frags)。
@@ -452,6 +580,33 @@ pub fn summarize(c: &Collected) -> Summary {
             *per_rule_hits.entry(id.clone()).or_default() += n;
         }
     }
+    // per-rule × per-repo 矩阵: 与 per_rule_hits 同口径 (liveness 全样本域,
+    // 定义域 = 装载全集补空 map), 加 repo 维度。
+    let mut rule_repo_hits: BTreeMap<String, BTreeMap<String, u64>> = c
+        .rule_ids
+        .iter()
+        .map(|id| (id.clone(), BTreeMap::new()))
+        .collect();
+    for s in all {
+        for f in &s.frags {
+            *rule_repo_hits
+                .entry(f.rule.clone())
+                .or_default()
+                .entry(s.repo.clone())
+                .or_default() += 1;
+        }
+        for (id, n) in &s.noise_hits {
+            // 零计数不落格 (skim 对 noise 规则恒报条目含 0): 矩阵保持稀疏,
+            // 格子缺位 = 该仓零命中 — 与 signal 侧 (仅命中产 fragment) 对齐。
+            if *n > 0 {
+                *rule_repo_hits
+                    .entry(id.clone())
+                    .or_default()
+                    .entry(s.repo.clone())
+                    .or_default() += n;
+            }
+        }
+    }
     Summary {
         per_repo_conclusion,
         per_repo,
@@ -459,6 +614,9 @@ pub fn summarize(c: &Collected) -> Summary {
         per_rule,
         structural,
         per_rule_hits,
+        exempt_totals,
+        per_repo_breakdown,
+        rule_repo_hits,
     }
 }
 
@@ -497,7 +655,24 @@ pub struct Verdict {
     pub compression_compare: CompressionCompare,
 }
 
-/// 判定入口: 断言族 (全量语料) + 双测压缩率对比 (base 在场时)。
+/// 组聚合 JSON 视图 (报告双组节): gated 组的边界值 = 全域减豁免域
+/// (saturating — 手工构造的 summary 不保证子集关系); 断言面仍读
+/// structural.boundary_violations 全域值 (见 Verdict::exempt_line 注)。
+fn group_stats_json(a: &Agg, zero_block: u32, boundary: usize) -> serde_json::Value {
+    serde_json::json!({
+        "runs": a.runs,
+        "fn": a.fn_samples,
+        "fp_rate_pct": a.fp_rate_pct,
+        "fp_lines": a.fp_lines,
+        "zero_block": zero_block,
+        "boundary_violations": boundary,
+        "comp_blk_pct": a.comp_blk_pct,
+        "comp_sig_pct": a.comp_sig_pct,
+    })
+}
+
+/// 判定入口: 断言族 (FN/FP率/零块对 gated 组; 边界/语料在场对全样本) +
+/// 双测压缩率对比 (base 在场时)。
 /// `require_all_rules_hit` = 正向验证断言 (issue #19 B): 开启时存在语料零命中
 /// 规则 (dead_rules) → fail。默认关闭 — verdict 语义不变; 该断言供规则集
 /// 全体规则均应在语料上生效的场景 (rules 仓 CI / 贡献者本地验证)。
@@ -630,6 +805,25 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
             "comp_blk_pct": t.comp_blk_pct, "comp_sig_pct": t.comp_sig_pct,
             "per_rule_hits": &pr.per_rule_hits,
             "dead_rules": &dead_rules,
+            // 双组聚合节 (T-P2b-2): gated = 断言面组值; exempt = 报告面镜像
+            // (不进断言)。FN/FP率/零块按组分解; 边界断言全域 (引擎哨兵不豁免),
+            // 报告面给出组内分解。
+            "groups": {
+                "gated": group_stats_json(
+                    t,
+                    st.zero_block,
+                    st.boundary_violations.saturating_sub(st.exempt_boundary),
+                ),
+                "exempt": group_stats_json(
+                    &pr.exempt_totals,
+                    st.exempt_zero_block,
+                    st.exempt_boundary,
+                ),
+            },
+            "exempt": {
+                "samples": pr.exempt_totals.runs,
+                "repos": st.exempt_repos,
+            },
         }),
         violations,
         compression_compare: cmp,
@@ -661,5 +855,20 @@ impl Verdict {
             num("comp_sig_pct"),
             self.stats["dead_rules"].as_array().map_or(0, |a| a.len()),
         )
+    }
+
+    /// exempt 组状态单行 (T-P2b-2): None = 无豁免样本 (N=0 静默, 与
+    /// attempt_missing_warning 同族 — 状态行只对真实豁免发出); 文本必含
+    /// 计数 N / 仓数 M / 未入断言 说明 — 豁免余量是适配进度度量, 逐仓适配
+    /// 后移出豁免 (sidecar 翻 false), 该行随之归零。
+    pub fn exempt_line(&self) -> Option<String> {
+        let n = self.stats["exempt"]["samples"].as_u64().unwrap_or(0);
+        let m = self.stats["exempt"]["repos"].as_u64().unwrap_or(0);
+        (n > 0).then(|| {
+            format!(
+                "l0: exempt: {n} 样本 ({m} 仓) 未入断言 \
+                 (sidecar gate_exempt — 适配后移出, 豁免余量=适配进度)"
+            )
+        })
     }
 }

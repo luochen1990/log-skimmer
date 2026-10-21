@@ -13,7 +13,8 @@ rules-load:
     cargo test --test rules_load
 
 # L0 门禁: 全语料回归, 任一违例即红 (FN=0 / FP 率 ≤2% / 边界违例=0 / 零块=0 /
-# 压缩率双测防退化 — master 引擎 vs PR 引擎 × 同语料同规则, 纯引擎变量归因)。
+# 压缩率双测防退化 — master 引擎 vs PR 引擎 × 同语料同规则, 纯引擎变量归因;
+# FN/FP/零块对 gated 域 — sidecar gate_exempt 仓豁免过渡, spec §4)。
 # 判定口径与断言 SSOT: engine/src/l0.rs (log-skimmer l0 子命令); 编排 scripts/l0-run.sh。
 l0-gate:
     bash scripts/l0-run.sh

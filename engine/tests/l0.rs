@@ -1,7 +1,8 @@
 //! L0 门禁口径与判定回归 — 判定逻辑的可测试化是 l0 子命令化的核心动机
 //! (bash/jq 时代零测试, 破坏验证全靠手工)。断言族语义见 engine/src/l0.rs 头注释。
 
-use log_skimmer::l0::{self, Agg, Summary};
+use log_skimmer::l0::{self, Agg, FragRec, L0Sample, Summary};
+use log_skimmer::Intent;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -514,6 +515,319 @@ fn collect_corrupt_gz_fails_with_path() {
         err.contains("日志读取失败"),
         "与既有读取失败文案同族: {err}"
     );
+}
+
+/// 引擎逻辑直测样本构造器 (语料边界, AGENTS.md 测试纪律: 规则门禁语义的
+/// 唯一 SSOT 是真实语料; 引擎聚合/判定算术用显式内存数据直测 — 不造语料
+/// 形态生造物)。全零指标 + 显式覆写 = 断言数字可逐项对账。
+fn lit(repo: &str, conclusion: &str, gate_exempt: bool) -> L0Sample {
+    L0Sample {
+        repo: repo.to_string(),
+        conclusion: conclusion.to_string(),
+        attempt: 1,
+        sample: format!("{repo}/{conclusion}.log"),
+        excluded: false,
+        gate_exempt,
+        input_lines: 1,
+        output_lines: 0,
+        signature_output_lines: 0,
+        failure_frags: 0,
+        failure_frag_lines: 0,
+        warning_frags: 0,
+        info_frags: 0,
+        zero_block: 0,
+        boundary_violations: 0,
+        frags: vec![],
+        noise_hits: BTreeMap::new(),
+    }
+}
+
+/// 豁免通道语义样本集 (内存直造): gated = r/a failure 有提取 + r/a、r/c
+/// success 干净; exempt = r/b 未适配 (2 failure 零提取 + 1 success 含 failure
+/// 命中=FP) + r/c 1 failure 零提取 — exempt 组 FN×3 / FP 率 50% / 零块×3,
+/// 若入门禁必红。
+fn exempt_collected() -> l0::Collected {
+    l0::Collected {
+        samples: vec![
+            L0Sample {
+                input_lines: 2,
+                output_lines: 1,
+                signature_output_lines: 1,
+                failure_frags: 1,
+                failure_frag_lines: 1,
+                ..lit("r/a", "failure", false)
+            },
+            lit("r/a", "success", false),
+            L0Sample {
+                input_lines: 2,
+                zero_block: 1,
+                ..lit("r/b", "failure", true)
+            },
+            L0Sample {
+                input_lines: 2,
+                output_lines: 1,
+                signature_output_lines: 1,
+                failure_frags: 1,
+                failure_frag_lines: 1,
+                ..lit("r/b", "success", true)
+            },
+            L0Sample {
+                zero_block: 1,
+                ..lit("r/b", "failure", true)
+            },
+            lit("r/c", "success", false),
+            L0Sample {
+                zero_block: 1,
+                ..lit("r/c", "failure", true)
+            },
+        ],
+        rule_ids: vec!["hits-error-anchor".to_string()],
+        orphans: vec![],
+        sidecars_missing_attempt: 0,
+    }
+}
+
+/// 豁免通道 (T-P2b-2): gate_exempt 样本跳 FN/FP/零块断言 (不进失败判定),
+/// 指标照常计算并进报告; 语料在场计数含 exempt (防空转哨兵全覆盖)。
+/// 引擎算术直测 (exempt_collected(), 无 IO 无规则匹配): 断言数字与构造
+/// 逐项对账 — 豁免样本的指标不进门禁判定、照进报告。
+#[test]
+fn exempt_samples_skip_assertions_but_report() {
+    let c = exempt_collected();
+    let s = l0::summarize(&c);
+    let v = l0::gate(&s, None, false);
+
+    // 断言面只看 gated 组: exempt 组的 FN×3/FP 率 50%/零块×3 若入门禁必红,
+    // 此处唯一违例是小语料防空转 (7<50, 与豁免无关 — 定向验证 fail 属预期)
+    assert_eq!(
+        v.violations.iter().map(|x| x.kind).collect::<Vec<_>>(),
+        vec!["corpus-missing"],
+        "exempt 组的 FN/FP/零块不进失败判定"
+    );
+
+    // gated 组指标 (totals 语义 = gated 域)
+    assert_eq!(s.totals.runs, 3, "gated 主指标样本 = 2 (r/a) + 1 (r/c)");
+    assert_eq!(s.totals.fn_samples, 0);
+    assert_eq!(s.totals.fp_rate_pct, 0.0);
+    assert_eq!(s.structural.zero_block, 0, "零块断言域 = gated");
+
+    // exempt 组指标照常计算 (报告面): 若进门禁必红的三个信号都在
+    assert_eq!(s.exempt_totals.runs, 4);
+    assert_eq!(s.exempt_totals.fn_samples, 3);
+    assert!(
+        s.exempt_totals.fp_frags >= 1,
+        "exempt success 的 failure 命中照计"
+    );
+    assert!(
+        s.exempt_totals.fp_rate_pct > l0::FP_MAX_PCT,
+        "exempt FP 率超阈也不判红: {}",
+        s.exempt_totals.fp_rate_pct
+    );
+    assert_eq!(s.structural.exempt_zero_block, 3);
+
+    // 语料在场计数含 exempt (哨兵全覆盖) + 豁免余量可见
+    assert_eq!(s.structural.samples_total, 7, "含 exempt 样本");
+    assert_eq!(s.structural.samples_exempt, 4);
+    assert_eq!(s.structural.exempt_repos, 2, "r/b + r/c (ANY 语义)");
+
+    // 判定报告双组聚合节 (verdict JSON)
+    assert_eq!(v.stats["groups"]["gated"]["fn"], 0);
+    assert_eq!(v.stats["groups"]["exempt"]["fn"], 3);
+    assert_eq!(v.stats["groups"]["exempt"]["runs"], 4);
+    assert_eq!(v.stats["exempt"]["samples"], 4);
+    assert_eq!(v.stats["exempt"]["repos"], 2);
+
+    // CLI 单行: exempt 状态单列 (计数 N 与仓数 M 在场)
+    let line = v.exempt_line().expect("exempt 在场时状态行非 None");
+    assert!(!line.contains('\n'), "单行: {line}");
+    assert!(line.contains("4 样本"), "{line}");
+    assert!(line.contains("2 仓"), "{line}");
+    assert!(line.contains("未入断言"), "{line}");
+}
+
+/// 旧 sidecar (无 gate_exempt 字段) 向后兼容: 解析机制用单件直测 (IO 机制类,
+/// 与 gz 配对测试同族 — 最小构造件, 非语料形态生造物), 行为零漂移用内存直造。
+#[test]
+fn old_sidecar_without_gate_exempt_defaults_false() {
+    // 解析层: 无字段 sidecar → gate_exempt=false (serde default)
+    let d = std::env::temp_dir().join("ls-l0-sidecar-default");
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    std::fs::write(d.join("x.log"), "error: boom\n").unwrap();
+    std::fs::write(
+        d.join("x.log.json"),
+        r#"{"repo":"r/x","conclusion":"failure","attempt":1}"#,
+    )
+    .unwrap();
+    let c = l0::collect(&d, &fixtures().join("rules")).expect("采集失败");
+    assert!(
+        c.samples.iter().all(|s| !s.gate_exempt),
+        "无字段 sidecar 解析为 gate_exempt=false"
+    );
+
+    // 行为层: 零豁免时 exempt 报告面全零、状态行静默 (None) — 豁免通道
+    // 对存量判定零漂移 (全 gated 语义与豁免特性合入前一致)
+    let c = l0::Collected {
+        samples: vec![
+            L0Sample {
+                input_lines: 2,
+                failure_frags: 1,
+                failure_frag_lines: 1,
+                ..lit("r/x", "failure", false)
+            },
+            lit("r/x", "success", false),
+        ],
+        rule_ids: vec!["hits-error-anchor".to_string()],
+        orphans: vec![],
+        sidecars_missing_attempt: 0,
+    };
+    let s = l0::summarize(&c);
+    assert_eq!(s.structural.samples_exempt, 0);
+    assert_eq!(s.exempt_totals.runs, 0, "exempt 组空");
+    let v = l0::gate(&s, None, false);
+    assert_eq!(
+        v.violations.iter().map(|x| x.kind).collect::<Vec<_>>(),
+        vec!["corpus-missing"],
+        "零豁免判定 = 豁免特性合入前的语义 (仅小语料防空转)"
+    );
+    assert_eq!(v.stats["groups"]["exempt"]["runs"], 0);
+    assert!(v.exempt_line().is_none(), "N=0 静默 (警告只对真实豁免发出)");
+}
+
+/// 逐仓分解表 (sweep 报告骨架): repo → 样本数/豁免样本数/FN/FP/零块/压缩率。
+/// 行口径 = 主指标域 (滤 rerun-through), FN/零块不分 gated/exempt (诊断视图 —
+/// 未适配仓离达标有多远); exempt_samples 标组属 (0=全入断言)。
+#[test]
+fn per_repo_breakdown_rows() {
+    let c = exempt_collected();
+    let s = l0::summarize(&c);
+    let rows = &s.per_repo_breakdown;
+    assert_eq!(rows.len(), 3, "逐仓表覆盖全部仓 (gated + exempt)");
+
+    let a = &rows["r/a"];
+    assert_eq!(
+        (a.runs, a.exempt_samples, a.fn_samples, a.zero_block),
+        (2, 0, 0, 0)
+    );
+    assert_eq!(a.fp_rate_pct, 0.0);
+
+    let b = &rows["r/b"];
+    assert_eq!(
+        (b.runs, b.exempt_samples, b.fn_samples, b.zero_block),
+        (3, 3, 2, 2)
+    );
+    assert!(b.fp_rate_pct > 0.0, "exempt 仓的 FP 照常进表");
+
+    let m = &rows["r/c"];
+    assert_eq!(
+        (m.runs, m.exempt_samples, m.fn_samples, m.zero_block),
+        (2, 1, 1, 1),
+        "mixed 行: gated+exempt 合并计, exempt_samples 标组属"
+    );
+}
+
+/// per-rule × per-repo 命中矩阵: 定义域 = 装载规则全集 (与 per_rule_hits 一致,
+/// 零命中规则为空 map), 计数口径 = signal fragment 数 ∪ noise 剔除区块数,
+/// 全样本域 (liveness); 性质: 逐规则 Σ_repo matrix == per_rule_hits。
+#[test]
+fn rule_repo_matrix_counts() {
+    let c = l0::Collected {
+        samples: vec![
+            L0Sample {
+                input_lines: 2,
+                output_lines: 1,
+                signature_output_lines: 1,
+                failure_frags: 1,
+                failure_frag_lines: 1,
+                frags: vec![FragRec {
+                    rule: "hits-error-anchor".to_string(),
+                    intent: Intent::Failure,
+                    lines: 1,
+                }],
+                noise_hits: BTreeMap::from([("note-noise".to_string(), 1u64)]),
+                ..lit("r/a", "failure", false)
+            },
+            L0Sample {
+                noise_hits: BTreeMap::from([("note-noise".to_string(), 1u64)]),
+                ..lit("r/a", "success", false)
+            },
+        ],
+        rule_ids: vec![
+            "dead-never-match".to_string(),
+            "hits-error-anchor".to_string(),
+            "note-noise".to_string(),
+        ],
+        orphans: vec![],
+        sidecars_missing_attempt: 0,
+    };
+    let s = l0::summarize(&c);
+    let m = &s.rule_repo_hits;
+    // 定义域 = 装载全集: dead 规则以空 map 在场
+    assert_eq!(
+        m.get("dead-never-match"),
+        Some(&BTreeMap::new()),
+        "零命中规则 = 空 map (死规则由 dead_rules 单列)"
+    );
+    assert_eq!(
+        m.get("hits-error-anchor"),
+        Some(&BTreeMap::from([("r/a".to_string(), 1u64)])),
+        "signal 规则按 fragment 数逐仓计"
+    );
+    assert_eq!(
+        m.get("note-noise"),
+        Some(&BTreeMap::from([("r/a".to_string(), 2u64)])),
+        "noise 规则按剔除区块数逐仓计 (两样本各一区块)"
+    );
+    // 一致性 (性质): 每规则矩阵行和 == per_rule_hits
+    for (rule, per_repo) in m {
+        let sum: u64 = per_repo.values().sum();
+        assert_eq!(
+            sum, s.per_rule_hits[rule],
+            "矩阵行和应等于 per_rule_hits[{rule}]"
+        );
+    }
+}
+
+/// 双测兼容 (T-P2b-2): base summary 产自旧引擎时无新字段 — Summary 反序列化
+/// 以 serde(default) 兜底, 新字段全默认 (CI 双测: origin/master 引擎 emit ×
+/// PR 引擎 --base 消费)。字段缺 default 属性 = 旧 base 上解析炸 (exit 2)。
+#[test]
+fn old_base_summary_without_new_fields_deserializes() {
+    let old = r#"{
+      "per_repo_conclusion": {},
+      "per_repo": {"github.com/r/kept": {
+        "runs": 30, "input_lines": 10000, "output_lines": 200,
+        "signature_output_lines": 80, "fn": 0, "success_input_lines": 5000,
+        "fp_frags": 0, "fp_lines": 0, "success_warning_frags": 0,
+        "success_info_frags": 0, "comp_blk_pct": 98.0, "comp_sig_pct": 99.0,
+        "fp_rate_pct": 0.0}},
+      "totals": {
+        "runs": 30, "input_lines": 10000, "output_lines": 200,
+        "signature_output_lines": 80, "fn": 0, "success_input_lines": 5000,
+        "fp_frags": 0, "fp_lines": 0, "success_warning_frags": 0,
+        "success_info_frags": 0, "comp_blk_pct": 98.0, "comp_sig_pct": 99.0,
+        "fp_rate_pct": 0.0},
+      "per_rule": {},
+      "structural": {"zero_block": 0, "boundary_violations": 0,
+                     "samples_total": 60, "samples_excluded": 1},
+      "per_rule_hits": {"some-rule": 3}
+    }"#;
+    let s: Summary = serde_json::from_str(old).expect("旧格式 base summary 必须可解析");
+    assert_eq!(s.exempt_totals.runs, 0);
+    assert!(s.per_repo_breakdown.is_empty());
+    assert!(s.rule_repo_hits.is_empty());
+    assert_eq!(
+        (
+            s.structural.exempt_zero_block,
+            s.structural.exempt_boundary,
+            s.structural.samples_exempt,
+            s.structural.exempt_repos
+        ),
+        (0, 0, 0, 0)
+    );
+    // 旧字段照常消费 (双测比对域)
+    assert_eq!(s.per_repo["github.com/r/kept"].comp_blk_pct, 98.0);
+    assert_eq!(s.per_rule_hits["some-rule"], 3);
 }
 
 fn ok_summary() -> Summary {

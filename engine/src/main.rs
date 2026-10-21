@@ -215,6 +215,11 @@ fn l0_cmd(
     let v = log_skimmer::l0::gate(&summary, base_summary.as_ref(), require_all_rules_hit);
     println!("{}", serde_json::to_string_pretty(&v).unwrap());
     eprintln!("{}", v.summary_line());
+    // exempt 组状态单行 (T-P2b-2): verdict 行语义不变 (对 gated 组判定),
+    // 豁免余量单列 — N=0 静默 (无豁免语料不增噪音)。
+    if let Some(line) = v.exempt_line() {
+        eprintln!("{line}");
+    }
     if v.verdict != "pass" {
         std::process::exit(1);
     }
