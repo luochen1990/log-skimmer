@@ -4,7 +4,12 @@
 
 CI 日志高信噪比提取工具 — 以确定性规则集把失败的 CI 日志压缩成带坐标、带语义标注的高信噪比摘要，供 AI agent 消费。
 
-> 引擎与规则集已在 3 个 GitHub 公开仓 + 1 个私有语料源共 67 对成败样本上完成回测验证 (见下文数据); CLI 与 MCP server (`log-skimmer-mcp`) 双形态可用。
+> 引擎与规则集**持续回测**: 每周 sweep 在 25 栈 / 120+ 公开 GitHub 项目的滚动语料 (~1300 样本) 上全量重验 — 活指标见下方徽章 (CI 自动发布, 零手工维护; [完整报告](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md))。CLI 与 MCP server (`log-skimmer-mcp`) 双形态可用。
+>
+[![backtest](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fverdict.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
+[![corpus](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fcorpus.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
+[![quality](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fquality.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
+[![compression](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fcompression.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
 
 ## 项目动机
 
@@ -50,7 +55,7 @@ rules 仓 CI ──规则校验──▶ 本仓引擎 × corpus 语料 (master-v
 - **category 封闭枚举**: 10 个封闭值 (`fmt` / `lint` / `typecheck` / `build` / `test` / `security` / `deps` / `infra` / `config` / `unknown`), 描述信息类别, 与 intent 正交。agent 可据此程序化过滤, 不必再对文本做二次理解。
 - **零块安全网**: 规则集底座恒有双侧平台安全网 — 失败侧 (CI 平台 annotation / runner 失败信号) 兜住失败日志, 成功侧 (runner 版本等环境 info 规则) 兜住成功日志。由此「任何真实 CI 日志 skim 输出非零」成为**结构承诺** (POC 67/67 兑现); 零块 = 规则集对该日志失明, 与 job 成败无关。
 - **结构承诺与可复现**: 零 LLM、零网络, 逐行状态机 + RE2 语义正则 (线性复杂度), 同输入恒同输出。输出定位为「索引 + 摘要」: 每个块恒带行号坐标与元数据 (规则 / category / intent / confidence), agent 据此决定是否展开上下文, 而非把输出当日志替代品。
-- **规则 folksonomy**: 无中央注册表, 规则文件的存在即定义工具 ID (`<tool-id>/<rule-id>.yaml`, 一文件一规则)。规则集独立于引擎, 住在 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (社区维护 + Agent 辅助), 当前 15 个工具共 30 条规则, 覆盖 bun / cargo / eslint / forgejo-actions / git / github-actions / just / nim / nix / nixfmt / playwright / rust / rustc / systemd / treefmt。
+- **规则 folksonomy**: 无中央注册表, 规则文件的存在即定义工具 ID (`<tool-id>/<rule-id>.yaml`, 一文件一规则)。规则集独立于引擎, 住在 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (社区维护 + Agent 辅助), 覆盖面每周增长 — 活计数见顶部徽章 (目录清单即 SSOT, 本文不枚举数字)。
 
 路线图: LLM 规则学习 Adapter (日志 → 规则草案 PR + 回测报告)、Validator 双层验证、WebPage 规则浏览站属后续规划; MCP server (`server/`) 已交付。
 
@@ -218,7 +223,7 @@ target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --
 
 l0 退出码说明: 语料目录不存在或零配对样本属数据错误 (exit 2, 修环境/取数链路); 以自组小语料 (<50 配对样本) 跑 ③ 会命中语料在场断言而 fail (exit 1) — 定向验证请以 per_rule_hits 为信号; 样本够但去重仓 <100 命中仓维度哨兵 (语料面静默缩水信号)。样本 = `*.log` (或压缩形态 `*.log.gz`, 引擎透明解压; `X.log.gz` 的 sidecar 是 `X.log.json`) + 同名 `*.log.json` 配对, 单侧缺失的孤儿样本在 stderr 警告并跳过 (不计数); sidecar 缺失 `attempt` 字段时聚合为一行 stderr 警告 (按 attempt=1 处理, 规范 §5)。
 
-语料口径: 公开语料仓当前 57 对配对样本; README 回测口径的 67 对 = 57 公开 + 10 私有源 (槽位每周轮换, 成败分布随快照浮动)。
+语料口径: 公开语料仓为每周滚动快照, 当前规模以顶部徽章 / [活报告](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md) 为准 (数字零手工维护); POC 时代的 67 对 (57 公开 + 10 私有源) 为历史口径。
 
 新工具规则 PR 请附最小样例日志 (溯源写法见规范 §5 `samples: self-provided` 约定)。
 

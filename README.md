@@ -4,7 +4,12 @@
 
 High signal-to-noise-ratio extraction for CI logs — a deterministic rule set compresses failed CI logs into summaries that carry line coordinates and semantic annotations, ready for AI agents to consume.
 
-> The engine and rule set have been backtested on 67 pass/fail sample pairs from 3 public GitHub repositories + 1 private corpus source (see data below); available in two forms — CLI and MCP server (`log-skimmer-mcp`).
+> The engine and rule set are **continuously backtested**: a weekly sweep re-validates the rule set over a rolling corpus of 1,300+ samples from 120+ public GitHub projects across 25 stacks (live metrics in the badges below — auto-published by CI, never hand-refreshed; [full report](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)). Available in two forms — CLI and MCP server (`log-skimmer-mcp`).
+>
+[![backtest](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fverdict.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
+[![corpus](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fcorpus.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
+[![quality](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fquality.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
+[![compression](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fcompression.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
 
 ## Motivation
 
@@ -50,7 +55,7 @@ Invariant: one-way dependencies — corpus is the source (zero dependencies, dep
 - **Closed category enum**: 10 closed values (`fmt` / `lint` / `typecheck` / `build` / `test` / `security` / `deps` / `infra` / `config` / `unknown`) describing the information category, orthogonal to intent. Agents can filter on it programmatically instead of re-interpreting text.
 - **Zero-block safety net**: the base of the rule set always carries two-sided platform safety nets — the failure side (CI platform annotations / runner failure signals) catches failed logs, and the success side (environment `info` rules such as runner version) catches successful logs. Thereby "any real CI log produces non-zero skim output" becomes a **structural promise** (POC: honored 67/67); a zero-block result means the rule set is blind to that log, regardless of job outcome.
 - **Structural promise & reproducibility**: zero LLM, zero network; a line-by-line state machine + RE2-semantics regexes (linear complexity); identical input always yields identical output. The output is positioned as "index + summary": every block always carries line coordinates and metadata (rule / category / intent / confidence), so agents decide whether to expand context accordingly rather than treating the output as a log replacement.
-- **Rule folksonomy**: no central registry — a rule file's existence defines the tool ID (`<tool-id>/<rule-id>.yaml`, one rule per file). The rule set is independent of the engine and lives in [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (community-maintained + agent-assisted); currently 30 rules across 15 tools, covering bun / cargo / eslint / forgejo-actions / git / github-actions / just / nim / nix / nixfmt / playwright / rust / rustc / systemd / treefmt.
+- **Rule folksonomy**: no central registry — a rule file's existence defines the tool ID (`<tool-id>/<rule-id>.yaml`, one rule per file). The rule set is independent of the engine and lives in [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (community-maintained + agent-assisted); coverage grows weekly across mainstream toolchains — live counts in the badges above (the directory listing is the SSOT; this README does not enumerate).
 
 Roadmap: the LLM rule-learning Adapter (log → rule-draft PR + backtest report), two-layer Validator verification, and a WebPage rule browser are future plans; the MCP server (`server/`) is delivered.
 
@@ -226,7 +231,7 @@ target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --
 
 Note on exit codes (l0): a missing corpus dir or zero paired samples is a data error (exit 2 — fix the environment/fetch); running ③ on a hand-assembled mini corpus (<50 paired samples) fails the presence assertion by design (exit 1) — for targeted verification read `per_rule_hits` instead; enough samples but fewer than 100 distinct repos trips the repo-dimension sentinel (a silent corpus-surface shrink signal). Samples are `*.log` (or gzipped `*.log.gz`, read transparently; the sidecar of `X.log.gz` is `X.log.json`) + same-name `*.log.json` pairs; unpaired orphans are warned on stderr and skipped (not counted); sidecars missing the `attempt` field trigger one aggregated stderr warning (treated as attempt=1, spec §5). Sidecars may set an optional `gate_exempt: true` (spec §4) — samples from repos whose tool has no adapted rules yet skip the FN/FP-rate/zero-block assertions (still counted in the report's exempt group and in the corpus-presence floor); the gate prints an `l0: exempt: N samples (M repos)` status line whenever exemption is in effect.
 
-Corpus accounting: the public corpus repo currently holds 57 paired samples; the README's backtest figure of 67 = 57 public + 10 from the private source (slots rotate weekly, so the pass/fail mix drifts with each snapshot).
+Corpus accounting: the public corpus repo is a weekly rolling snapshot — current scale lives in the badges above / the [live report](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md) (numbers are never hand-maintained in this README); the POC-era figure of 67 pairs (57 public + 10 private-source) is historical.
 
 Please attach a minimal sample log to PRs for new tool rules (provenance convention: spec §5 `samples: self-provided`).
 

@@ -53,7 +53,7 @@ use std::path::{Path, PathBuf};
 pub const MIN_SAMPLES: usize = 50;
 /// 语料在场仓维度下限 (分层, 样本 ≥MIN_SAMPLES 已过才判): 防语料面**静默缩水**
 /// — 获取链路只深挖少数仓时样本数探不到, 仓数是覆盖广度哨兵。100 取当前语料
-/// 面的留余下限 (公开语料仓 110 仓 / 主仓双源 123 仓, 示范项目集 SSOT 123 项);
+/// 面的留余下限 (示范项目集 SSOT 124 项, 123 仓产出语料现状);
 /// 域 = 全样本含豁免 (与 samples_total 哨兵同域 — 覆盖面与豁免进度正交)。
 pub const MIN_REPOS: usize = 100;
 pub const FP_MAX_PCT: f64 = 2.0;
