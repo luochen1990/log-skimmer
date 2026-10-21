@@ -202,7 +202,7 @@ git clone --depth 1 https://github.com/luochen1990/log-skimmer-rules /path/to/ru
 #    per_rule_hits 归因为准)
 target/release/log-skimmer skim failed-job.log --rules /path/to/rules
 
-# ③ 全量门禁: 全语料回归 (FN=0 / FP率≤2% / 零块=0 / 语料在场≥50) + 每规则命中报告
+# ③ 全量门禁: 全语料回归 (FN=0 / FP率≤2% / 零块=0 / 语料在场双断言: 样本≥50 + 仓≥100) + 每规则命中报告
 #    per_rule_hits。新规则的正向通过信号: 在 per_rule_hits 中计数 ≥1 (即不在 dead_rules 列表)。
 #    流分离: 完整 JSON 判定报告走 stdout (可重定向存档, 如 `> report.json`),
 #    stderr 仅一行 `l0-gate: verdict=...` 摘要。
@@ -216,7 +216,7 @@ target/release/log-skimmer l0 --corpus /path/to/corpus --rules /path/to/rules --
 
 `--base` 与 `--emit-summary` 为进阶/维护者用途, 贡献者通常无需: `--base` 提供对照侧 summary JSON 以启用双测压缩率对比 (相对退化 >2% 判红), `--emit-summary` 仅输出 summary JSON 供实测交换 (不判定); 细节见 `l0 --help`。
 
-l0 退出码说明: 语料目录不存在或零配对样本属数据错误 (exit 2, 修环境/取数链路); 以自组小语料 (<50 配对样本) 跑 ③ 会命中语料在场断言而 fail (exit 1) — 定向验证请以 per_rule_hits 为信号。样本 = `*.log` (或压缩形态 `*.log.gz`, 引擎透明解压; `X.log.gz` 的 sidecar 是 `X.log.json`) + 同名 `*.log.json` 配对, 单侧缺失的孤儿样本在 stderr 警告并跳过 (不计数); sidecar 缺失 `attempt` 字段时聚合为一行 stderr 警告 (按 attempt=1 处理, 规范 §5)。
+l0 退出码说明: 语料目录不存在或零配对样本属数据错误 (exit 2, 修环境/取数链路); 以自组小语料 (<50 配对样本) 跑 ③ 会命中语料在场断言而 fail (exit 1) — 定向验证请以 per_rule_hits 为信号; 样本够但去重仓 <100 命中仓维度哨兵 (语料面静默缩水信号)。样本 = `*.log` (或压缩形态 `*.log.gz`, 引擎透明解压; `X.log.gz` 的 sidecar 是 `X.log.json`) + 同名 `*.log.json` 配对, 单侧缺失的孤儿样本在 stderr 警告并跳过 (不计数); sidecar 缺失 `attempt` 字段时聚合为一行 stderr 警告 (按 attempt=1 处理, 规范 §5)。
 
 语料口径: 公开语料仓当前 57 对配对样本; README 回测口径的 67 对 = 57 公开 + 10 私有源 (槽位每周轮换, 成败分布随快照浮动)。
 

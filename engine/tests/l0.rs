@@ -27,6 +27,10 @@ fn collect_and_summarize_semantics() {
     // excluded (attempt=2 success) 滤除主指标, 但全量统计仍计
     assert_eq!(s.structural.samples_total, 3);
     assert_eq!(s.structural.samples_excluded, 1);
+    assert_eq!(
+        s.structural.repos_total, 1,
+        "仓维度哨兵 = 去重 repo 数 (全样本域)"
+    );
     assert_eq!(s.totals.runs, 2, "主指标仅含未排除样本");
 
     // failure 样本 (error: 行命中 fixture nix 规则) — FN=0
@@ -100,6 +104,14 @@ fn gate_summary_line_pairs_values_with_thresholds() {
         )),
         "{line}"
     );
+    assert!(
+        line.contains(&format!(
+            "仓={}≥{}",
+            s.structural.repos_total,
+            l0::MIN_REPOS
+        )),
+        "{line}"
+    );
     // fail 形态同格式: 超标值与验收线同在, 一眼可见差距
     let mut bad = ok_summary();
     bad.totals.fn_samples = 2;
@@ -152,6 +164,43 @@ fn gate_fails_on_missing_corpus() {
         viol.note.contains("per_rule_hits"),
         "note 应指向定向验证的正向信号: {}",
         viol.note
+    );
+}
+
+/// 判定: 仓维度语料在场不足 (样本 ≥50 但去重仓 <MIN_REPOS) → fail — 防语料面
+/// **静默缩水**: 获取链路只深挖少数仓时样本数探不到, 仓维度是覆盖广度哨兵。
+/// 分层语义: 样本下限未过时由 corpus-missing 单独报告, 本断言不叠报 —
+/// 定向验证小语料的唯一违例形态保持不变 (issue #44 读法分流的延续)。
+#[test]
+fn gate_fails_on_corpus_repos_floor() {
+    let mut s = ok_summary();
+    s.structural.repos_total = l0::MIN_REPOS - 1;
+    let v = l0::gate(&s, None, false);
+    assert_eq!(v.verdict, "fail");
+    let viol = v
+        .violations
+        .iter()
+        .find(|x| x.kind == "corpus-repos-missing")
+        .expect("corpus-repos-missing violation 在场");
+    assert!(viol.note.contains("语料面"), "note: {}", viol.note);
+    assert!(
+        viol.note.contains(&format!("<{}", l0::MIN_REPOS)),
+        "note 应带仓维度阈值对照: {}",
+        viol.note
+    );
+
+    // 分层: 样本下限未过 + 仓维度也不足 → 仅 corpus-missing (不叠报)
+    let mut small = ok_summary();
+    small.structural.samples_total = l0::MIN_SAMPLES - 1;
+    small.structural.repos_total = 1;
+    let v = l0::gate(&small, None, false);
+    assert_eq!(v.verdict, "fail");
+    assert!(v.violations.iter().any(|x| x.kind == "corpus-missing"));
+    assert!(
+        !v.violations
+            .iter()
+            .any(|x| x.kind == "corpus-repos-missing"),
+        "样本下限已报告, 仓维度不叠报"
     );
 }
 
@@ -825,6 +874,10 @@ fn old_base_summary_without_new_fields_deserializes() {
         ),
         (0, 0, 0, 0)
     );
+    assert_eq!(
+        s.structural.repos_total, 0,
+        "旧格式无仓维度哨兵字段 → serde 默认 0 (仅作 base 消费, 断言域在当前侧)"
+    );
     // 旧字段照常消费 (双测比对域)
     assert_eq!(s.per_repo["github.com/r/kept"].comp_blk_pct, 98.0);
     assert_eq!(s.per_rule_hits["some-rule"], 3);
@@ -844,6 +897,7 @@ fn ok_summary() -> Summary {
         totals: agg(98.0),
         structural: l0::Structural {
             samples_total: 60,
+            repos_total: l0::MIN_REPOS,
             ..Default::default()
         },
         ..Default::default()

@@ -21,7 +21,8 @@
 //!   - 零块/边界违例全量统计 (不滤 excluded);
 //!   - 压缩率 blk/sig = 聚合行数比 (1-Σout/Σin), 非样本内率平均。
 //!
-//! 判定断言族: 语料在场 ≥50 / FN=0 / FP率≤2% / 边界违例=0 / 零块=0;
+//! 判定断言族: 语料在场双断言 (样本 ≥50 全样本域; 仓 ≥100 分层 — 样本下限
+//!   已过才判, 防语料面静默缩水) / FN=0 / FP率≤2% / 边界违例=0 / 零块=0;
 //!   压缩率防退化 = 双测对比 (base summary 提供 per-repo 基准, 相对退化 >2% 判红;
 //!   未提供则单测模式显式声明 — 引擎仓传 base 引擎实测, 规则仓传 base 规则实测,
 //!   同语料下纯单变量归因)。
@@ -29,10 +30,11 @@
 //!   FN/FP率/零块三断言 (不进失败判定), 指标照常计算并进 exempt 组报告 —
 //!   未适配仓 (121/124) 扩容不红, P3 逐仓适配后移出豁免 (豁免余量=适配进度)。
 //!   不豁免的哨兵 (与规则适配正交): 边界违例断言 (引擎构造不变量, 域=全样本)、
-//!   语料在场 ≥50 (域=全样本含豁免)、压缩率双测 per_repo 域含豁免仓
+//!   语料在场双断言 (样本 ≥50 + 仓 ≥100, 域=全样本含豁免; 仓维度分层 —
+//!   样本下限已过才判, 不对小语料叠报)、压缩率双测 per_repo 域含豁免仓
 //!   (同语料同规则下纯引擎变量归因, 豁免≠引擎回归豁免)。
 //! 退出码分层 (issue #44, CLI 侧): 采集层语料非法 (目录不存在/零配对样本) →
-//!   exit 2 (与规则侧对称), 语料在场 ≥50 断言只对 0<n<50 生效 — 定向验证小语料
+//!   exit 2 (与规则侧对称), 语料在场样本断言只对 0<n<50 生效 — 定向验证小语料
 //!   fail 属预期 (防空转), note 分流「定向验证」与「疑获取链路」两种读法。
 //! 正向验证 (issue #19 B, 贡献闭环「规则确实工作」的信心来源): per_rule_hits
 //!   恒报告 (定义域=装载规则全集, 零命中即死规则); dead_rules 断言仅在该
@@ -49,6 +51,11 @@ use std::path::{Path, PathBuf};
 /// 语料在场下限: 防空转假绿 (获取链路整体故障时拒判)。50 = 兼容单源环境
 /// (rules 仓 CI 仅 corpus 57 对; 主仓双源 67 对) — 防空转语义在 50 与 67 无差。
 pub const MIN_SAMPLES: usize = 50;
+/// 语料在场仓维度下限 (分层, 样本 ≥MIN_SAMPLES 已过才判): 防语料面**静默缩水**
+/// — 获取链路只深挖少数仓时样本数探不到, 仓数是覆盖广度哨兵。100 取当前语料
+/// 面的留余下限 (公开语料仓 110 仓 / 主仓双源 123 仓, 示范项目集 SSOT 123 项);
+/// 域 = 全样本含豁免 (与 samples_total 哨兵同域 — 覆盖面与豁免进度正交)。
+pub const MIN_REPOS: usize = 100;
 pub const FP_MAX_PCT: f64 = 2.0;
 pub const REGRESSION_MAX_PCT: f64 = 2.0;
 
@@ -396,6 +403,11 @@ pub struct Structural {
     /// 有 ≥1 个豁免主指标样本的仓数 (ANY 语义 — 混合仓也计)。
     #[serde(default)]
     pub exempt_repos: usize,
+    /// 去重仓数 (全样本域含豁免) — 语料在场仓维度哨兵 (`corpus-repos-missing`
+    /// 断言的数据面, 分层: 样本下限已过才判)。serde 默认 0: 旧 base summary
+    /// 无此字段仍可解析 (断言域在当前侧, 默认值不参与判定)。
+    #[serde(default)]
+    pub repos_total: usize,
 }
 
 /// 逐仓分解行 (sweep 报告骨架, T-P2b-2): 样本数/FN/FP/零块/压缩率 + 豁免
@@ -542,6 +554,11 @@ pub fn summarize(c: &Collected) -> Summary {
             )
         })
         .collect();
+    let repos_total = all
+        .iter()
+        .map(|s| s.repo.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
     let structural = Structural {
         zero_block: all
             .iter()
@@ -567,6 +584,7 @@ pub fn summarize(c: &Collected) -> Summary {
             .map(|s| s.repo.clone())
             .collect::<std::collections::BTreeSet<_>>()
             .len(),
+        repos_total,
     };
     // 正向验证: 装载全集补零 + 全样本域累计 (frags ∪ noise_hits, 二者按规则
     // kind 天然不相交 — signal 不进 noise_hits, noise 不产 frags)。
@@ -698,6 +716,20 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
             detail: None,
         });
     }
+    // 仓维度哨兵 (分层): 样本下限已过才判 — 样本不足场景已由 corpus-missing
+    // 报告, 本断言专责「样本深度够但覆盖广度缩水」形态, 不对小语料叠报。
+    if st.samples_total >= MIN_SAMPLES && st.repos_total < MIN_REPOS {
+        violations.push(Violation {
+            kind: "corpus-repos-missing",
+            note: format!(
+                "语料面静默缩水: 样本 {}≥{MIN_SAMPLES} 但去重仓数 {}<{MIN_REPOS} — \
+                 覆盖广度不足 (获取链路只深挖少数仓的形态, 样本维度哨兵探不到); \
+                 定向验证请以 per_rule_hits 为信号",
+                st.samples_total, st.repos_total
+            ),
+            detail: None,
+        });
+    }
     if t.fn_samples > 0 {
         let detail: Vec<_> = pr
             .per_repo_conclusion
@@ -802,6 +834,7 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
             "fn": t.fn_samples, "fp_rate_pct": t.fp_rate_pct,
             "zero_blocks": st.zero_block, "boundary_violations": st.boundary_violations,
             "samples": st.samples_total,
+            "repos": st.repos_total,
             "comp_blk_pct": t.comp_blk_pct, "comp_sig_pct": t.comp_sig_pct,
             "per_rule_hits": &pr.per_rule_hits,
             "dead_rules": &dead_rules,
@@ -842,7 +875,7 @@ impl Verdict {
         let cnt = |k: &str| self.stats[k].as_u64().unwrap_or(0);
         format!(
             "l0-gate: verdict={} FN={}/0 FP率={:.2}%≤{}% 零块={}/0 边界违例={}/0 \
-             语料={}≥{} 压缩 blk={:.2}% sig={:.2}% 规则零命中={}",
+             语料={}≥{} 仓={}≥{} 压缩 blk={:.2}% sig={:.2}% 规则零命中={}",
             self.verdict,
             cnt("fn"),
             num("fp_rate_pct"),
@@ -851,6 +884,8 @@ impl Verdict {
             cnt("boundary_violations"),
             cnt("samples"),
             MIN_SAMPLES,
+            cnt("repos"),
+            MIN_REPOS,
             num("comp_blk_pct"),
             num("comp_sig_pct"),
             self.stats["dead_rules"].as_array().map_or(0, |a| a.len()),
