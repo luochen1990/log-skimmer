@@ -71,7 +71,7 @@ jobs:
     #   forgejo 内网实例按固定清单现场拉取 — 隐私红线: 私有实例日志不出内网)
     env:
       CARGO_TARGET_DIR: /var/lib/forgejo-runner/cache/cargo-target
-      CORPUS_DIR: /var/lib/forgejo-runner/cache/corpus # 语料仓持久缓存 (幂等 clone 一次后增量 pull, 语料获取流量从 ~10MB/run 降到 ~1MB/周)
+      CORPUS_DIR: /var/lib/forgejo-runner/cache/corpus # 语料仓持久缓存 (幂等 clone 一次后 fetch+reset 对齐远端 tip — 语料仓 refresh 为 orphan 单提交模型强推重写历史, pull 必分叉; 语料获取流量从 ~10MB/run 降到 ~1MB/周)
       RULES_DIR: /var/lib/forgejo-runner/cache/rules # 规则仓持久缓存 (与 CORPUS_DIR 对称; DNS 瞬态时 fetch-rules.sh pull 失败可降级本地副本, issue #36)
       FORGEJO_API_TOKEN: ${{ secrets.RO_FORGEJO_API_TOKEN }} # secret 名避开 FORGEJO 保留前缀, env 名不变 (fetch-forgejo 零改动)
     steps:

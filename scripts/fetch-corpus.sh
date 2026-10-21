@@ -6,8 +6,11 @@
 #   语料是互联网可拉取的公开 CI 日志滚动快照, 不入主仓 (评论裁决 2026-10-16:
 #   入仓语料只会腐坏; 独立语料仓由主仓 ci-periodic 持续刷新保新鲜)。
 # 幂等/离线容忍:
-#   - data/logs 已是语料仓 clone → git pull --ff-only; 网络失败时若本地有 67 对
-#     槽位样本则降级 warn 用现有副本 (开发者离线可跑门禁); CORPUS_OFFLINE=1 跳过拉取。
+#   - data/logs 已是语料仓 clone → git fetch + git reset --hard origin/master
+#     (语料仓 refresh 为 orphan 单提交模型, 每次强推重写 master 历史, pull 必
+#     分叉; reset 对齐远端 tip 的语义对 orphan 强推与正常历史均幂等正确)。
+#     网络失败时若本地有 ≥MIN_SLOTS 对槽位样本则降级 warn 用现有副本 (开发者
+#     离线可跑门禁); CORPUS_OFFLINE=1 跳过拉取。
 #   - CI 全新 workspace → clone 必须 succeed (语料不在场由 l0-gate 的 ≥60 断言兜底红)。
 set -euo pipefail
 
@@ -26,12 +29,13 @@ if [ "${CORPUS_OFFLINE:-0}" = 1 ]; then
 fi
 
 if [ -d "$DEST/.git" ]; then
-  if git -C "$DEST" pull --ff-only --quiet 2>/dev/null; then
+  if git -C "$DEST" fetch --quiet origin 2>/dev/null \
+     && git -C "$DEST" reset --hard --quiet origin/master; then
     log "已更新 ($(count_samples) 对样本)"
   elif [ "$(count_samples)" -ge "$MIN_SLOTS" ]; then
-    log "WARN: pull 失败, 降级用本地副本 ($(count_samples) 对)"
+    log "WARN: 语料更新失败 (fetch/reset), 降级用本地副本 ($(count_samples) 对)"
   else
-    log "pull 失败且本地样本不足"; exit 1
+    log "语料更新失败且本地样本不足"; exit 1
   fi
 else
   mkdir -p "$(dirname "$DEST")"
