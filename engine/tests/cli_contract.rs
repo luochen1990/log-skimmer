@@ -451,6 +451,57 @@ fn l0_help_documents_pairing_semantics() {
     );
 }
 
+// ---- gz 透明读取 (spec §5 压缩形态): CLI skim 单文件输入 *.gz ----
+
+/// 现场写出 gzip 文件 (gz 测试数据不入库二进制 fixture)。
+fn gz_write_file(path: &Path, content: &str) {
+    use std::io::Write as _;
+    let mut w = flate2::write::GzEncoder::new(
+        std::fs::File::create(path).unwrap(),
+        flate2::Compression::default(),
+    );
+    w.write_all(content.as_bytes()).unwrap();
+    w.finish().unwrap();
+}
+
+// *.gz 输入透明解压: 输出与 plain 形态逐字节一致 — 压缩是存储细节, 调用方无感。
+#[test]
+fn gz_input_transparently_skimmed() {
+    let (rules, plain) = fixture(
+        "gz-ok",
+        &[RULE_FAILURE, RULE_WARNING],
+        "ERR from gzip\nplain line\nWARN nearby\n",
+    );
+    let plain_out = run_skim(&rules, &plain, &[]);
+    assert_eq!(plain_out.status.code(), Some(0), "plain 形态基线须绿");
+    let gz = plain.with_extension("log.gz");
+    gz_write_file(&gz, &std::fs::read_to_string(&plain).unwrap());
+    let gz_out = run_skim(&rules, &gz, &[]);
+    assert_eq!(gz_out.status.code(), Some(0), "gz 形态同样须绿");
+    assert_eq!(
+        String::from_utf8_lossy(&gz_out.stdout),
+        String::from_utf8_lossy(&plain_out.stdout),
+        "gz 输入的 stdout 须与 plain 逐字节一致"
+    );
+}
+
+// 非法 gz (明文误命名 .gz) = 数据错误族: exit 2 + stderr "读取日志失败" 带路径
+// (与文件不存在同族文案, 不静默按空/垃圾内容通过)。
+#[test]
+fn corrupt_gz_input_exit_2() {
+    let (rules, plain) = fixture("gz-bad", &[RULE_FAILURE], "unused\n");
+    let gz = plain.with_file_name("bad.log.gz");
+    std::fs::write(&gz, "not a gzip stream").unwrap();
+    let out = run_skim(&rules, &gz, &[]);
+    assert_eq!(out.status.code(), Some(2), "非法 gz → exit 2 (数据错误族)");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("读取日志失败"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("bad.log.gz"),
+        "stderr 须带样本路径: {stderr}"
+    );
+}
+
 // #38: hygiene 是内部门禁工具 (secret-scan 凭据形态防线), 保持隐藏于公共帮助面
 // (可见性口径见 l0_listed_in_public_help: 公开工具可见 / 内部工具隐藏, issue #45);
 // 但 hide ≠ 移除 — 子命令级帮助与解析路径保留 (justfile secret-scan

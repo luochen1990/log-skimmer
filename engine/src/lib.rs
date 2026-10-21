@@ -8,6 +8,7 @@
 pub mod hygiene;
 pub mod l0;
 pub mod manifest;
+pub mod sample_io;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};

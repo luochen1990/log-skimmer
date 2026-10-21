@@ -11,4 +11,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 regex = "1"
 clap = { version = "4", features = ["derive"] }
+# 语料样本 gzip 透明读取 (spec §5 压缩形态); 默认 features = rust_backend
+# (miniz_oxide 纯 Rust, 无 C 工具链依赖)。例外登记见 AGENTS.md 依赖纪律。
+flate2 = "1"
 

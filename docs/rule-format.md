@@ -298,9 +298,10 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 ## 5. 样本与配对 (POC 约定)
 
 - 样本存放: `data/logs/<host>/<owner>/<repo>/<YYYY-MM-DD>/<run_id>-<job_id>-<job_name>-<conclusion>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, created_at, job_name, attempt, ci, fetched_at}` — **嵌套自然路径** (需求方裁决, 弃 `__` 扁平化: 机器遍历用递归 find 无成本, 人类可读性优先 — 日期/触发 job/成败进路径, 裸数字文件名不可读); `repo` 为 **`host/owner/repo` 完整形态** (元数据 SSOT 在 sidecar, 路径仅为可读性投影); conclusion 取 **job 级 result**; `created_at` (run 级) / `job_name` 取数时从 API 元数据写入; `job_name` 清洗规则: `/`与空格→`-`, 截 30 字符。
+- **样本压缩形态 (语料仓体积治理, 2026-10-21)**: 日志样本可存 gzip 形态 `*.log.gz` (sidecar 恒为明文 `*.log.json`, 不压缩)。配对名 = 样本文件名去 `.gz` 后缀: `X.log.gz` ↔ sidecar `X.log.json`。引擎读取按**扩展名驱动**透明解压 (非魔数探测 — `*.log` 误存 gzip 内容按文本读, 乱码可见可查); 解压失败 (非法流/截断) fail-fast 带样本路径报错, 不静默跳样本; gz 与 plain 混存合法且**指标等价** (压缩是存储细节); 同配对名 plain 与 gz 双份在场 = 配对歧义, 采集层 Err 拒判 (不静默择一)。
 - **语料独立仓 (双源, 需求方裁决, 2026-10-16)**: 语料不入引擎仓 — 公开 CI 日志是互联网随时可拉取的资源, 入仓只会腐坏。双源形态: ① GHA 侧 (公开仓) 滚动槽位存独立语料仓 `github.com/luochen1990/log-skimmer-corpus` (public, **源头自包含零依赖** — GHA weekly 自刷槽位, 不构建引擎不算基线), 引擎仓 CI 经幂等拉取脚本消费; ② **私有语料源** (含敏感环境信息, 不公开分发)。`data/logs`/`data/rules` 是拉取脚本的工作副本 (gitignored); L0 门禁的语料在场断言分层兜底获取失败: 零配对样本在采集层 exit 2, 0<n<50 在判定层 fail (兼容 rules 仓单源 CI)。规则集独立成仓 `github.com/luochen1990/log-skimmer-rules` (社区维护 + Agent 辅助, 规则 PR 的质量门禁在该仓 CI: 发布面引擎 × corpus 语料 × master-vs-PR 规则双测)。压缩率防退化走 PR CI 双测对比: master vs PR 引擎 × 同语料同规则, 无基线文件无配对问题。
 - 规则文件头注释标注来源样本 (`# samples: <repo>/<run>-<job>, ...`) 供人工溯源。**新工具暂无语料仓样本时** (语料未覆盖的工具, 如 pytest): 写 `# samples: self-provided`, 且 PR 必附最小样例日志 (能命中该规则的真实日志片段) — 样例经维护者审核后收进语料仓, 届时回填具体溯源; 溯源字段禁止悬空或编造。
-- **孤儿样本可见性**: 样本两件套单侧在场 (有 `*.log` 无 sidecar, 或反之) = 配对缺口 — l0 采集对每个孤儿 stderr 逐条警告并跳过 (不计数), 不升级硬错误; 门禁不因缺口静默缩水 (sidecar 必带约定的可见性配套, issue #46)。
+- **孤儿样本可见性**: 样本两件套单侧在场 (有日志 `*.log`/`*.log.gz` 无 sidecar, 或反之) = 配对缺口 — l0 采集对每个孤儿 stderr 逐条警告并跳过 (不计数), 不升级硬错误; 门禁不因缺口静默缩水 (sidecar 必带约定的可见性配套, issue #46)。
 
 ## 6. POC 明确不做
 

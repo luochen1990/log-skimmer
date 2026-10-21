@@ -3,7 +3,7 @@
 
 use log_skimmer::l0::{self, Agg, Summary};
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn fixtures() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
@@ -368,6 +368,152 @@ fn collect_all_attempts_present_no_warning_and_rerun_excluded() {
         .find(|s| s.sample.ends_with("3-3-check-success.log"))
         .expect("attempt=2 success 样本在场");
     assert!(rerun.excluded, "attempt>1 且 success → rerun-through 排除");
+}
+
+// ---- gz 压缩形态 (spec §5): 配对名 = 样本文件名去 .gz 后缀 ----
+
+/// 临时语料目录 (同 cli_contract 惯例: ls-<套件>-<名>, 复跑先清)。
+fn gz_tmp_corpus(name: &str) -> PathBuf {
+    let d = std::env::temp_dir().join(format!("ls-l0-gz-{name}"));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    d
+}
+
+/// 现场写出 gzip 样本 (gz 数据不入库二进制 fixture)。
+fn gz_write(path: &Path, content: &str) {
+    let mut w = flate2::write::GzEncoder::new(
+        std::fs::File::create(path).unwrap(),
+        flate2::Compression::default(),
+    );
+    std::io::Write::write_all(&mut w, content.as_bytes()).unwrap();
+    w.finish().unwrap();
+}
+
+/// 三样本小语料 (failure / success 含 FP / rerun-through), 按位掩码决定每样本
+/// 存 plain (*.log) 还是压缩 (*.log.gz) 形态 — sidecar 恒为 配对名 + .json。
+fn gz_build_corpus(d: &Path, gz_mask: &[bool]) {
+    let samples: &[(&str, &str, u32, &str)] = &[
+        ("f1", "failure", 1, "error: boom\nplain noise line\n"),
+        (
+            "s1",
+            "success",
+            1,
+            "Runner Image: ubuntu\n##[error] flaky fp\n",
+        ),
+        ("s2", "success", 2, "error: transient on attempt 1\n"),
+    ];
+    for ((name, conclusion, attempt, body), gz) in samples.iter().zip(gz_mask) {
+        if *gz {
+            gz_write(&d.join(format!("{name}.log.gz")), body);
+        } else {
+            std::fs::write(d.join(format!("{name}.log")), body).unwrap();
+        }
+        std::fs::write(
+            d.join(format!("{name}.log.json")),
+            format!("{{\"repo\":\"r/x\",\"conclusion\":\"{conclusion}\",\"attempt\":{attempt}}}"),
+        )
+        .unwrap();
+    }
+}
+
+/// 同一批样本 全 plain / 全 gz / 混合 三形态: l0 全部指标 (Summary 整体)
+/// 完全一致 — 压缩是存储细节, 不得改变任何指标; 采集不因形态产生孤儿。
+#[test]
+fn gz_and_plain_corpus_metrics_identical() {
+    let summary_json = |gz_mask: &[bool]| {
+        let d = gz_tmp_corpus("equiv");
+        gz_build_corpus(&d, gz_mask);
+        let c = l0::collect(&d, &fixtures().join("rules")).expect("采集失败");
+        assert_eq!(c.samples.len(), 3, "三形态均应配满 3 样本 (无孤儿)");
+        assert!(c.orphans.is_empty(), "orphans: {:?}", c.orphans);
+        serde_json::to_value(l0::summarize(&c)).unwrap()
+    };
+    let plain = summary_json(&[false, false, false]);
+    assert_eq!(
+        plain,
+        summary_json(&[true, true, true]),
+        "全 gz 与全 plain 指标须完全一致"
+    );
+    assert_eq!(
+        plain,
+        summary_json(&[true, false, true]),
+        "混合语料与全 plain 指标须完全一致"
+    );
+}
+
+/// 配对可见性扩展到压缩形态: X.log.gz + X.log.json 配对成功;
+/// X.log.gz 单侧在场 = 孤儿 (缺 sidecar); sidecar 在场而 X.log/X.log.gz
+/// 均缺 = 孤儿 (缺日志, 既有语义不变)。
+#[test]
+fn gz_sidecar_pairing_and_orphans() {
+    let d = gz_tmp_corpus("orphans");
+    gz_write(&d.join("a.log.gz"), "error: paired\n");
+    std::fs::write(
+        d.join("a.log.json"),
+        r#"{"repo":"r/x","conclusion":"failure"}"#,
+    )
+    .unwrap();
+    gz_write(&d.join("b.log.gz"), "error: no sidecar\n");
+    std::fs::write(
+        d.join("c.log.json"),
+        r#"{"repo":"r/x","conclusion":"failure"}"#,
+    )
+    .unwrap();
+    let c = l0::collect(&d, &fixtures().join("rules")).expect("采集失败");
+    assert_eq!(c.samples.len(), 1, "a.log.gz 与 a.log.json 配对成功");
+    let orphans: Vec<_> = c
+        .orphans
+        .iter()
+        .map(|o| (o.path.as_str(), o.missing))
+        .collect();
+    assert_eq!(
+        orphans,
+        vec![
+            ("b.log.gz", l0::MissingSide::Sidecar),
+            ("c.log.json", l0::MissingSide::Log),
+        ],
+        "gz 单侧在场进孤儿清单, 缺失侧标注正确"
+    );
+}
+
+/// 同配对名 plain 与 gz 双份在场 (X.log + X.log.gz + sidecar) = 语料非法:
+/// 配对歧义不可静默择一 (另一份样本会被无声吞掉), fail-fast 报双路径。
+#[test]
+fn duplicate_pairing_name_fails_fast() {
+    let d = gz_tmp_corpus("conflict");
+    std::fs::write(d.join("x.log"), "error: plain\n").unwrap();
+    gz_write(&d.join("x.log.gz"), "error: gz\n");
+    std::fs::write(
+        d.join("x.log.json"),
+        r#"{"repo":"r/x","conclusion":"failure"}"#,
+    )
+    .unwrap();
+    let err = l0::collect(&d, &fixtures().join("rules")).unwrap_err();
+    assert!(
+        err.contains("x.log") && err.contains("x.log.gz"),
+        "报错须含 plain 与 gz 双路径: {err}"
+    );
+    assert!(err.contains("冲突"), "报错须点明冲突语义: {err}");
+}
+
+/// 解压失败经 l0 采集路径 fail-fast: 非法 gz 样本 → Err 带样本路径,
+/// 不静默跳样本 (跳样本 = 门禁语料面静默缩水)。
+#[test]
+fn collect_corrupt_gz_fails_with_path() {
+    let d = gz_tmp_corpus("corrupt");
+    std::fs::write(d.join("z.log.gz"), "plain text mislabeled as gz").unwrap();
+    std::fs::write(
+        d.join("z.log.json"),
+        r#"{"repo":"r/x","conclusion":"failure"}"#,
+    )
+    .unwrap();
+    let err = l0::collect(&d, &fixtures().join("rules")).unwrap_err();
+    assert!(err.contains("z.log.gz"), "采集报错须带样本路径: {err}");
+    assert!(
+        err.contains("日志读取失败"),
+        "与既有读取失败文案同族: {err}"
+    );
 }
 
 fn ok_summary() -> Summary {

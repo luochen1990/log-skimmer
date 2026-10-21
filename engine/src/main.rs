@@ -48,7 +48,7 @@ struct Cli {
 enum Cmd {
     /// 扫描日志, 输出提取块
     Skim {
-        /// 日志文件 (只接受一个; 多文件须分别调用), `-` 表示 stdin (Unix 管道惯例)
+        /// 日志文件 (只接受一个; 多文件须分别调用; *.gz 透明解压), `-` 表示 stdin (Unix 管道惯例)
         log_file: PathBuf,
         /// 规则目录 (递归加载 *.yaml; 空串有专属报错, 见 non_empty_arg — issue #73a)
         #[arg(long, value_parser = non_empty_arg("--rules", "须为规则集目录"))]
@@ -72,7 +72,7 @@ enum Cmd {
     // 公开门禁工具 (issue #45): README 贡献教程 ③④ 与规则仓 CI 依赖 → 进公共
     // 帮助面; 可见性口径与 hygiene (#38) 互补 — 公开工具可见 / 内部发布链工具隐藏。
     L0 {
-        /// 语料根目录 (递归; 样本 = *.log + 同名 *.log.json 配对, 单侧缺失的孤儿样本 stderr 警告并跳过)
+        /// 语料根目录 (递归; 样本 = *.log 或 *.log.gz + 配对名同名 *.log.json 配对, 配对名 = 样本名去 .gz 后缀; 单侧缺失的孤儿样本 stderr 警告并跳过)
         #[arg(long, value_parser = non_empty_arg("--corpus", "须为语料根目录"))]
         corpus: PathBuf,
         /// 规则目录 (空串专属报错同 skim --rules — issue #73a 推广)
@@ -244,8 +244,9 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
             });
         buf
     } else {
-        std::fs::read_to_string(&log_file).unwrap_or_else(|e| {
-            eprintln!("读取日志失败 {}: {e}", log_file.display());
+        // 文件路径读取 (gz 透明解压单一入口, *.gz 与 plain 输出逐字节一致)
+        log_skimmer::sample_io::read_log_sample(&log_file).unwrap_or_else(|e| {
+            eprintln!("读取日志失败 {e}");
             std::process::exit(2);
         })
     };

@@ -5,9 +5,12 @@
 //!   CLI 形态 `log-skimmer l0` (main.rs 接线); bash/jq 时代脚本的等价移植
 //!   (l0-collect.sh / l0-summarize.jq / l0-gate.sh 已退役), 判定逻辑自此可单测。
 //!
-//! 配对语义 (spec §5): 样本 = *.log + 同名 *.log.json, 单侧在场 = 孤儿 —
-//!   不进样本计数, 进 Collected.orphans 供 CLI 告警 (issue #46 可见性,
-//!   引擎只产出数据不渲染, 是否升级硬错误留需求方裁决)。
+//! 配对语义 (spec §5): 样本 = 日志 (*.log 或压缩形态 *.log.gz) + 配对名同名
+//!   *.log.json sidecar — 配对名 = 样本文件名去 .gz 后缀 (X.log.gz ↔ X.log.json),
+//!   单侧在场 = 孤儿 — 不进样本计数, 进 Collected.orphans 供 CLI 告警
+//!   (issue #46 可见性, 引擎只产出数据不渲染, 是否升级硬错误留需求方裁决);
+//!   同配对名 plain 与 gz 双份在场 = 配对歧义 → Err fail-fast (静默择一会
+//!   无声吞掉一份样本)。
 //!
 //! 口径 (spec §4, 与 jq 时代逐条等价):
 //!   - 主指标滤除 rerun-through (attempt>1 且 conclusion=success);
@@ -87,7 +90,8 @@ struct Sidecar {
 }
 
 /// 递归收集语料文件 (路径字典序, 确定性遍历 — 等价 `find | sort`): *.log.json
-/// sidecar 与 *.log 日志分列, 配对判定在 collect (单侧在场 = 孤儿, issue #46)。
+/// sidecar 与日志样本 (*.log 或 *.log.gz) 分列, 配对判定在 collect (单侧在场
+/// = 孤儿, issue #46)。
 fn walk_corpus_files(dir: &Path, logs: &mut Vec<PathBuf>, sidecars: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -98,17 +102,20 @@ fn walk_corpus_files(dir: &Path, logs: &mut Vec<PathBuf>, sidecars: &mut Vec<Pat
         let p = e.path();
         if p.is_dir() {
             walk_corpus_files(&p, logs, sidecars);
-        } else if e.file_name().to_string_lossy().ends_with(".log.json") {
-            sidecars.push(p);
-        } else if p.extension().is_some_and(|x| x == "log") {
-            logs.push(p);
+        } else {
+            let name = p.file_name().unwrap_or_default().to_string_lossy();
+            if name.ends_with(".log.json") {
+                sidecars.push(p);
+            } else if name.ends_with(".log.gz") || p.extension().is_some_and(|x| x == "log") {
+                logs.push(p);
+            }
         }
     }
 }
 
-/// 配对缺口 (issue #46 可见性): 样本两件套 (*.log + 同名 *.log.json) 只有一侧在场。
-/// 引擎只产出数据 (相对语料根路径 + 缺失侧), 告警渲染归 CLI — 不升级硬错误
-/// (是否 exit 2 留给需求方)。
+/// 配对缺口 (issue #46 可见性): 样本两件套 (日志 *.log|*.log.gz + 配对名同名
+/// *.log.json) 只有一侧在场。引擎只产出数据 (相对语料根路径 + 缺失侧), 告警
+/// 渲染归 CLI — 不升级硬错误 (是否 exit 2 留给需求方)。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OrphanSample {
     pub path: String,
@@ -118,9 +125,9 @@ pub struct OrphanSample {
 /// 缺失侧 (在场文件的对侧)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum MissingSide {
-    /// *.log.json 在场, 同名 *.log 缺失
+    /// *.log.json 在场, 配对日志 (*.log / *.log.gz) 缺失
     Log,
-    /// *.log 在场, 同名 *.log.json (sidecar) 缺失
+    /// 日志 (*.log / *.log.gz) 在场, 同名 *.log.json (sidecar) 缺失
     Sidecar,
 }
 
@@ -163,10 +170,10 @@ impl Collected {
     }
 }
 
-/// 采集全语料: 规则单次加载, 逐样本 skim。非法规则集/语料目录不存在/日志读取失败
-/// → Err (fail-fast, 门禁无兜底); 零配对样本 → Ok 空清单 (exit 2 决策在 CLI,
-/// issue #44); 零块是正常记录 (违例判定在 gate — 结构承诺的失明信号);
-/// 孤儿样本 (单侧在场) 跳过不计数, 见 Collected.orphans。
+/// 采集全语料: 规则单次加载, 逐样本 skim。非法规则集/语料目录不存在/日志读取
+/// 失败/配对名冲突 → Err (fail-fast, 门禁无兜底); 零配对样本 → Ok 空清单
+/// (exit 2 决策在 CLI, issue #44); 零块是正常记录 (违例判定在 gate —
+/// 结构承诺的失明信号); 孤儿样本 (单侧在场) 跳过不计数, 见 Collected.orphans。
 pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String> {
     // 语料目录不存在 = 语料非法 (与 load_rules 的规则目录对称, issue #44) —
     // 采集层失败不是质量门禁红, CLI 侧映射 exit 2。
@@ -185,19 +192,31 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
     let mut samples = Vec::with_capacity(sidecars.len());
     for j in &sidecars {
         let sc_str = j.display().to_string();
-        let log_str = sc_str.strip_suffix(".json").unwrap_or(&sc_str).to_string();
-        if !log_set.contains(&log_str) {
-            orphans.push(orphan(corpus_dir, j, MissingSide::Log));
-            continue;
-        }
-        let log_path = PathBuf::from(&log_str);
+        let base = sc_str.strip_suffix(".json").unwrap_or(&sc_str).to_string();
+        // 配对候选 (spec §5): base (plain) 与 base.gz (压缩形态), 恰一份在场才
+        // 无歧义 — 双份在场 = 配对名冲突 fail-fast (静默择一会无声吞掉一份样本)。
+        let gz = format!("{base}.gz");
+        let plain = base;
+        let log_path = match (log_set.contains(&plain), log_set.contains(&gz)) {
+            (false, false) => {
+                orphans.push(orphan(corpus_dir, j, MissingSide::Log));
+                continue;
+            }
+            (true, true) => {
+                return Err(format!(
+                    "样本配对名冲突: {plain} 与 {gz} 同配对名 (sidecar {sc_str}), 拒绝静默择一"
+                ));
+            }
+            (true, false) => PathBuf::from(&plain),
+            (false, true) => PathBuf::from(&gz),
+        };
         let sc: Sidecar = serde_json::from_str(
             &std::fs::read_to_string(j)
                 .map_err(|e| format!("sidecar 读取失败 {}: {e}", j.display()))?,
         )
         .map_err(|e| format!("sidecar 解析失败 {}: {e}", j.display()))?;
-        let raw = std::fs::read_to_string(&log_path)
-            .map_err(|e| format!("日志读取失败 {}: {e}", log_path.display()))?;
+        let raw = crate::sample_io::read_log_sample(&log_path)
+            .map_err(|e| format!("日志读取失败 {e}"))?;
         let lines = crate::normalize_lines(&raw);
         let r = skim(&log_path.display().to_string(), &rules, &lines);
         let sample = log_path
@@ -252,7 +271,10 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
         });
     }
     for l in &logs {
-        if !sidecar_set.contains(&format!("{}.json", l.display())) {
+        // 配对名 = 样本文件名去 .gz 后缀 (X.log.gz → X.log); sidecar 恒为 配对名.json。
+        let l_str = l.display().to_string();
+        let base = l_str.strip_suffix(".gz").unwrap_or(&l_str);
+        if !sidecar_set.contains(&format!("{base}.json")) {
             orphans.push(orphan(corpus_dir, l, MissingSide::Sidecar));
         }
     }
