@@ -691,7 +691,10 @@ mod tests {
         let log = "error: one\nplain\nerror: two\nplain\nerror: three\n";
         let out = skim_view(&rs, log, None).unwrap();
         assert_eq!(out.blocks.len(), 1, "级联折叠为单锚块");
-        let m = out.blocks[0].collapse.as_ref().expect("锚块带 collapse 透传");
+        let m = out.blocks[0]
+            .collapse
+            .as_ref()
+            .expect("锚块带 collapse 透传");
         assert_eq!(m.repeat_blocks, 2);
         assert_eq!(m.omitted_lines, 2);
         assert_eq!(m.frag_spans, vec![(3, 3), (5, 5)], "锚行索引零损失");
