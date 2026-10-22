@@ -2,7 +2,7 @@
 
 > 职责边界: 本文是规则 YAML 格式、逐行状态机语义、fragment 输出协议与 L0 统计口径的**单一事实来源**, 是规则编写者与引擎实现者的共同契约。两者对语义的任何疑问以本文为准; 本文未定义的行为视为未指定 (实现不应依赖)。
 > 英文译本: [rule-format.en.md](rule-format.en.md) (non-normative, 语义歧义以本文为准)。
-> 版本: v0.6 (POC)。v0.1 吸收 T2 实测反馈 (A0); v0.2 吸收第二轮增量建议 (intent/坐标恒带/双粒度/三态与 rerun); v0.3 intent 三分化 (failure|warning|info, 需求方反馈: 非 failure 信息区分问题倾向与纯环境快照); v0.4 规则集 manifest 版本协商 + 未知字段拒载 (issue #59: 引擎 × 规则集兼容性静态可判定); v0.5 输入三分类 SSOT (issue #71: 纯空白归 exit 2 数据错误族, 零块警示文案分流退役) + A0 首部 BOM 剥除 (issue #78) — 行为语义变更但不触及规则文件格式 (`format_version` 恒 1, 规则零迁移); v0.6 scope/repo 字段退役 — 生效范围改由**存储位置**唯一决定 (§1.S: 双层装载域 + 项目层叠加装载), 字段进入弃用窗口 (在场容忍、值忽略, v3 物理删除; `format_version` 1 → 2, 规则零迁移 — 旧文件照常装载)。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
+> 版本: v0.7 (POC)。v0.1 吸收 T2 实测反馈 (A0); v0.2 吸收第二轮增量建议 (intent/坐标恒带/双粒度/三态与 rerun); v0.3 intent 三分化 (failure|warning|info, 需求方反馈: 非 failure 信息区分问题倾向与纯环境快照); v0.4 规则集 manifest 版本协商 + 未知字段拒载 (issue #59: 引擎 × 规则集兼容性静态可判定); v0.5 输入三分类 SSOT (issue #71: 纯空白归 exit 2 数据错误族, 零块警示文案分流退役) + A0 首部 BOM 剥除 (issue #78) — 行为语义变更但不触及规则文件格式 (`format_version` 恒 1, 规则零迁移); v0.6 scope/repo 字段退役 — 生效范围改由**存储位置**唯一决定 (§1.S: 双层装载域 + 项目层叠加装载), 字段进入弃用窗口 (在场容忍、值忽略, v3 物理删除; `format_version` 1 → 2, 规则零迁移 — 旧文件照常装载); v0.7 输出层折叠 repeat-collapse (§3.R: 同规则级联块的呈现层折叠 + 统计口径裁决) — 输出协议扩展 (新可选字段), 规则文件格式与状态机语义 (A1-A8) 零变更, 阈值不满足时输出与 v0.6 逐字节一致。字段只增不删地向前演进; 语义变更须同步 bump 版本并迁移规则。
 
 ## 0. 设计灵魂 (约束一切后续演进)
 
@@ -228,6 +228,69 @@ L4: build failed
 | 失败 | 非零 | 0 | **异常** — 已知边界: 日志截断 (runner 崩溃丢尾部失败信号) 或规则失明; 工具无 conclusion 无法自判, 消费方一行检查 `结论=failure 而 failure 块零 → 视同失明 → fallback` |
 - 人类可读输出 (默认): 块间 `---` 分隔 (首块前**无前导空行**, 输出顶格开始 — #78b; 块间空行保留作分隔), 块头 `[L120-L135] [failure/typecheck] rule1,rule2` (intent/category 取块代表 fragment — intent 优先级 failure > warning > info, 同级 confidence > 块内原序; 语义单点 engine `OutputBlock::representative`, MCP BlockSummary 同源), 后跟文本。
 
+### 3.R 输出层折叠 repeat-collapse (v0.7)
+
+**动机**: 同因千行级联 — 同一规则对同一根因重复开块 (bazel `--keep_going` 41 个 ERROR 块; Alamofire swiftc 同型类型错误 ~2500 处/样本, 语料实测该形态 937 块曾致规则退役 — 折叠后同样本降至 90 行呈现; rust-test-panic 单样本 339 块折叠、省略 1272 行)。状态机逐块产出在**证据语义**上正确 (每块是真实命中), 在**呈现语义**上冗余 (消费方读锚块 + 计数 + 锚行索引即可判定与定位)。折叠是 A5 合并之后的**输出呈现层后处理**: 不触碰状态机 (A1-A8 语义与公理测试不变) 与统计的数据面 (被折叠块的证据区间全量保留于折叠标记, 统计层照常消费 — R3)。
+
+**R1 谓词与阈值**: 对 A5 合并后的输出块序列 (行序) 划分**极大 run** (maximal run)。连续块对 (B_k, B_{k+1}) 属同一 run 当且仅当:
+
+- **同单规则**: 两块的 `rules` 均恰为同一单元素 `[R]`。多规则混合块**永不参与**折叠 — 混合证据密度高, 折叠损益比不明 (混合块同时隔断两侧 run)。
+- **块间隔受控**: `next_blk_start − cur_blk_end − 1 ≤ max_gap` (默认 **20**), 其中块区间 = 该块各 fragment `block` 区间的 hull (min 首行, max 尾行) — **context 扩展不参与判定** (判定的是规则命中的语义邻接, 非呈现邻接; A5 已保证相异输出块的块间隔 ≥ 1)。
+
+run 长度 (含锚块) ≥ `min_repeat` (默认 **3**) 才折叠: 保留 run 首块为**锚块** (完整呈现), 折叠其余 `run_len − 1` 块。run 为极大延展后再判阈值 — 阈值不足的 run 整体不折 (无部分折叠)。
+
+**默认值实证依据** (1314 样本语料画像, 块区间口径): 同规则相邻块对的 gap 分布呈**双簇** — 密集簇 ≤8 (690 对, 单行诊断类) 与**重复单元簇 13-15** (281 对 gap=13; swiftc 类型错误级联的诊断单元 16 行 — 实测 Alamofire 单样本 937 块、823 对相邻块 gap 恰 15, 该形态曾致规则退役, 见本节动机); ≥23 起进入薄尾 (疑似异因串场)。`max_gap=20` 盖住双簇 + 5 行余量; 阈值敏感性 (语料实测 Σ省略行): gap 10 → 2664 / 15 → 4791 / 20 → 4923 / 30 → 5542, 20 之后边际收益骤减。`min_repeat=3`: len=2 的 run 最普遍 (~144 个) 且折叠损益比差 (藏 1 显 1) — 不折; len≥3 只折重复模式已建立的级联 (~120 个, 含 340/74/19 块级联)。
+
+**R2 折叠表示**: 锚块携带折叠标记 (`collapse` 字段; 无折叠时该字段与 `stats.collapse` 均**省略** — 零行为变更保证, 见 R4)。示例为语料实测值 (BurntSushi/ripgrep 失败样本的 rust-test-panic 级联):
+
+```json
+"collapse": {
+  "rule": "rust-test-panic", "intent": "failure",
+  "repeat_blocks": 327,
+  "start_line": 3163, "end_line": 4796,
+  "omitted_lines": 981,
+  "frag_spans": [[3163, 3165], [3167, 3169], "..."]
+}
+```
+
+| 字段 | 定义 |
+| --- | --- |
+| `rule` / `intent` | 被折叠块的单规则 id 及其有效 intent (run 内全 fragment 同 rule 同 intent — intent 是规则级常量) |
+| `repeat_blocks` | 被折叠**块**数 (不含锚块; 呈现单位) |
+| `start_line`/`end_line` | 被折叠块**输出区间** hull (含 context 扩展, 呈现坐标参照) |
+| `omitted_lines` | 该 run 折叠后不再呈现的行数 (noise 剔除口径; 集合差 = 被折叠块呈现行集 − 幸存块呈现行集 — 与 context 重叠的邻接行由幸存块呈现时不重复计) |
+| `frag_spans` | 被折叠各 fragment 的 `block` 区间升序 (证据单位; 锚行 = 各区间首元素)。**签名级索引零损失**: 消费方据此对任一处 `read_around` 展开; FP 审计可离线复算 (区间行数可加总) |
+
+被折叠块从 `blocks` 数组移除 (JSON 与人类可读输出同步收缩); 统计口径的恢复数据面 = `frag_spans` + `intent` + `rule` (L0 照常逐 fragment 消费, 见 R3) — 折叠块 fragment 的 `text` 不保留 (呈现层不重复存储; 展开走 read_around 原文)。
+
+**人类可读折叠行** (锚块文本之后输出, 单行, 不计入 output_lines — 元数据与块头同族不计):
+
+```text
+⟨×327 rust-test-panic 折叠块 [L3163-L4796] 省略 981 行; 锚行 L3163 L3167 L3171 L3175 L3179 L3183 L3187 L3191 …(共 327 行)⟩
+```
+
+格式: `⟨×{repeat_blocks} {rule} 折叠块 [L{start}-L{end}] 省略 {omitted} 行; 锚行 {前 8 个锚行, 空格分隔}{超过 8 个时追加 ` …(共 {frag_spans.len()} 行)`}⟩`。CLI 统计行在有折叠时追加 `, repeat-collapse folded {folded_blocks} blocks (-{omitted_lines} lines)` (零折叠时不追加 — 零行为变更)。
+
+**R3 统计口径 (裁决表 — L0 全部指标在折叠下的取值)**:
+
+| 口径 | 裁决 | 理由 |
+| --- | --- | --- |
+| `output_lines` (块级压缩分子) | **呈现口径**: 被折叠块的行不计 (省略行计入被压缩); 折叠行本身不计 (元数据, 与块头同族); `stats.collapse = {folded_blocks, omitted_lines}` 恒在场供审计 (零折叠时序列化省略) | output 度量消费方实际阅读量 (「索引+摘要」定位 §3); 省略行经锚行索引 + read_around 可完整恢复 — 呈现量才是真实阅读成本。**不变式: `output_lines` = 呈现行集基数, 与未折叠引擎的差恰为 `omitted_lines`** |
+| `signature_output_lines` (签名级) | **全量口径**: 折叠块 fragment 锚行照常计入 (去重计数不变) | 锚行索引全保留 (`frag_spans` 首元素) — 信息零损失, 指标度量保留的信息; 与未折叠引擎同值, 签名档压缩率不受折叠影响 |
+| FN 谓词 / `failure_frags` / warning/info 计数 | **全量口径**: 折叠块 fragment 照常逐条计数 — **折叠块仍视为有块** (结构性满足: 锚块恒保留, blocks 非空判定不变; 统计层消费 `frag_spans`) | 召回优先 (§0): 折叠是呈现概念, 证据存在性不受呈现方式影响; FN=0 不变量对折叠免疫 |
+| FP 分子 (`failure_frag_lines`) | **全量口径**: 折叠块 fragment 的 block 区间行数照常累计 (`frag_spans` 可离线复算) | FP 度量证据占用 (成功日志被失败证据污染的程度), 非呈现量; 折叠不减证据 |
+| `per_rule_hits` / per-rule 聚合 | **全量口径**: 折叠块 fragment 逐条计数 (N 而非 1) | liveness 语义 (issue #19): 规则触发 N 次是规则行为信息 (死规则判定/健康档案), 呈现层不污染规则健康面 |
+| `boundary_violations` | **全量口径** (折叠不触及) | 状态机层哨兵在折叠前逐 fragment 完成 — 折叠块同样过边界检查 |
+| 零块判定 | 不变: 折叠永不把非空输出折为空 (锚块恒保留) | `blocks.is_empty()` 语义稳定, 消费方判定矩阵 (§3) 不受影响 |
+| 压缩率双测对比 | 折叠只减呈现 (`omitted_lines ≥ 0`), 单样本块级压缩率单调不降 | 双测哨兵只判退化 (§4) — 折叠特征本身不可能触发压缩率退化红; 改善方向变化可被双测对比观测 |
+
+**R4 参数化与零行为变更保证**: 折叠参数 `CollapseParams { max_gap, min_repeat }` 为引擎级参数 (lib API; `min_repeat` 有效下限 2 — 更小值按 2 处理)。默认 `(20, 3)`; CLI `--no-collapse` 一键关闭; MCP skim 恒用默认 (POC 不暴露参数面)。**阈值不满足时输出与未折叠引擎逐字节一致** — 回归保证机械形态: JSON 无折叠时 `collapse` / `stats.collapse` 字段不出现, 人类可读输出与统计行不变; 现有全部测试在默认参数下原样通过。
+
+**R5 多 run 与边界**: 相邻 run (不同规则 / 被多规则块隔断) 独立折叠, 各挂各的锚块; run 之后的首个异质块照常呈现。锚块之后的 run **尾块不保留** (POC 简化: 尾证据经 `frag_spans` 锚行 + read_around 可达; 保留尾块的增益未实证, 留待消费反馈)。
+
+**R6 块内游程折叠 (本版不做)**: 单块内同构重复行 (phpstan 单因 6k 行 / redis client state dump 形态) 的游程压缩需先定义「同构」判定 — 语料画像块内 **exact-identical 游程为零**, exact 口径无实证收益; 模板归一化口径 (剥行号/地址后判同构) 有误折叠风险 (违反召回优先红线), 须配语料扩充验证另立规范节。本版明确不做, 块间折叠 (本节) 与其正交 — 后续引入时复用本节统计裁决框架 (呈现口径仅 output_lines, 其余全量)。
+
+
 ### MCP tool 响应协议 (skim / read_around / list_rules)
 
 MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上的**消费方视图** — 与 CLI `--json` 直接返回引擎 `SkimResult` (顶层 `file`/`input_lines`/`output_lines`/`stats`, blocks 内嵌 fragments) 不同, MCP skim 返回块摘要 + 代表 fragment 的平行数组。成功结果为 text content 内嵌 JSON; 输入校验失败为 MCP `invalid_params` 错误 (结构化可恢复, 非 crash)。零块语义两面: CLI = stderr 警告 + exit 3 (上文); MCP = **正常返回** (非错误) + `fallback` 字段在场 — 同一失明判定的字段化表达。
@@ -259,8 +322,9 @@ MCP server (`log-skimmer-mcp`, stdio) 的 tool 响应是本节基础协议之上
 | `blocks[].start_line` / `end_line` | 输出块区间 hull (含 context 扩展, 1-based 含端点) |
 | `blocks[].rules` | 块内命中规则 id 全集 (首次出现序去重) |
 | `blocks[].intent` / `category` | 代表 fragment 的 intent/category (语义单点 = `OutputBlock::representative`, 与 CLI 块头同源) |
-| `blocks[].out_lines` | 块内呈现行数 (noise 剔除后) |
-| `blocks[].signature_lines` | 块内签名行 (各 fragment 锚行) 去重计数 |
+| `blocks[].out_lines` | 块内呈现行数 (noise 剔除后) — **呈现块字面值** (折叠块的行不在任何呈现块内, 折叠索引见 `collapse` 字段; 全局 `stats.out_lines` 为全量口径 — 含折叠省略行核算, 两处语义见 §3.R3) |
+| `blocks[].signature_lines` | 块内签名行 (各 fragment 锚行) 去重计数 — 呈现块字面值 (折叠块锚行经 `collapse.frag_spans` 索引, 全局 `stats.signature_lines` 为全量口径, §3.R3) |
+| `blocks[].collapse` | 折叠标记透传 (§3.R2 同构字段集; 仅折叠 run 的锚块在场) — 消费方读 `repeat_blocks`/`omitted_lines` 评估折叠规模, 按 `frag_spans` 锚行 read_around 展开 |
 | `fragments` | 每块**代表 fragment** (非全量; 恒带字段集同上示例), 与 `blocks` 同序一一对应 |
 | `stats` | `total_lines`/`out_lines`/`signature_lines` 同 CLI 口径; `compression_block`/`compression_signature` = 双粒度压缩比 (0-1 小数, 四位精度), **仅非零块时在场** — 零块时无输出即无压缩率, 两字段省略 (与 CLI 统计行 `n/a` 同一哲学: 拒绝 compression = 1.0 伪统计); 零块判定以 `fallback` 在场为准 |
 | `fallback` | **仅零块时在场**; 取值域单值 `"no-blocks"` — 在场性即失明判定, 消费方无条件回退 rg 基线 (判定矩阵) |
@@ -282,6 +346,7 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 | FP | **仅 `intent: failure` 规则**: success job 上产出的此类 fragment 计数 (CI 通过却被提取出失败证据 = 假阳性)。`intent: warning` 规则命中属预期, 单列「warning 命中」不计 FP。**FP 率 = failure-intent fragment 的 block 区间行数总和 / success 样本输入总行数** (验收线 ≤2%, 分母口径 SSOT — 工具被污染程度只在 success 样本上度量; 分子取 block 区间不含 context 扩展, 免重叠双计) |
 | FN 代理 | failure 家族 (failure/timed_out) job 日志中 `intent: failure` fragment 数为 0 的 job 计数 (完全漏检) — **验收线 = 0, 不变量** (召回优先, §0; 宁可覆盖过头牺牲压缩); 部分漏检需 LLM 对照 (POC 抽查雏形, 不自动化) |
 | 边界完整性 (机械) | fragment 的 block 尾行必须仍被该规则任一 pattern 匹配 (锚或扩展), 违例计数 (防 context 污染与实现 bug) |
+| 折叠口径 (repeat-collapse) | §3.R3 裁决表 — **呈现口径仅 `output_lines`** (块级压缩分子; 省略行计入被压缩), 其余统计口径 (签名级/FN/FP 分子/per_rule_hits/边界) **全量** (折叠块仍计有块, fragment 逐条计数); 折叠只减呈现, 单样本块级压缩率单调不降 — 双测退化哨兵对折叠免疫 |
 | 正向验证 (per_rule_hits) | **每规则命中计数, 定义域 = 装载规则全集**: signal 规则 = fragment 数, noise 规则 = 剔除区块数 (noise 不产 fragment, 其产出是行剔除); **全样本域** (含 rerun-through — liveness 语义: 仅被排除样本命中不是死规则, 与 FP/FN 的主指标域滤除不同)。报告恒输出; `dead_rules` = 命中数为 0 的规则子集 |
 | dead-rules 断言 (可选) | 门禁开启 `--require-all-rules-hit` 时 dead_rules 非空 → fail — **正向验证**: 拼错的正则不得全绿合入, 贡献者由此获得「规则确实工作」的信心。默认关闭; 存量全集在公开语料上存在天然零命中规则 (语料未覆盖的工具), 严格模式适用于「语料应覆盖全部规则」的场景 (如语料扩充后或定向规则子集), 新规则的单条定向验证以 per_rule_hits 计数 ≥1 为信号 |
 | 门禁豁免 (gate_exempt) | sidecar 可选字段 `gate_exempt: bool` (缺省 false, 旧 sidecar 兼容): `true` 样本跳过 **FN/FP 率/零块** 三断言 (不进失败判定), 指标照常计算并进报告 **exempt 组** — 未适配仓 (工具暂无规则) 扩容入语料不红, 适配后翻 false 移出 (豁免余量 = 适配进度度量)。**不豁免的哨兵** (与规则适配正交): 边界违例断言 (引擎构造不变量, 域 = 全样本)、语料在场双断言 (样本 ≥50 + 仓 ≥100, 域 = 全样本含豁免; 仓维度**分层** — 样本下限已过才判, 语义 = 防语料面静默缩水: 获取链路只深挖少数仓时样本数探不到)、压缩率双测 per_repo 比对域含豁免仓 (同语料同规则下纯引擎变量归因, 豁免 ≠ 引擎回归豁免)。报告分 **gated / exempt 双组聚合** (各组 FN/FP 率/零块/边界/压缩率) + **逐仓分解表** (行口径 = 主指标域, FN/FP/零块不分豁免 — 诊断视图; exempt_samples 列标组属) + **per-rule × per-repo 命中矩阵** (定义域 = 装载规则全集, 零命中规则 = 空 map; 计数口径与 per_rule_hits 同 — signal fragment ∪ noise 剔除区块, 全样本域) |
@@ -307,4 +372,4 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 
 ## 6. POC 明确不做
 
-MCP 服务已交付; POC 明确不做: Adapter (LLM 学习) / manifest 按需拉取 / WebPage / noise 前缀树优化 / 多字节行边界优化 / CI 集成。引擎 = 加载 + 扫描 + 输出 + 统计, 四件事。
+MCP 服务已交付; POC 明确不做: Adapter (LLM 学习) / manifest 按需拉取 / WebPage / noise 前缀树优化 / 多字节行边界优化 / CI 集成 / **块内游程折叠** (§3.R6 — exact 口径语料零收益, 模板归一口径须另立设计与验证)。引擎 = 加载 + 扫描 + 输出 + 统计, 四件事。
