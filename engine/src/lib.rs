@@ -846,8 +846,8 @@ fn collapse_pass(
     // ---- pass 2: 呈现行集与 omitted 结算 ----
     let mut is_folded = vec![false; n];
     for (s, e) in &runs {
-        for idx in s + 1..=*e {
-            is_folded[idx] = true;
+        for f in is_folded.iter_mut().take(*e + 1).skip(s + 1) {
+            *f = true;
         }
     }
     let mut survivor_set: HashSet<usize> = HashSet::new();
