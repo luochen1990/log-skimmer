@@ -332,9 +332,13 @@ fn l0_stats_full_granularity_under_folding() {
 
 // ---- CLI 面: --no-collapse 与折叠行渲染 ----
 
-fn run_cli(args: &[&str]) -> (String, String, i32) {
+fn run_cli(label: &str, args: &[&str]) -> (String, String, i32) {
     let bin = env!("CARGO_BIN_EXE_log-skimmer");
-    let dir = std::env::temp_dir().join("ls-test-collapse-cli");
+    // 并发隔离 (CI run 21211 复现, 120 轮本地循环 2 红): cargo test 并行线程共享
+    // 固定目录时, 入口 remove_dir_all 与他线程的 create_dir_all/write 竞态致
+    // ENOENT — 目录按 label 每测试独占; 同测试内多次 run_cli 同线程串行,
+    // 每次入口 remove 的"净起点"语义保持。
+    let dir = std::env::temp_dir().join(format!("ls-test-collapse-cli-{label}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("r")).unwrap();
     std::fs::write(
@@ -366,7 +370,7 @@ fn run_cli(args: &[&str]) -> (String, String, i32) {
 
 #[test]
 fn cli_human_output_has_fold_line_and_stats_note() {
-    let (stdout, _, code) = run_cli(&[]);
+    let (stdout, _, code) = run_cli("human", &[]);
     assert_eq!(code, 0);
     assert!(
         stdout.contains("⟨×3 t-c 折叠块 [L3-L7] 省略 3 行; 锚行 L3 L5 L7⟩"),
@@ -376,7 +380,7 @@ fn cli_human_output_has_fold_line_and_stats_note() {
         stdout.contains("repeat-collapse folded 3 blocks (-3 lines)"),
         "统计行折叠尾注:\n{stdout}"
     );
-    let (off_out, _, off_code) = run_cli(&["--no-collapse"]);
+    let (off_out, _, off_code) = run_cli("human", &["--no-collapse"]);
     assert_eq!(off_code, 0);
     assert!(!off_out.contains("折叠块"), "--no-collapse 无折叠行");
     assert!(
@@ -392,11 +396,11 @@ fn cli_human_output_has_fold_line_and_stats_note() {
 
 #[test]
 fn cli_json_collapse_field_presence() {
-    let (on, _, _) = run_cli(&["--json"]);
+    let (on, _, _) = run_cli("json", &["--json"]);
     let v: serde_json::Value = serde_json::from_str(&on).unwrap();
     assert!(v["blocks"][0]["collapse"]["repeat_blocks"].is_number());
     assert!(v["stats"]["collapse"]["folded_blocks"].is_number());
-    let (off, _, _) = run_cli(&["--json", "--no-collapse"]);
+    let (off, _, _) = run_cli("json", &["--json", "--no-collapse"]);
     let v: serde_json::Value = serde_json::from_str(&off).unwrap();
     assert!(v["blocks"][0].get("collapse").is_none());
     assert!(v["stats"].get("collapse").is_none());
