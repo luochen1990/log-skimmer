@@ -56,6 +56,9 @@ enum Cmd {
         /// 输出 JSON 协议 (默认人类可读)
         #[arg(long)]
         json: bool,
+        /// 关闭输出层折叠 repeat-collapse (spec §3.R; 默认开启: 同规则级联块折叠为锚块+标记)
+        #[arg(long)]
+        no_collapse: bool,
         // 取值范围同界单源: engine lib 常量 CONTEXT_MAX (spec §1; issue #28) —
         // 与规则 context 字段及 MCP skim 参数共享, 漂移即编译错误;
         // 引用留在源码注释, 不进 help 文案 (用户可见文案去 spec 指针, issue #17)。
@@ -115,8 +118,9 @@ fn main() {
             log_file,
             rules,
             json,
+            no_collapse,
             context,
-        } => skim_cmd(log_file, rules, json, context),
+        } => skim_cmd(log_file, rules, json, no_collapse, context),
         Cmd::L0 {
             corpus,
             rules,
@@ -225,7 +229,13 @@ fn l0_cmd(
     }
 }
 
-fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>) {
+fn skim_cmd(
+    log_file: PathBuf,
+    rules: PathBuf,
+    json: bool,
+    no_collapse: bool,
+    context: Option<u32>,
+) {
     let rules_loaded = match log_skimmer::load_rules(&rules) {
         Ok(r) => match context {
             Some(n) => log_skimmer::override_context(&r, n),
@@ -275,7 +285,16 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
         eprintln!("{msg}");
         std::process::exit(2);
     }
-    let result = log_skimmer::skim(&log_file.display().to_string(), &rules_loaded, &lines);
+    let result = if no_collapse {
+        log_skimmer::skim_with(
+            &log_file.display().to_string(),
+            &rules_loaded,
+            &lines,
+            &log_skimmer::CollapseParams::OFF,
+        )
+    } else {
+        log_skimmer::skim(&log_file.display().to_string(), &rules_loaded, &lines)
+    };
     let zero_blocks = result.blocks.is_empty();
     // 压缩率 (issue #17): 零块时无意义 → n/a (拒绝 100.0% 伪统计);
     // input_lines 恒 > 0 (空/纯空白已在三分类前置拦截, issues #71/#78)。
@@ -287,8 +306,17 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
             100.0 - 100.0 * result.output_lines as f64 / result.input_lines as f64
         )
     };
+    // 折叠审计尾注 (spec §3.R2): 零折叠时不追加 — 零行为变更保证。
+    let fold_note = if result.stats.collapse.folded_blocks > 0 {
+        format!(
+            ", repeat-collapse folded {} blocks (-{} lines)",
+            result.stats.collapse.folded_blocks, result.stats.collapse.omitted_lines
+        )
+    } else {
+        String::new()
+    };
     let stats_line = format!(
-        "input {} lines -> output {} lines ({pct} compression), noise removed {}, boundary violations {}",
+        "input {} lines -> output {} lines ({pct} compression), noise removed {}, boundary violations {}{fold_note}",
         result.input_lines,
         result.output_lines,
         result.stats.noise_lines_removed,
@@ -319,6 +347,10 @@ fn skim_cmd(log_file: PathBuf, rules: PathBuf, json: bool, context: Option<u32>)
                 if !result.noise_lines.contains(&l) {
                     println!("{}", lines[l - 1]);
                 }
+            }
+            // 折叠行 (spec §3.R2): 锚块文本之后, 单行, 不计入 output_lines。
+            if let Some(m) = &b.collapse {
+                println!("{}", m.render_line());
             }
         }
         println!();

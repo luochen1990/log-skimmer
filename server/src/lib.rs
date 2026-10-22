@@ -294,6 +294,10 @@ pub struct BlockSummary {
     pub out_lines: usize,
     /// 块内签名行 (各 fragment 锚行) 去重计数。
     pub signature_lines: usize,
+    /// 折叠标记透传 (spec §3.R2; 仅折叠 run 的锚块在场) — 消费方读
+    /// repeat_blocks/omitted_lines 评估折叠规模, 按 frag_spans 锚行 read_around 展开。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collapse: Option<log_skimmer::CollapseMarker>,
 }
 
 /// skim tool 输出 (消费方判定: `fallback` 字段存在即零块失明, 其余字段照常可用)。
@@ -379,6 +383,7 @@ pub fn skim_view(
                 category: rep.category,
                 out_lines,
                 signature_lines,
+                collapse: b.collapse.clone(),
             },
             rep.clone(),
         ));
@@ -674,6 +679,29 @@ mod tests {
         let out2 = skim_view(&rs, log2, None).unwrap();
         let starts: Vec<usize> = out2.blocks.iter().map(|b| b.start_line).collect();
         assert_eq!(starts, vec![1, 3], "同 intent 块行序稳定");
+    }
+
+    /// repeat-collapse 透传 (spec §3.R2): 同规则级联 run 折叠后, MCP 视图的
+    /// 锚块携带 collapse 标记 (repeat_blocks/omitted_lines/frag_spans 锚行索引);
+    /// 块级 signature_lines/out_lines 为呈现块字面值, 全量口径在 stats。
+    #[test]
+    fn skim_collapse_marker_passthrough() {
+        let rs = fixture_rules();
+        // 3 个同规则 error 块 (gap=1) ≥ min_repeat=3 → 折叠为锚块 + 标记。
+        let log = "error: one\nplain\nerror: two\nplain\nerror: three\n";
+        let out = skim_view(&rs, log, None).unwrap();
+        assert_eq!(out.blocks.len(), 1, "级联折叠为单锚块");
+        let m = out.blocks[0].collapse.as_ref().expect("锚块带 collapse 透传");
+        assert_eq!(m.repeat_blocks, 2);
+        assert_eq!(m.omitted_lines, 2);
+        assert_eq!(m.frag_spans, vec![(3, 3), (5, 5)], "锚行索引零损失");
+        assert_eq!(m.rule, "generic-fixture-error-line");
+        // 呈现口径: 锚块 1 行; 签名级全量 3。
+        assert_eq!(out.stats.out_lines, 1);
+        assert_eq!(out.stats.signature_lines, 3, "签名级口径全量 (spec §3.R3)");
+        // JSON 形态: collapse 在场。
+        let json = serde_json::to_value(&out).unwrap();
+        assert!(json["blocks"][0]["collapse"]["repeat_blocks"].is_number());
     }
 
     /// 命中形态: 合并块 (cargo+generic 双规则同锚行) + 代表 fragment 选择

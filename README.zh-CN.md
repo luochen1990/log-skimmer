@@ -55,6 +55,7 @@ rules 仓 CI ──规则校验──▶ 本仓引擎 × corpus 语料 (master-v
 - **category 封闭枚举**: 10 个封闭值 (`fmt` / `lint` / `typecheck` / `build` / `test` / `security` / `deps` / `infra` / `config` / `unknown`), 描述信息类别, 与 intent 正交。agent 可据此程序化过滤, 不必再对文本做二次理解。
 - **零块安全网**: 规则集底座恒有双侧平台安全网 — 失败侧 (CI 平台 annotation / runner 失败信号) 兜住失败日志, 成功侧 (runner 版本等环境 info 规则) 兜住成功日志。由此「任何真实 CI 日志 skim 输出非零」成为**结构承诺** (POC 67/67 兑现); 零块 = 规则集对该日志失明, 与 job 成败无关。
 - **结构承诺与可复现**: 零 LLM、零网络, 逐行状态机 + RE2 语义正则 (线性复杂度), 同输入恒同输出。输出定位为「索引 + 摘要」: 每个块恒带行号坐标与元数据 (规则 / category / intent / confidence), agent 据此决定是否展开上下文, 而非把输出当日志替代品。
+- **repeat-collapse (级联折叠)**: 同规则级联块 — 「同因千行」形态 (bazel `--keep_going` 错误风暴 / swiftc 类型错误级联 / 测试 panic 连发) — 在输出层折叠为锚块 + 折叠标记 (计数/区间/省略行数/全部被折叠锚行)。证据语义零损: 签名级索引零损失, FN/FP 统计全量口径, 收缩的只是实际阅读量 (spec §3.R — 实测 937 块 swiftc 级联呈现降至 90 行); 阈值不满足时输出逐字节不变。
 - **规则 folksonomy**: 无中央注册表, 规则文件的存在即定义工具 ID (`<tool-id>/<rule-id>.yaml`, 一文件一规则)。规则集独立于引擎, 住在 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (社区维护 + Agent 辅助), 覆盖面每周增长 — 活计数见顶部徽章 (目录清单即 SSOT, 本文不枚举数字)。
 
 路线图: LLM 规则学习 Adapter (日志 → 规则草案 PR + 回测报告)、Validator 双层验证、WebPage 规则浏览站属后续规划; MCP server (`server/`) 已交付。

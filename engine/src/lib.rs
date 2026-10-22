@@ -215,6 +215,103 @@ pub struct OutputBlock {
     /// 块内命中规则 id 全集, 首次出现序去重 (同规则多锚行合并进同块只记一次)。
     pub rules: Vec<String>,
     pub fragments: Vec<Fragment>,
+    /// 折叠标记 (spec §3.R2): 仅折叠 run 的锚块在场 — 同规则级联块的呈现层
+    /// 折叠索引。None = 该块未折叠任何后续块。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collapse: Option<CollapseMarker>,
+}
+
+/// 输出层折叠参数 (spec §3.R4): 引擎级, 默认 (10, 3); 阈值不满足时输出与
+/// 未折叠引擎逐字节一致 (零行为变更保证)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CollapseParams {
+    /// 同规则相邻块的块区间最大间隔 (行, context 不参与)。
+    /// 默认 20: 语料块区间 gap 双簇 — 密集簇 ≤8 + 重复单元簇 13-15 (swiftc
+    /// 级联诊断单元 16 行) — 20 盖住双簇 + 余量 (spec §3.R1)。
+    pub max_gap: usize,
+    /// 折叠 run 最小块数 (含锚块; 有效下限 2)。默认 3: len=2 最普遍且折半
+    /// 信息不折, 只折重复模式已建立的级联 (spec §3.R1)。
+    pub min_repeat: usize,
+}
+
+impl Default for CollapseParams {
+    fn default() -> Self {
+        CollapseParams {
+            max_gap: 20,
+            min_repeat: 3,
+        }
+    }
+}
+
+impl CollapseParams {
+    /// 折叠完全关闭 — 任何 run 都不形成, 与未折叠引擎逐字节等价。
+    pub const OFF: CollapseParams = CollapseParams {
+        max_gap: 0,
+        min_repeat: usize::MAX,
+    };
+
+    /// 折叠是否可能发生 (max_gap ≥ 1 且 min_repeat 有效下限 2)。
+    pub fn is_enabled(&self) -> bool {
+        self.max_gap >= 1 && self.min_repeat >= 2
+    }
+}
+
+/// 折叠标记 (spec §3.R2): 锚块上的同规则级联折叠索引。字段集是统计层恢复
+/// 数据面 (frag_spans + rule + intent) 与消费方展开索引 (锚行 = frag_spans
+/// 首元素) 的单点 — 被 text 不保留 (展开走 read_around 原文)。
+#[derive(Debug, Clone, Serialize)]
+pub struct CollapseMarker {
+    /// 被折叠块的单规则 id (锚块 rules 同值)。
+    pub rule: String,
+    /// 该规则的有效 intent (run 内全 fragment 同 rule 同 intent — 规则级常量;
+    /// 统计层恢复 FN/FP 口径用)。
+    pub intent: Intent,
+    /// 被折叠块数 (不含锚块; 呈现单位)。
+    pub repeat_blocks: usize,
+    /// 被折叠块输出区间 hull (含 context, 呈现坐标参照)。
+    pub start_line: usize,
+    pub end_line: usize,
+    /// 该 run 折叠后不再呈现的行数 (noise 剔除口径, 集合差 — spec §3.R2)。
+    pub omitted_lines: usize,
+    /// 被折叠各 fragment 的 block 区间升序 (证据单位; 锚行 = 各区间首元素;
+    /// FP 审计可离线复算 — 区间行数可加总)。
+    pub frag_spans: Vec<(usize, usize)>,
+}
+
+impl CollapseMarker {
+    /// 人类可读折叠行 (spec §3.R2): 单行, 锚行最多列 8 个, 超出以
+    /// `…(共 N 行)` 收尾。不计入 output_lines (元数据与块头同族不计)。
+    pub fn render_line(&self) -> String {
+        let mut s = format!(
+            "⟨×{} {} 折叠块 [L{}-L{}] 省略 {} 行; 锚行",
+            self.repeat_blocks, self.rule, self.start_line, self.end_line, self.omitted_lines
+        );
+        for (start, _) in self.frag_spans.iter().take(8) {
+            s.push_str(&format!(" L{start}"));
+        }
+        if self.frag_spans.len() > 8 {
+            s.push_str(&format!(" …(共 {} 行)", self.frag_spans.len()));
+        }
+        s.push('⟩');
+        s
+    }
+}
+
+/// 折叠审计计数 (spec §3.R3): `stats.collapse` 字段; 零折叠时序列化省略
+/// (零行为变更保证 — 未折叠输出与 v0.6 逐字节一致)。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct CollapseStats {
+    /// 被折叠块总数 (跨全部 run)。
+    pub folded_blocks: usize,
+    /// 折叠后不再呈现的行数 (全局集合差: 全部块呈现行集 − 幸存块呈现行集;
+    /// 不变式 output_lines = 未折叠值 − omitted_lines)。
+    pub omitted_lines: usize,
+}
+
+impl CollapseStats {
+    fn is_zero(&self) -> bool {
+        *self == CollapseStats::default()
+    }
 }
 
 impl OutputBlock {
@@ -241,8 +338,12 @@ pub struct Stats {
     pub input_lines: usize,
     pub output_lines: usize,
     /// 签名行级粒度: 各 fragment block 首行 (锚行) 去重计数 (spec §3 双粒度压缩比分列)。
+    /// 折叠下保持**全量口径** (折叠块锚行照常计入, spec §3.R3)。
     pub signature_output_lines: usize,
     pub noise_lines_removed: usize,
+    /// 折叠审计计数 (spec §3.R3): 零折叠时序列化省略 (零行为变更保证)。
+    #[serde(skip_serializing_if = "CollapseStats::is_zero")]
+    pub collapse: CollapseStats,
     /// 边界完整性机械检查违例 (spec §4): block 尾行未被该规则任一 pattern 匹配。
     /// 按状态机构造该检查恒真, 作为实现哨兵存在 — 非零 = 引擎 bug。
     pub boundary_violations: Vec<BoundaryViolation>,
@@ -520,8 +621,19 @@ pub fn classify_input(lines: &[String]) -> InputClass {
     }
 }
 
-/// A5/A6/A7 + 统计: 聚合为输出块。
+/// A5/A6/A7 + 统计: 聚合为输出块。折叠按默认参数 (spec §3.R)。
 pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
+    skim_with(file, rules, lines, &CollapseParams::default())
+}
+
+/// [skim] 的参数化形态 (spec §3.R4): `params` 控制输出层折叠;
+/// `CollapseParams::OFF` = 与未折叠引擎逐字节等价。
+pub fn skim_with(
+    file: &str,
+    rules: &[Rule],
+    lines: &[String],
+    params: &CollapseParams,
+) -> SkimResult {
     let n = lines.len();
     // 第一遍: 全部规则扫描。noise 行集先行完备 (A6 与规则数组顺序无关),
     // signal 闭块区间暂存, 第二遍再构造 fragment。
@@ -605,22 +717,30 @@ pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
                 end_line: f.out.1,
                 rules: vec![f.rule.clone()],
                 fragments: vec![f],
+                collapse: None,
             });
         }
     }
 
-    // 统计: output_lines = 合并块行数 (noise 剔除后) — 块内呈现行号去重计数;
-    // signature_output_lines = 各 fragment 锚行去重计数 (签名行级粒度)。
-    let mut presented: HashSet<usize> = HashSet::new();
+    // 签名行集: 全量口径 (spec §3.R3) — 折叠块锚行照常计入, 在折叠前单点计算。
     let mut signatures: HashSet<usize> = HashSet::new();
+    for b in &blocks {
+        for f in &b.fragments {
+            signatures.insert(f.block.0);
+        }
+    }
+
+    // 输出层折叠后处理 (spec §3.R): 同规则级联 run 折叠为锚块 + 标记。
+    let (blocks, collapse) = collapse_pass(blocks, &noise_lines, params);
+
+    // 统计: output_lines = 幸存块呈现行号去重计数 (noise 剔除后; 折叠省略行
+    // 不计 — 呈现口径, spec §3.R3); signature_output_lines 上述全量口径。
+    let mut presented: HashSet<usize> = HashSet::new();
     for b in &blocks {
         for l in b.start_line..=b.end_line {
             if !noise_lines.contains(&l) {
                 presented.insert(l);
             }
-        }
-        for f in &b.fragments {
-            signatures.insert(f.block.0);
         }
     }
     let stats = Stats {
@@ -628,6 +748,7 @@ pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
         output_lines: presented.len(),
         signature_output_lines: signatures.len(),
         noise_lines_removed: noise_lines.len().min(n),
+        collapse,
         boundary_violations,
     };
     SkimResult {
@@ -639,4 +760,142 @@ pub fn skim(file: &str, rules: &[Rule], lines: &[String]) -> SkimResult {
         noise_lines,
         noise_rule_hits,
     }
+}
+
+// ---------------------------------------------------------------------------
+// 输出层折叠 (spec §3.R)
+// ---------------------------------------------------------------------------
+
+/// 块区间 hull (折叠判定用): 该块各 fragment `block` 区间的 min 首 / max 尾
+/// — context 扩展不参与 (spec §3.R1: 判定规则命中的语义邻接)。
+/// fragments 按行序入块, 但嵌套区间 (后启先闭) 使末元素不必是 max 尾, 须折叠。
+fn block_span(b: &OutputBlock) -> (usize, usize) {
+    (
+        b.fragments
+            .iter()
+            .map(|f| f.block.0)
+            .min()
+            .unwrap_or(b.start_line),
+        b.fragments
+            .iter()
+            .map(|f| f.block.1)
+            .max()
+            .unwrap_or(b.end_line),
+    )
+}
+
+/// 块的呈现行集注入 (noise 剔除口径, 与 output_lines 同源 — spec §3.R3)。
+fn collect_presented(b: &OutputBlock, noise_lines: &HashSet<usize>, out: &mut HashSet<usize>) {
+    for l in b.start_line..=b.end_line {
+        if !noise_lines.contains(&l) {
+            out.insert(l);
+        }
+    }
+}
+
+/// 输出层折叠后处理 (spec §3.R1/R2, 纯函数): 同单规则 + 块间隔 ≤ max_gap 的
+/// 极大 run, 长度 ≥ min_repeat 时折叠为首块 (锚块) + CollapseMarker, 被折叠块
+/// 从 blocks 移除。返回 (幸存块序列, 审计计数)。经 [skim_with] 消费, 不单独
+/// 对外 — 公开参数面是 CollapseParams, 折叠本身是 skim 的内嵌后处理。
+///
+/// omitted_lines 语义 (spec §3.R2): 全局 = 全部块呈现行集 − 幸存块呈现行集
+/// (不变式 output_lines = 未折叠值 − omitted_lines); 每 run 的 marker 值 =
+/// 该 run 被折叠块呈现行集 − 幸存块呈现行集 (邻接 context 重叠行由幸存块
+/// 呈现时不重复计)。两者独立精确, Σ marker ≥ 全局 (跨 run 重叠时) 不作和。
+fn collapse_pass(
+    blocks: Vec<OutputBlock>,
+    noise_lines: &HashSet<usize>,
+    params: &CollapseParams,
+) -> (Vec<OutputBlock>, CollapseStats) {
+    let effective_min = params.min_repeat.max(2);
+    if !params.is_enabled() || blocks.len() < effective_min {
+        return (blocks, CollapseStats::default());
+    }
+    // 块区间预计算 (每块一次; pair 判定与后续消费复用, 不重复折叠 hull)。
+    let spans: Vec<(usize, usize)> = blocks.iter().map(block_span).collect();
+    // ---- pass 1: 极大 run 划分 ----
+    let n = blocks.len();
+    let mut runs: Vec<(usize, usize)> = Vec::new(); // [start_idx, end_idx] 含端点
+    let mut i = 0;
+    while i < n {
+        if blocks[i].rules.len() != 1 {
+            i += 1;
+            continue; // 多规则块永不参与, 同时隔断两侧 run (spec §3.R1)
+        }
+        let rule = blocks[i].rules[0].as_str();
+        let mut j = i;
+        while j + 1 < n {
+            let nxt = &blocks[j + 1];
+            // gap = next_blk_start − cur_blk_end − 1; 单规则块的 fragment
+            // 非嵌套递增 (同规则 span 不相交), 相邻输出块 gap ≥ 1 — 无下溢。
+            let gap = spans[j + 1].0 - spans[j].1 - 1;
+            if nxt.rules.len() == 1 && nxt.rules[0] == rule && gap <= params.max_gap {
+                j += 1;
+            } else {
+                break;
+            }
+        }
+        if j - i + 1 >= effective_min {
+            runs.push((i, j));
+        }
+        i = j + 1;
+    }
+    if runs.is_empty() {
+        return (blocks, CollapseStats::default());
+    }
+    // ---- pass 2: 呈现行集与 omitted 结算 ----
+    let mut is_folded = vec![false; n];
+    for (s, e) in &runs {
+        for idx in s + 1..=*e {
+            is_folded[idx] = true;
+        }
+    }
+    let mut survivor_set: HashSet<usize> = HashSet::new();
+    let mut all_set: HashSet<usize> = HashSet::new();
+    for (idx, b) in blocks.iter().enumerate() {
+        collect_presented(b, noise_lines, &mut all_set);
+        if !is_folded[idx] {
+            collect_presented(b, noise_lines, &mut survivor_set);
+        }
+    }
+    let omitted: Vec<usize> = runs
+        .iter()
+        .map(|(s, e)| {
+            let mut fset = HashSet::new();
+            for b in &blocks[s + 1..=*e] {
+                collect_presented(b, noise_lines, &mut fset);
+            }
+            fset.difference(&survivor_set).count()
+        })
+        .collect();
+    let collapse_stats = CollapseStats {
+        folded_blocks: runs.iter().map(|(s, e)| e - s).sum(),
+        omitted_lines: all_set.difference(&survivor_set).count(),
+    };
+    // ---- pass 3 (所有权, 逆序 drain 保索引): 组装标记并移除被折叠块 ----
+    let mut blocks = blocks;
+    for (k, (s, e)) in runs.iter().enumerate().rev() {
+        let folded_blocks: Vec<OutputBlock> = blocks.drain(s + 1..=*e).collect();
+        let mut frag_spans = Vec::new();
+        let mut start_line = usize::MAX;
+        let mut end_line = 0;
+        for b in &folded_blocks {
+            start_line = start_line.min(b.start_line);
+            end_line = end_line.max(b.end_line);
+            for f in &b.fragments {
+                frag_spans.push(f.block);
+            }
+        }
+        let anchor = &mut blocks[*s];
+        anchor.collapse = Some(CollapseMarker {
+            rule: anchor.rules[0].clone(),
+            intent: anchor.fragments[0].intent,
+            repeat_blocks: folded_blocks.len(),
+            start_line,
+            end_line,
+            omitted_lines: omitted[k],
+            frag_spans,
+        });
+    }
+    (blocks, collapse_stats)
 }

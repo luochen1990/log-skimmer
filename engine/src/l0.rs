@@ -19,7 +19,10 @@
 //!   - FP 分子 = success 样本上 failure-intent fragment 的 block 区间行数,
 //!     率分母 = 该聚合 success 样本输入总行数;
 //!   - 零块/边界违例全量统计 (不滤 excluded);
-//!   - 压缩率 blk/sig = 聚合行数比 (1-Σout/Σin), 非样本内率平均。
+//!   - 压缩率 blk/sig = 聚合行数比 (1-Σout/Σin), 非样本内率平均;
+//!   - repeat-collapse 全量口径 (spec §3.R3): 折叠块 fragment 经 collapse 标记
+//!     的 frag_spans 照常逐条计数 — FN/FP/per_rule_hits 对呈现层折叠透明;
+//!     唯一呈现口径变化在 output_lines (压缩率 blk 分子缩小 = 改善方向)。
 //!
 //! 判定断言族: 语料在场双断言 (样本 ≥50 全样本域; 仓 ≥100 分层 — 样本下限
 //!   已过才判, 防语料面静默缩水) / FN=0 / FP率≤2% / 边界违例=0 / 零块=0;
@@ -251,22 +254,33 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
         let mut warning_frags = 0u64;
         let mut info_frags = 0u64;
         let mut frags = Vec::new();
+        // 全量口径恢复 (spec §3.R3): 折叠块 fragment 照常逐条计数 — 折叠是
+        // 呈现层概念, FN/FP/per_rule_hits 消费 frag_spans (锚块 rules[0] 同规则,
+        // intent 规则级常量), 与未折叠引擎逐值等价。
+        let mut record = |rule: &str, intent: Intent, span: (usize, usize)| {
+            let lines = (span.1 - span.0 + 1) as u64;
+            match intent {
+                Intent::Failure => {
+                    failure_frags += 1;
+                    failure_frag_lines += lines;
+                }
+                Intent::Warning => warning_frags += 1,
+                Intent::Info => info_frags += 1,
+            }
+            frags.push(FragRec {
+                rule: rule.to_string(),
+                intent,
+                lines,
+            });
+        };
         for b in &r.blocks {
             for f in &b.fragments {
-                let lines = (f.block.1 - f.block.0 + 1) as u64;
-                match f.intent {
-                    Intent::Failure => {
-                        failure_frags += 1;
-                        failure_frag_lines += lines;
-                    }
-                    Intent::Warning => warning_frags += 1,
-                    Intent::Info => info_frags += 1,
+                record(&f.rule, f.intent, f.block);
+            }
+            if let Some(m) = &b.collapse {
+                for span in &m.frag_spans {
+                    record(&m.rule, m.intent, *span);
                 }
-                frags.push(FragRec {
-                    rule: f.rule.clone(),
-                    intent: f.intent,
-                    lines,
-                });
             }
         }
         // P0-2: 缺失 attempt 按 1 处理 (统计口径不变), 缺口聚合计数不静默。
