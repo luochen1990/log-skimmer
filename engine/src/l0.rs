@@ -26,7 +26,9 @@
 //!
 //! 判定断言族: 语料在场双断言 (样本 ≥50 全样本域; 仓 ≥100 分层 — 样本下限
 //!   已过才判, 防语料面静默缩水) / FN=0 (违例 detail = 逐样本清单
-//!   Vec<FnDetail>, 红日志直接点名漏检样本) / FP率≤2% / 边界违例=0 / 零块=0;
+//!   Vec<FnDetail>, 红日志直接点名漏检样本) / FP率≤2% (违例 detail 含逐
+//!   (规则, 样本) 对清单 Vec<FpDetail> — 点名哪条规则在哪些样本上 FP) /
+//!   边界违例=0 / 零块=0;
 //!   压缩率防退化 = 双测对比 (base summary 提供 per-repo 基准, 相对退化 >2% 判红;
 //!   未提供则单测模式显式声明 — 引擎仓传 base 引擎实测, 规则仓传 base 规则实测,
 //!   同语料下纯单变量归因)。
@@ -65,6 +67,10 @@ pub const REGRESSION_MAX_PCT: f64 = 2.0;
 /// FN violation detail 的样本上限: FN 事件通常 1-3 个不截断; 极端多 (规则集
 /// 大面积失明) 时防 verdict JSON 膨胀 — 超限仅列前 N 条, 总数进 note。
 pub const FN_DETAIL_MAX: usize = 50;
+/// FP violation detail 的 (规则, 样本) 对上限: 与 FN_DETAIL_MAX 同理 — 极端
+/// 多 (规则集大面积污染 success 样本) 时防 verdict JSON 膨胀, 超限仅列前
+/// N 条, 总数进 note。
+pub const FP_DETAIL_MAX: usize = 50;
 
 /// FN 谓词 (口径 SSOT, spec §4): failure 家族样本上 failure-intent fragment
 /// 数为 0 (完全漏检)。agg 的 fn_samples 计数与 fn_detail 逐样本清单共用此
@@ -671,6 +677,20 @@ pub struct FnDetail {
     pub input_lines: u64,
 }
 
+/// FP violation detail 逐对条目: 点名一组 success 样本上的 failure-intent
+/// 假阳性 (规则 + 样本定位 + 幅度) — 与 FnDetail 对称, 迭代环 agent 调规则
+/// (收紧 pattern) 的机读定位。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FpDetail {
+    pub rule: String,
+    pub repo: String,
+    pub sample: String,
+    /// 该 (规则, 样本) 对的 failure-intent fragment 数。
+    pub fp_frags: u64,
+    /// 该对的 block 区间行数合计 (FP 率分子口径的单对分解)。
+    pub fp_lines: u64,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Summary {
     /// repo|conclusion 单样本聚合, 域 = gated 主指标样本 (报告面)。
@@ -719,6 +739,12 @@ pub struct Summary {
     /// 字段仍可解析 (gate 的 FN detail 只消费当前侧, 双测不涉及)。
     #[serde(default)]
     pub fn_detail: Vec<FnDetail>,
+    /// FP violation detail 数据源: gated 域 success 样本上 failure-intent
+    /// fragment 的 (规则, 样本) 对清单 — 口径与 agg 的 FP 分子同谓词
+    /// (Intent::Failure × conclusion=success), 豁免仓的 FP 不进断言细节。
+    /// serde(default) 兼容同 fn_detail。
+    #[serde(default)]
+    pub fp_detail: Vec<FpDetail>,
 }
 
 /// 样本三域划分 (T-P2b-2): main = 全样本滤 rerun-through; gated = main 滤
@@ -744,6 +770,34 @@ pub fn summarize(c: &Collected) -> Summary {
             input_lines: s.input_lines as u64,
         })
         .collect();
+    // FP violation detail 逐 (规则, 样本) 对清单 (gated 域 — 豁免仓的 FP 不进
+    // 断言细节): success 样本上 failure-intent fragment 按规则聚合; 样本间
+    // 扫描序 + 样本内规则 id 序 (BTreeMap), 全序确定。
+    let mut fp_detail: Vec<FpDetail> = Vec::new();
+    for &s in &gated {
+        if s.conclusion != "success" {
+            continue;
+        }
+        let mut by_rule: BTreeMap<&str, (u64, u64)> = BTreeMap::new();
+        for f in &s.frags {
+            if f.intent == Intent::Failure {
+                let (frags, lines) = by_rule.entry(f.rule.as_str()).or_default();
+                *frags += 1;
+                *lines += f.lines;
+            }
+        }
+        fp_detail.extend(
+            by_rule
+                .into_iter()
+                .map(|(rule, (fp_frags, fp_lines))| FpDetail {
+                    rule: rule.to_string(),
+                    repo: s.repo.clone(),
+                    sample: s.sample.clone(),
+                    fp_frags,
+                    fp_lines,
+                }),
+        );
+    }
     // 全样本按仓分组 (单一分组源): per_repo (主指标域 Agg) 与逐仓表 (全域
     // 零块/边界 + 主指标域其余行值) 共用 — 分组逻辑单点。
     let mut per_repo_all: BTreeMap<String, Vec<&L0Sample>> = BTreeMap::new();
@@ -909,6 +963,7 @@ pub fn summarize(c: &Collected) -> Summary {
         per_rule_health,
         diagnostic_coverage,
         fn_detail,
+        fp_detail,
     }
 }
 
@@ -921,7 +976,8 @@ pub struct Violation {
     pub note: String,
     /// 违例定位细节 (形态随 kind): fn → Vec<FnDetail> 逐 FN 样本清单 (旧
     /// verdict 空数组 `[]` 可直接反序列化为空 Vec — 类型兼容); fp-rate →
-    /// 率值对象; dead-rules → 规则 id 数组; 其余 None。
+    /// {fp_rate_pct, fp_lines, fp_detail: Vec<FpDetail>} 对象 (逐 (规则,
+    /// 样本) 对定位); dead-rules → 规则 id 数组; 其余 None。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<serde_json::Value>,
 }
@@ -1028,13 +1084,30 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
         });
     }
     if t.fp_rate_pct > FP_MAX_PCT {
-        violations.push(Violation {
-            kind: "fp-rate",
-            note: format!(
+        // 红日志点名 (规则, 样本) 对 (与 fn violation 对称): fp_detail 逐对
+        // 定位 "哪条规则在哪些样本上 FP"; 极端多时上限 FP_DETAIL_MAX, 总数进 note。
+        let listed: Vec<FpDetail> = pr.fp_detail.iter().take(FP_DETAIL_MAX).cloned().collect();
+        let note = if pr.fp_detail.len() > FP_DETAIL_MAX {
+            format!(
+                "success 样本 failure-intent 假阳性率超阈 ({:.2}% >{FP_MAX_PCT}%) \
+                 — FP 定位对 {} 个, detail 上限 {FP_DETAIL_MAX} 仅列前 {FP_DETAIL_MAX}",
+                t.fp_rate_pct,
+                pr.fp_detail.len()
+            )
+        } else {
+            format!(
                 "success 样本 failure-intent 假阳性率超阈 ({:.2}% >{FP_MAX_PCT}%)",
                 t.fp_rate_pct
-            ),
-            detail: Some(serde_json::json!({"fp_rate_pct": t.fp_rate_pct, "fp_lines": t.fp_lines})),
+            )
+        };
+        violations.push(Violation {
+            kind: "fp-rate",
+            note,
+            detail: Some(serde_json::json!({
+                "fp_rate_pct": t.fp_rate_pct,
+                "fp_lines": t.fp_lines,
+                "fp_detail": listed,
+            })),
         });
     }
     if st.boundary_violations > 0 {

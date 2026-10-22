@@ -361,6 +361,8 @@ Ground truth 单位 = **job 级 result** (API 元数据, 非推断)。语料标�
 
 **退出码分层** (CLI 契约, issue #44): 采集层非法 — 语料目录不存在 / 零配对样本 / 规则集非法 — 属数据错误, exit 2 (与 skim 侧 exit 2 同族, 调用方修环境而非修规则); 判定层违例 → verdict=fail + exit 1。语料在场样本断言因此只对 0<n<50 生效: 定向验证小语料的 fail 属预期 (防空转下限, 正向信号以 per_rule_hits 为准), 全量语料下的样本不足才是获取链路故障信号 — corpus-missing note 必须分流这两种读法, 不可单指控后者。仓维度断言 (≥100, `corpus-repos-missing`) 分层其上: 样本下限已过才判 — 样本不足场景已由 corpus-missing 报告, 仓维度专责「样本深度够但覆盖广度缩水」形态, 不对小语料叠报。
 
+**违例 detail 机读形态** (CI 消费契约): 红色 verdict 的 `violations[].detail` 是 CI 侧 (rules 仓 sweep/lint, fn-responder 迭代环) 的机读定位面, 不再需要全语料扫描反查 — `fn` 违例 detail = 逐 FN 样本清单 `[{repo, sample, input_lines}]` (gated 域, 扫描序; 上限 50 条, 超限时总数进 note — verdict JSON 防膨胀, 定位不截断于 summary 侧); `fp-rate` 违例 detail = `{fp_rate_pct, fp_lines, fp_detail[]}`, 其中 `fp_detail` = 逐 (规则, 样本) 对 `[{rule, repo, sample, fp_frags, fp_lines}]` (gated 域 success 样本上 failure-intent fragment 的定位, 样本间扫描序 + 样本内规则 id 序; 同上限 50 条 + note 总数) — 迭代环 agent 据此直接回答「哪条规则在哪些样本上 FP」。summary JSON 同源字段 `fn_detail`/`fp_detail` 不截断 (完整清单, verdict 的数据源)。
+
 ## 5. 样本与配对 (POC 约定)
 
 - 样本存放: `data/logs/<host>/<owner>/<repo>/<YYYY-MM-DD>/<run_id>-<job_id>-<job_name>-<conclusion>.log` + 同名 `.json` sidecar: `{repo, run_id, job_id, conclusion, workflow_name, created_at, job_name, attempt, ci, fetched_at, gate_exempt}` — **嵌套自然路径** (需求方裁决, 弃 `__` 扁平化: 机器遍历用递归 find 无成本, 人类可读性优先 — 日期/触发 job/成败进路径, 裸数字文件名不可读); `repo` 为 **`host/owner/repo` 完整形态** (元数据 SSOT 在 sidecar, 路径仅为可读性投影); conclusion 取 **job 级 result**; `created_at` (run 级) / `job_name` 取数时从 API 元数据写入; `job_name` 清洗规则: `/`与空格→`-`, 截 30 字符; `gate_exempt` 可选 (缺省 false — 旧 sidecar 兼容), 语义见 §4 门禁豁免行 (工具未适配规则时的过渡通道, 逐仓适配后移出)。

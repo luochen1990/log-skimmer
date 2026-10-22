@@ -234,6 +234,141 @@ fn fn_detail_deserializes_legacy_empty_array() {
     assert!(empty.is_empty());
 }
 
+/// FP violation detail 逐 (规则, 样本) 对定位 (fp-responder 迭代环机读面):
+/// success 样本上 failure-intent fragment → 对清单 (样本内按规则聚合, 计数/
+/// 行数累加); warning 命中与失败家族样本的命中不计 FP; 豁免样本的 FP 不进
+/// 断言细节 (gated 域)。引擎算术内存直测 (lit() 构造器, 显式数字逐项对账)。
+#[test]
+fn gate_fp_violation_detail_lists_rule_sample_pairs() {
+    let c = l0::Collected {
+        rule_tools: BTreeMap::new(),
+        samples: vec![
+            // gated success 样本: fp-rule 两 fragment (1+2 行) 聚成一对;
+            // warn-rule 命中属预期, 不进 FP 对清单
+            L0Sample {
+                input_lines: 10,
+                failure_frags: 2,
+                failure_frag_lines: 3,
+                frags: vec![
+                    FragRec {
+                        rule: "fp-rule".into(),
+                        intent: Intent::Failure,
+                        lines: 1,
+                    },
+                    FragRec {
+                        rule: "fp-rule".into(),
+                        intent: Intent::Failure,
+                        lines: 2,
+                    },
+                    FragRec {
+                        rule: "warn-rule".into(),
+                        intent: Intent::Warning,
+                        lines: 5,
+                    },
+                ],
+                sample: "r/a/s1.log".into(),
+                ..lit("r/a", "success", false)
+            },
+            // 失败家族样本上的 fp-rule 命中是真信号, 不进 FP 对清单
+            L0Sample {
+                failure_frags: 1,
+                failure_frag_lines: 1,
+                frags: vec![FragRec {
+                    rule: "fp-rule".into(),
+                    intent: Intent::Failure,
+                    lines: 1,
+                }],
+                ..lit("r/a", "failure", false)
+            },
+            // 豁免 success 样本的 FP 不进断言细节 (gated 域)
+            L0Sample {
+                failure_frags: 1,
+                failure_frag_lines: 1,
+                frags: vec![FragRec {
+                    rule: "exempt-rule".into(),
+                    intent: Intent::Failure,
+                    lines: 1,
+                }],
+                ..lit("r/b", "success", true)
+            },
+        ],
+        rule_ids: vec![],
+        orphans: vec![],
+        sidecars_missing_attempt: 0,
+    };
+    let s = l0::summarize(&c);
+    // FP 率分子/分母 (gated 域): 3 行 / 10 success 输入行 = 30% > 2%
+    assert_eq!(s.totals.success_input_lines, 10);
+    assert_eq!(s.totals.fp_lines, 3);
+    let want = vec![l0::FpDetail {
+        rule: "fp-rule".into(),
+        repo: "r/a".into(),
+        sample: "r/a/s1.log".into(),
+        fp_frags: 2,
+        fp_lines: 3,
+    }];
+    assert_eq!(
+        s.fp_detail, want,
+        "对清单 = gated success 域 failure-intent 命中, 样本内按规则聚合"
+    );
+    // 一致性 (性质): 单对行数分解之和 ≡ totals.fp_lines (gated FP 分子)
+    assert_eq!(
+        s.fp_detail.iter().map(|d| d.fp_lines).sum::<u64>(),
+        s.totals.fp_lines
+    );
+    let v = l0::gate(&s, None, false);
+    let viol = v
+        .violations
+        .iter()
+        .find(|x| x.kind == "fp-rate")
+        .expect("FP 率超阈必有 fp-rate violation");
+    assert!(viol.note.contains("30.00%"), "note: {}", viol.note);
+    let detail = viol.detail.as_ref().unwrap();
+    assert_eq!(detail["fp_rate_pct"], serde_json::json!(30.0));
+    assert_eq!(detail["fp_lines"], serde_json::json!(3));
+    let pairs: Vec<l0::FpDetail> =
+        serde_json::from_value(detail["fp_detail"].clone()).expect("fp_detail 可机读");
+    assert_eq!(pairs, want, "detail 精确定位 FP 的 (规则, 样本) 对");
+}
+
+/// FP detail 极端多: 60 对 → detail 截断至 FP_DETAIL_MAX, note 携带总数与
+/// 上限 (与 FN 截断语义对称), 截断保持构造序稳定。
+#[test]
+fn gate_fp_detail_caps_with_total_in_note() {
+    let samples: Vec<L0Sample> = (0..60)
+        .map(|i| L0Sample {
+            failure_frags: 1,
+            failure_frag_lines: 1,
+            frags: vec![FragRec {
+                rule: "fp-rule".to_string(),
+                intent: Intent::Failure,
+                lines: 1,
+            }],
+            ..lit(&format!("github.com/r/{i}"), "success", false)
+        })
+        .collect();
+    let s = l0::summarize(&l0::Collected {
+        rule_tools: BTreeMap::new(),
+        samples,
+        rule_ids: vec![],
+        orphans: vec![],
+        sidecars_missing_attempt: 0,
+    });
+    assert_eq!(s.fp_detail.len(), 60, "summary 侧清单不截断");
+    let v = l0::gate(&s, None, false);
+    let viol = v.violations.iter().find(|x| x.kind == "fp-rate").unwrap();
+    let pairs: Vec<l0::FpDetail> =
+        serde_json::from_value(viol.detail.as_ref().unwrap()["fp_detail"].clone()).unwrap();
+    assert_eq!(pairs.len(), l0::FP_DETAIL_MAX, "verdict detail 有上限");
+    assert_eq!(pairs[0].repo, "github.com/r/0", "截断保持构造序");
+    assert!(viol.note.contains("60"), "note 携带总数: {}", viol.note);
+    assert!(
+        viol.note.contains(&l0::FP_DETAIL_MAX.to_string()),
+        "note 携带上限: {}",
+        viol.note
+    );
+}
+
 /// 判定: FP 率超阈 → fail (分母口径 = success 输入行)。
 #[test]
 fn gate_fails_on_fp_rate() {
@@ -567,8 +702,31 @@ fn gz_build_corpus(d: &Path, gz_mask: &[bool]) {
     }
 }
 
+/// 存储形态后缀归一 (gz 等价测试辅助): fn/fp violation detail 的定位字段
+/// 携带**实际文件名** (X.log.gz vs X.log — 指针真实, 消费方零解析, 与
+/// L0Sample.sample/OrphanSample.path 同约定), 形态间仅此后缀字面不等 —
+/// 归一后要求 Summary 整体完全一致 (压缩仍是纯存储细节)。
+fn norm_gz_suffix(v: serde_json::Value) -> serde_json::Value {
+    match v {
+        serde_json::Value::String(s) => serde_json::Value::String(
+            s.strip_suffix(".log.gz")
+                .map(|b| format!("{b}.log"))
+                .unwrap_or(s),
+        ),
+        serde_json::Value::Array(a) => {
+            serde_json::Value::Array(a.into_iter().map(norm_gz_suffix).collect())
+        }
+        serde_json::Value::Object(o) => {
+            serde_json::Value::Object(o.into_iter().map(|(k, v)| (k, norm_gz_suffix(v))).collect())
+        }
+        other => other,
+    }
+}
+
 /// 同一批样本 全 plain / 全 gz / 混合 三形态: l0 全部指标 (Summary 整体)
 /// 完全一致 — 压缩是存储细节, 不得改变任何指标; 采集不因形态产生孤儿。
+/// 唯一允许的字面差 = detail 定位字段的 .gz 后缀 (实际文件名指针, 见
+/// norm_gz_suffix), 归一后整体相等。
 #[test]
 fn gz_and_plain_corpus_metrics_identical() {
     let summary_json = |gz_mask: &[bool]| {
@@ -577,7 +735,7 @@ fn gz_and_plain_corpus_metrics_identical() {
         let c = l0::collect(&d, &fixtures().join("rules")).expect("采集失败");
         assert_eq!(c.samples.len(), 3, "三形态均应配满 3 样本 (无孤儿)");
         assert!(c.orphans.is_empty(), "orphans: {:?}", c.orphans);
-        serde_json::to_value(l0::summarize(&c)).unwrap()
+        norm_gz_suffix(serde_json::to_value(l0::summarize(&c)).unwrap())
     };
     let plain = summary_json(&[false, false, false]);
     assert_eq!(
@@ -988,6 +1146,10 @@ fn old_base_summary_without_new_fields_deserializes() {
     assert!(
         s.fn_detail.is_empty(),
         "旧格式无 fn_detail 字段 → serde 默认空清单"
+    );
+    assert!(
+        s.fp_detail.is_empty(),
+        "旧格式无 fp_detail 字段 → serde 默认空清单"
     );
     // 旧字段照常消费 (双测比对域)
     assert_eq!(s.per_repo["github.com/r/kept"].comp_blk_pct, 98.0);
