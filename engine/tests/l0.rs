@@ -134,6 +134,106 @@ fn gate_fails_on_fn() {
     assert!(v.violations.iter().any(|x| x.kind == "fn"));
 }
 
+/// FN violation detail 逐样本点名: 1 个 FN 样本 + 1 个正常失败样本 (有提取)
+/// → detail 精确列出该样本 (repo/相对路径/输入行数); FN=0 → 无 fn violation。
+/// 引擎算术内存直测 (lit() 构造器, AGENTS 语料边界纪律)。
+#[test]
+fn gate_fn_violation_detail_lists_samples() {
+    let c = l0::Collected {
+        rule_tools: BTreeMap::new(),
+        samples: vec![
+            // FN 样本: failure 且零 failure-intent fragment (lit 全零指标)
+            L0Sample {
+                input_lines: 42,
+                ..lit("github.com/r/a", "failure", false)
+            },
+            // 正常失败样本: 有提取, 不进 FN 清单
+            L0Sample {
+                input_lines: 3,
+                failure_frags: 1,
+                failure_frag_lines: 1,
+                ..lit("github.com/r/b", "failure", false)
+            },
+        ],
+        rule_ids: vec![],
+        orphans: vec![],
+        sidecars_missing_attempt: 0,
+    };
+    let s = l0::summarize(&c);
+    assert_eq!(s.totals.fn_samples, 1);
+    assert_eq!(s.fn_detail.len(), 1, "清单长度 ≡ totals.fn_samples");
+    let v = l0::gate(&s, None, false);
+    let viol = v
+        .violations
+        .iter()
+        .find(|x| x.kind == "fn")
+        .expect("FN>0 必有 fn violation");
+    let detail: Vec<l0::FnDetail> = serde_json::from_value(viol.detail.clone().unwrap())
+        .expect("detail 可反序列化为逐样本清单");
+    assert_eq!(
+        detail,
+        vec![l0::FnDetail {
+            repo: "github.com/r/a".into(),
+            sample: "github.com/r/a/failure.log".into(),
+            input_lines: 42,
+        }],
+        "detail 精确点名 FN 样本"
+    );
+
+    // FN=0 (失败样本有提取) → 无 fn violation, fn_detail 空
+    let mut c0 = c;
+    c0.samples = vec![L0Sample {
+        failure_frags: 1,
+        failure_frag_lines: 1,
+        ..lit("github.com/r/a", "failure", false)
+    }];
+    let s0 = l0::summarize(&c0);
+    assert_eq!(s0.totals.fn_samples, 0);
+    assert!(s0.fn_detail.is_empty());
+    let v0 = l0::gate(&s0, None, false);
+    assert!(
+        v0.violations.iter().all(|x| x.kind != "fn"),
+        "FN=0 不产 fn violation"
+    );
+}
+
+/// FN detail 极端多: 60 个 gated FN 样本 → detail 截断至 FN_DETAIL_MAX, note
+/// 携带总数与上限 (fn-responder 定位不因截断失真), 截断保持构造序稳定。
+#[test]
+fn gate_fn_detail_caps_with_total_in_note() {
+    let samples: Vec<L0Sample> = (0..60)
+        .map(|i| lit(&format!("github.com/r/{i}"), "failure", false))
+        .collect();
+    let s = l0::summarize(&l0::Collected {
+        rule_tools: BTreeMap::new(),
+        samples,
+        rule_ids: vec![],
+        orphans: vec![],
+        sidecars_missing_attempt: 0,
+    });
+    assert_eq!(s.totals.fn_samples, 60);
+    assert_eq!(s.fn_detail.len(), 60, "summary 侧清单不截断");
+    let v = l0::gate(&s, None, false);
+    let viol = v.violations.iter().find(|x| x.kind == "fn").unwrap();
+    let detail: Vec<l0::FnDetail> = serde_json::from_value(viol.detail.clone().unwrap()).unwrap();
+    assert_eq!(detail.len(), l0::FN_DETAIL_MAX, "verdict detail 有上限");
+    assert_eq!(detail[0].repo, "github.com/r/0");
+    assert!(viol.note.contains("60"), "note 携带总数: {}", viol.note);
+    assert!(
+        viol.note.contains(&l0::FN_DETAIL_MAX.to_string()),
+        "note 携带上限: {}",
+        viol.note
+    );
+}
+
+/// serde 兼容: detail 新类型 Vec<FnDetail> 从旧 verdict 的空数组 `[]` 直接
+/// 反序列化为空 Vec — 顶层恒数组, 旧消费方按数组解析零断裂。
+#[test]
+fn fn_detail_deserializes_legacy_empty_array() {
+    let empty: Vec<l0::FnDetail> = serde_json::from_str("[]").unwrap();
+    assert!(empty.is_empty());
+}
+
 /// 判定: FP 率超阈 → fail (分母口径 = success 输入行)。
 #[test]
 fn gate_fails_on_fp_rate() {
@@ -658,6 +758,10 @@ fn exempt_samples_skip_assertions_but_report() {
     // gated 组指标 (totals 语义 = gated 域)
     assert_eq!(s.totals.runs, 3, "gated 主指标样本 = 2 (r/a) + 1 (r/c)");
     assert_eq!(s.totals.fn_samples, 0);
+    assert!(
+        s.fn_detail.is_empty(),
+        "豁免仓的 FN 不进断言细节清单 (fn_detail 域 = gated)"
+    );
     assert_eq!(s.totals.fp_rate_pct, 0.0);
     assert_eq!(s.structural.zero_block, 0, "零块断言域 = gated");
 
@@ -880,6 +984,10 @@ fn old_base_summary_without_new_fields_deserializes() {
     assert_eq!(
         s.structural.repos_total, 0,
         "旧格式无仓维度哨兵字段 → serde 默认 0 (仅作 base 消费, 断言域在当前侧)"
+    );
+    assert!(
+        s.fn_detail.is_empty(),
+        "旧格式无 fn_detail 字段 → serde 默认空清单"
     );
     // 旧字段照常消费 (双测比对域)
     assert_eq!(s.per_repo["github.com/r/kept"].comp_blk_pct, 98.0);
