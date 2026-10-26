@@ -19,7 +19,9 @@ log() { printf '[fetch-rules %(%H:%M:%S)T] %s\n' -1 "$*" >&2; }
 
 # ! -path '.github': 规则仓模板已迁 .github/ 隐藏路径 (issue #8), 引擎装载跳过;
 #   计数同步排除整个 .github/ — 防未来该目录出现其他 yaml 误计数 (与 rules 仓 lint.yml 同款加固)
-count_rules() { find "$DEST" -name '*.yaml' ! -name '_template.yaml' ! -path '*/.github/*' 2>/dev/null | wc -l; }
+# ! -name 'manifest.yaml': 集级保留名 (spec §1.M), 引擎 load_rules 不作规则解析;
+#   计数口径须与装载口径一致, 误计会污染 MIN_RULES 降级阈值判断 (issue #85)
+count_rules() { find "$DEST" -name '*.yaml' ! -name '_template.yaml' ! -name 'manifest.yaml' ! -path '*/.github/*' 2>/dev/null | wc -l; }
 
 if [ "${RULES_OFFLINE:-0}" = 1 ]; then
   log "RULES_OFFLINE=1, 跳过拉取"
