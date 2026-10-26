@@ -1,11 +1,10 @@
 //! 规则集 manifest: 集级版本协商 (spec §1.M, issue #59)。
 //!
-//! 职责边界: 解析规则集根目录可选的 `manifest.yaml` 并做兼容性判定 —
-//! `format_version` (规则格式版本上界) 与 `min_engine_version` (引擎版本下限)。
-//! 判定违例 = 规则集非法 (load_rules 整体拒载, exit 2 族); Err 文案自解释
-//! (哪个校验失败 + 建议动作 — 消费方一读即知该升级哪一侧)。
-//! 版本比较是朴素 major.minor.patch 数字三元组比较, 不引 semver crate
-//! (依赖纪律: engine 限 serde/serde_yaml/regex/clap)。
+//! 职责边界: 解析规则集的 `manifest.yaml` 并做兼容性判定 — `format_version`
+//! (规则格式版本上界) 与 `min_engine_version` (引擎版本下限)。判定违例 =
+//! 规则集非法 (整体拒载, exit 2 族); Err 文案自解释 (哪个校验失败 + 建议动作
+//! — 消费方一读即知该升级哪一侧)。版本比较是朴素 major.minor.patch 数字
+//! 三元组比较, 不引 semver crate (依赖纪律: engine 限 serde/serde_yaml/regex/clap)。
 
 use serde::Deserialize;
 use std::path::Path;
@@ -44,18 +43,13 @@ fn semver_tuple(s: &str) -> Option<(u64, u64, u64)> {
     Some((t[0], t[1], t[2]))
 }
 
-/// 兼容性判定 (装载前 fail-fast): 目录含 `manifest.yaml` 时校验版本协商。
-/// 文件不存在 → Ok (向后兼容窗口, 现存规则集零破坏 — spec §1.M)。
-/// 读取失败 / 解析失败 / 版本违例 → Err(拒载文案, 自解释)。
-pub fn check(dir: &Path, engine_version: &str) -> Result<(), String> {
-    let path = dir.join(MANIFEST_FILENAME);
-    if !path.is_file() {
-        return Ok(());
-    }
-    let raw = std::fs::read_to_string(&path)
-        .map_err(|e| format!("manifest: 读取失败 ({}): {e}", path.display()))?;
-    let m: RulesetManifest = serde_yaml::from_str(&raw)
-        .map_err(|e| format!("manifest: 解析失败 ({}): {e}", path.display()))?;
+/// 兼容性判定核心 (manifest 文本 → 版本协商): 目录式 [check] 与内存源式
+/// [load_rules_from_sources](crate::load_rules_from_sources) 共用的同一条
+/// 判定路径 (spec §1.M 语义 SSOT — 两形态装载不得分叉)。origin 仅进解析失败
+/// 文案的定位 (目录路径 / 内存源名); 版本违例文案与来源形态无关。
+pub fn negotiate(raw: &str, engine_version: &str, origin: &str) -> Result<(), String> {
+    let m: RulesetManifest =
+        serde_yaml::from_str(raw).map_err(|e| format!("manifest: 解析失败 ({origin}): {e}"))?;
     if m.format_version > FORMAT_VERSION {
         return Err(format!(
             "manifest: format_version {} 超出本引擎支持的版本 {} — 规则集来自更新的规则格式, 请升级引擎 (或回退规则集版本)",
@@ -79,6 +73,20 @@ pub fn check(dir: &Path, engine_version: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// 兼容性判定 (装载前 fail-fast): 目录含 `manifest.yaml` 时校验版本协商。
+/// 文件不存在 → Ok (向后兼容窗口, 现存规则集零破坏 — spec §1.M)。
+/// 读取失败 / 解析失败 / 版本违例 → Err(拒载文案, 自解释)。
+/// 判定本体在 [negotiate] (文本式, 与内存源装载共用)。
+pub fn check(dir: &Path, engine_version: &str) -> Result<(), String> {
+    let path = dir.join(MANIFEST_FILENAME);
+    if !path.is_file() {
+        return Ok(());
+    }
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("manifest: 读取失败 ({}): {e}", path.display()))?;
+    negotiate(&raw, engine_version, &path.display().to_string())
 }
 
 #[cfg(test)]

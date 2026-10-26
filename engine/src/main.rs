@@ -270,18 +270,9 @@ fn skim_cmd(
     // 输入三分类 (issues #71/#78, spec §3): 0 行或纯空白 = 数据错误族 exit 2 硬拒绝,
     // 不进入零块判定 (与「空规则集硬拒绝」对称 — 宁可显式失败, 不静默通过);
     // 纯空白彻底离开零块路径, 排障话术 (检查日志源) 不再与回退 rg 建议同屏。
-    let reject = match log_skimmer::classify_input(&lines) {
-        log_skimmer::InputClass::Empty => {
-            Some("日志为空 (0 行): 疑似下载截断, 拒绝静默通过".to_string())
-        }
-        log_skimmer::InputClass::WhitespaceOnly => Some(format!(
-            "日志为纯空白 ({} 行均为空白行): 疑似下载截断或空跑, 请检查日志源, 拒绝静默通过",
-            lines.len()
-        )),
-        log_skimmer::InputClass::Content => None,
-    };
+    // 拒斥文案 SSOT: engine input_reject_message (与 wasm ABI envelope 共用)。
     // 数据错误族单一出口 (exit 2), 文案逐字不变。
-    if let Some(msg) = reject {
+    if let Some(msg) = log_skimmer::input_reject_message(&lines) {
         eprintln!("{msg}");
         std::process::exit(2);
     }

@@ -437,21 +437,77 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
                 continue;
             }
         };
-        match serde_yaml::from_str::<Rule>(&raw) {
-            Ok(mut rule) => {
-                validate_rule(&mut rule, &rel, &mut errs);
-                // id 全局唯一: 报错并列首见文件与冲突文件 (issue #14 B — 只报 id
-                // 字符串在多文件规则仓里等于让人肉 grep 定位)。
-                if let Some(first) = seen.get(&rule.id) {
-                    errs.0
-                        .push(format!("id 重复: {} ({first} vs {rel})", rule.id));
-                } else {
-                    seen.insert(rule.id.clone(), rel.clone());
-                }
-                rules.push(rule);
+        load_rule_source(&rel, &raw, &mut errs, &mut rules, &mut seen);
+    }
+    if errs.0.is_empty() {
+        Ok(rules)
+    } else {
+        Err(errs)
+    }
+}
+
+/// 单个规则源的 解析 + 校验 + id 去重 — [load_rules] (目录路径式) 与
+/// [load_rules_from_sources] (内存源式) 共用的同一条装载路径 (重构共用而非复制)。
+fn load_rule_source(
+    rel: &str,
+    raw: &str,
+    errs: &mut LoadErrors,
+    rules: &mut Vec<Rule>,
+    seen: &mut HashMap<String, String>,
+) {
+    match serde_yaml::from_str::<Rule>(raw) {
+        Ok(mut rule) => {
+            validate_rule(&mut rule, rel, errs);
+            // id 全局唯一: 报错并列首见文件与冲突文件 (issue #14 B — 只报 id
+            // 字符串在多文件规则仓里等于让人肉 grep 定位)。
+            if let Some(first) = seen.get(&rule.id) {
+                errs.0
+                    .push(format!("id 重复: {} ({first} vs {rel})", rule.id));
+            } else {
+                seen.insert(rule.id.clone(), rel.to_string());
             }
-            Err(e) => errs.0.push(format!("{rel}: YAML/字段解析失败: {e}")),
+            rules.push(rule);
         }
+        Err(e) => errs.0.push(format!("{rel}: YAML/字段解析失败: {e}")),
+    }
+}
+
+/// 规则集内存源条目: `(源名, YAML 文本)` — 源名遵循 [load_rules] 的相对路径
+/// 形态 (根级 `manifest.yaml` 为集级保留名, spec §1.M)。刻意取位置元组而非
+/// 具名 struct: 镜像 ABI 的 JSON 数组协议 `[[源名, YAML 文本], ...]` (serde
+/// 数组形态, wasm 宿主零转换)。
+pub type RuleSource = (String, String);
+
+/// 从内存源加载规则集 — 供无文件系统环境 (wasm 宿主, `log-skimmer-wasm` ABI)
+/// 传入规则集。装载语义与 [load_rules] 同构:
+/// - 源名恰为 `manifest.yaml` (根级保留名, spec §1.M) → 走同一版本协商路径
+///   [manifest::negotiate], 不作为规则解析; 子目录同名源 (如 `a/manifest.yaml`)
+///   不在保留之列, 按规则源解析 — 与目录语义 (仅根级 manifest 免解析) 一致。
+/// - 其余源逐条 解析+校验+id 去重, 共用 [load_rule_source]。
+/// - 无规则源 (空列表或仅 manifest) → 拒绝: 空规则集 = 引擎失明, 与 load_rules
+///   的「目录下无 *.yaml」同族拒绝。
+///
+/// 源序由宿主保证与目录遍历等序 (递归收集 *.yaml|*.yml 跳隐藏路径后排序);
+/// 序仅影响报错罗列次序, 规则集语义与序无关。
+pub fn load_rules_from_sources(sources: &[RuleSource]) -> Result<Vec<Rule>, LoadErrors> {
+    let mut errs = LoadErrors::default();
+    let (manifests, rule_sources): (Vec<&RuleSource>, Vec<&RuleSource>) = sources
+        .iter()
+        .partition(|(name, _)| name == manifest::MANIFEST_FILENAME);
+    // 版本协商先于空集判定 — 与 load_rules 的检查顺序一致 (manifest 违例优先暴露)。
+    for (_, raw) in &manifests {
+        manifest::negotiate(raw, env!("CARGO_PKG_VERSION"), manifest::MANIFEST_FILENAME)
+            .map_err(|e| LoadErrors(vec![e]))?;
+    }
+    if rule_sources.is_empty() {
+        errs.0
+            .push("(sources): 无规则源 (规则集为空 = 引擎失明)".to_string());
+        return Err(errs);
+    }
+    let mut rules = Vec::new();
+    let mut seen: HashMap<String, String> = HashMap::new(); // id → 首见源 (重复检测)
+    for (rel, raw) in rule_sources {
+        load_rule_source(rel, raw, &mut errs, &mut rules, &mut seen);
     }
     if errs.0.is_empty() {
         Ok(rules)
@@ -618,6 +674,20 @@ pub fn classify_input(lines: &[String]) -> InputClass {
         InputClass::WhitespaceOnly
     } else {
         InputClass::Content
+    }
+}
+
+/// 输入拒斥文案 (classify_input 拒斥两态的文案 SSOT): CLI stderr 与 wasm ABI
+/// envelope 共用 — 数据错误族文案 (行数 + 排障指引) 不得在消费点分叉。
+/// Content → None (可扫描)。
+pub fn input_reject_message(lines: &[String]) -> Option<String> {
+    match classify_input(lines) {
+        InputClass::Empty => Some("日志为空 (0 行): 疑似下载截断, 拒绝静默通过".to_string()),
+        InputClass::WhitespaceOnly => Some(format!(
+            "日志为纯空白 ({} 行均为空白行): 疑似下载截断或空跑, 请检查日志源, 拒绝静默通过",
+            lines.len()
+        )),
+        InputClass::Content => None,
     }
 }
 
