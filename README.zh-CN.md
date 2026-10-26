@@ -4,7 +4,7 @@
 
 CI 日志高信噪比提取工具 — 以确定性规则集把失败的 CI 日志压缩成带坐标、带语义标注的高信噪比摘要，供 AI agent 消费。
 
-> 引擎与规则集**持续回测**: 每周 sweep 在 25 栈 / 120+ 公开 GitHub 项目的滚动语料 (~1300 样本) 上全量重验 — 活指标见下方徽章 (CI 自动发布, 零手工维护; [完整报告](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md))。CLI 与 MCP server (`log-skimmer-mcp`) 双形态可用。
+> 引擎与规则集**持续回测**: 每周 sweep 在 25 栈 / 120+ 公开 GitHub 项目的滚动语料 (~1300 样本) 上全量重验 — 活指标见下方徽章 (CI 自动发布, 零手工维护; [完整报告](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md))。CLI / MCP server (`log-skimmer-mcp`) / WebAssembly (`log-skimmer-wasm`, 浏览器侧 skim 的积木 — 宿主集成随规划中的 web 仓落地) 三形态可用。
 >
 [![backtest](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fverdict.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
 [![corpus](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fcorpus.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
@@ -58,7 +58,7 @@ rules 仓 CI ──规则校验──▶ 本仓引擎 × corpus 语料 (master-v
 - **repeat-collapse (级联折叠)**: 同规则级联块 — 「同因千行」形态 (bazel `--keep_going` 错误风暴 / swiftc 类型错误级联 / 测试 panic 连发) — 在输出层折叠为锚块 + 折叠标记 (计数/区间/省略行数/全部被折叠锚行)。证据语义零损: 签名级索引零损失, FN/FP 统计全量口径, 收缩的只是实际阅读量 (spec §3.R — 实测 937 块 swiftc 级联呈现降至 90 行); 阈值不满足时输出逐字节不变。
 - **规则 folksonomy**: 无中央注册表, 规则文件的存在即定义工具 ID (`<tool-id>/<rule-id>.yaml`, 一文件一规则)。规则集独立于引擎, 住在 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (社区维护 + Agent 辅助), 覆盖面每周增长 — 活计数见顶部徽章 (目录清单即 SSOT, 本文不枚举数字)。
 
-路线图: LLM 规则学习 Adapter (日志 → 规则草案 PR + 回测报告)、Validator 双层验证、WebPage 规则浏览站属后续规划; MCP server (`server/`) 已交付。
+路线图: LLM 规则学习 Adapter (日志 → 规则草案 PR + 回测报告)、Validator 双层验证、WebPage 规则浏览站属后续规划; MCP server (`server/`) 与 WebAssembly 构建 (`log-skimmer-wasm/`) 已交付。
 
 ## 快速上手
 

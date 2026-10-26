@@ -4,7 +4,7 @@
 
 High signal-to-noise-ratio extraction for CI logs — a deterministic rule set compresses failed CI logs into summaries that carry line coordinates and semantic annotations, ready for AI agents to consume.
 
-> The engine and rule set are **continuously backtested**: a weekly sweep re-validates the rule set over a rolling corpus of 1,300+ samples from 120+ public GitHub projects across 25 stacks (live metrics in the badges below — auto-published by CI, never hand-refreshed; [full report](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)). Available in two forms — CLI and MCP server (`log-skimmer-mcp`).
+> The engine and rule set are **continuously backtested**: a weekly sweep re-validates the rule set over a rolling corpus of 1,300+ samples from 120+ public GitHub projects across 25 stacks (live metrics in the badges below — auto-published by CI, never hand-refreshed; [full report](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)). Available in three forms — CLI, MCP server (`log-skimmer-mcp`), and a WebAssembly build (`log-skimmer-wasm`) as the building block for in-browser skim (host integration arrives with the planned web repo).
 >
 [![backtest](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fverdict.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
 [![corpus](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fluochen1990%2Flog-skimmer-rules%2Freports%2Fbadges%2Fcorpus.json)](https://github.com/luochen1990/log-skimmer-rules/blob/reports/latest.md)
@@ -58,7 +58,7 @@ Invariant: one-way dependencies — corpus is the source (zero dependencies, dep
 - **Repeat-collapse (cascade folding)**: same-rule cascade blocks — the "one root cause, a thousand lines" shape (bazel `--keep_going` error storms, swiftc type-error cascades, repeated test panics) — are folded at the output layer into an anchor block plus a collapse marker (count, hull, omitted lines, and every folded anchor line). Evidence semantics are untouched: signature-level indexing loses nothing, FN/FP statistics stay full-scope; only what you actually read shrinks (spec §3.R — e.g. a 937-block swiftc cascade presents as 90 lines). Byte-identical output whenever thresholds are not met.
 - **Rule folksonomy**: no central registry — a rule file's existence defines the tool ID (`<tool-id>/<rule-id>.yaml`, one rule per file). The rule set is independent of the engine and lives in [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (community-maintained + agent-assisted); coverage grows weekly across mainstream toolchains — live counts in the badges above (the directory listing is the SSOT; this README does not enumerate).
 
-Roadmap: the LLM rule-learning Adapter (log → rule-draft PR + backtest report), two-layer Validator verification, and a WebPage rule browser are future plans; the MCP server (`server/`) is delivered.
+Roadmap: the LLM rule-learning Adapter (log → rule-draft PR + backtest report), two-layer Validator verification, and a WebPage rule browser are future plans; the MCP server (`server/`) and the WebAssembly build (`log-skimmer-wasm/`) are delivered.
 
 ## Quick Start
 
