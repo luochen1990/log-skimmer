@@ -1,0 +1,10 @@
+# wasm 对账 fixture: 测试失败行 (failure 侧, 无 context — 与 compile-error 的
+# context 扩展形态互补)。
+id: fixture-test-failure
+title: 测试失败行
+tool: fixture
+intent: failure
+category: test
+patterns:
+  - regex: '^test .*FAILED|^failures:'
+kind: signal

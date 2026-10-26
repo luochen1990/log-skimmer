@@ -1,0 +1,9 @@
+# wasm 对账 fixture: runner 环境行 (info 侧, 零块安全网形态)。
+id: fixture-runner-info
+title: runner 环境行
+tool: fixture
+intent: info
+category: infra
+patterns:
+  - regex: '^Runner Image: '
+kind: signal

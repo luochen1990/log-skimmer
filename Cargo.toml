@@ -2,7 +2,7 @@
 # 新增 crate 时在 members 登记。resolver=2 是 edition 2021+ 的正确默认。
 [workspace]
 resolver = "2"
-members = ["engine", "server"]
+members = ["engine", "server", "log-skimmer-wasm"]
 
 [workspace.package]
 version = "0.1.0"

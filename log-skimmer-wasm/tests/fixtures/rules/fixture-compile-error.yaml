@@ -1,0 +1,12 @@
+# wasm 对账 fixture: rustc 编译错误行 (failure 侧; context 覆盖出区间扩展)。
+id: fixture-compile-error
+title: rustc 编译错误行
+tool: fixture
+intent: failure
+category: build
+patterns:
+  - regex: '^error\[E\d+\]: '
+kind: signal
+context:
+  before: 2
+  after: 4

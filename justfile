@@ -12,6 +12,27 @@ check:
 rules-load:
     cargo test --test rules_load
 
+# wasm 形态对账 (wasm 交付形态 log-skimmer-wasm): 构建 wasm32 产物 + 原生 CLI,
+# 同 fixture 样本全量对账 (blocks 逐项 / stats / input/output_lines, 不一致即红)。
+# 独立于 check, 理由: ① check 被 ci-merge 消费, 而 forgejo runner 契约 = 预装
+# 工具链直用 (无 wasm32 链接配置, 且禁 nix develop — AGENTS「CI」节), 并入即给
+# CI 契约引入新环境前置; ② check 链原则 = 快, wasm32 是另一目标的全程编译。
+# wasm crate 源码已受 check 覆盖 (clippy/test 按宿主目标编译); 本 recipe 验证
+# 的增量 = wasm32 实际编译链接 + ABI 端到端。产物级 CI 归未来 web 仓。
+# 依赖 devShell 的 lld + nodejs (flake.nix)。改 log-skimmer-wasm/ 或 engine
+# 装载语义时本地跑。
+wasm-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --release -q -p log-skimmer-wasm --target wasm32-unknown-unknown
+    cargo build --release -q -p log-skimmer
+    native="$(mktemp /tmp/opencode/wasm-reconcile.XXXXXX.json)"
+    trap 'rm -f "$native"' EXIT
+    ./target/release/log-skimmer skim log-skimmer-wasm/tests/fixtures/ci-sample.log \
+        --rules log-skimmer-wasm/tests/fixtures/rules --json > "$native"
+    node log-skimmer-wasm/reconcile.mjs log-skimmer-wasm/tests/fixtures/rules \
+        log-skimmer-wasm/tests/fixtures/ci-sample.log --native "$native"
+
 # L0 门禁: 全语料回归, 任一违例即红 (FN=0 / FP 率 ≤2% / 边界违例=0 / 零块=0 /
 # 压缩率双测防退化 — master 引擎 vs PR 引擎 × 同语料同规则, 纯引擎变量归因;
 # FN/FP/零块对 gated 域 — sidecar gate_exempt 仓豁免过渡, spec §4)。

@@ -1,0 +1,27 @@
+Runner Image: ubuntu-24.04 (log-skimmer wasm 对账 fixture — 非_ascii 行顺带覆盖宿主按 UTF-8 字节长 alloc 的路径)
+[setup] restoring cargo cache
+   Compiling log-skimmer v0.1.0 (/home/runner/work/log-skimmer)
+error[E0308]: mismatched types (参数类型不匹配)
+  --> engine/tests/sources_load.rs:42:13
+[setup] injecting debug context
+   |
+42 |     let rules = load_rules_from_sources(&sources).unwrap();
+   |                 ^^^^^^^^^ expected `Vec<Rule>`, found `()`
+running 4 tests
+test engine::tests::axioms ... ok
+test engine::tests::sources_load ... FAILED
+---- engine::tests::sources_load stdout ----
+thread panicked at engine/tests/sources_load.rs:55:
+assertion failed: 两形态装载须等序
+test engine::tests::manifest ... FAILED
+---- engine::tests::manifest stdout ----
+note: run with `RUST_BACKTRACE=1` for a backtrace
+test engine::tests::rules_load ... FAILED
+---- engine::tests::rules_load stdout ----
+thread panicked at engine/tests/rules_load.rs:12:
+failures:
+    engine::tests::sources_load
+    engine::tests::manifest
+    engine::tests::rules_load
+test result: FAILED. 1 passed; 3 failed; 0 ignored
+[teardown] uploading artifacts (retention 7d)

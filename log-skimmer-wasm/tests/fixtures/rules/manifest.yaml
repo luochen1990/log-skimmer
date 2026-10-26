@@ -1,0 +1,3 @@
+# wasm 对账 fixture 集级声明 (spec §1.M): 经 ABI 源列表传入 → 引擎侧保留名识别
+# + 版本协商 — just wasm-check 每跑即覆盖该路径。
+format_version: 2

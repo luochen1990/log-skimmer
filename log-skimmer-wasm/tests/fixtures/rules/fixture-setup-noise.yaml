@@ -1,0 +1,7 @@
+# wasm 对账 fixture: setup/teardown 进度行 (noise — 输出区间内剔除)。
+id: fixture-setup-noise
+title: CI 进度噪声行
+tool: fixture
+patterns:
+  - regex: '^\[(setup|teardown)\] '
+kind: noise
