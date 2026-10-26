@@ -1,9 +1,9 @@
 [package]
 # 职责: log-skimmer 的 wasm 交付形态 (浏览器/wasm runtime 侧 skim) — 引擎的
-# wasm 薄壳: 手写 C ABI 三导出 (wasm_alloc/wasm_free/wasm_skim_json, 零
-# wasm-bindgen 依赖)。ABI 契约见 src/lib.rs 头注释; 宿主参考实现 + CLI 对账 =
-# reconcile.mjs (just wasm-check)。cdylib-only — host 进程禁止链接 (见 lib.rs
-# 头注释)。
+# wasm 薄壳: 手写 C ABI 四导出 (wasm_alloc/wasm_free/wasm_skim_json/
+# wasm_engine_version, 零 wasm-bindgen 依赖)。ABI 契约见 src/lib.rs 头注释;
+# 宿主参考实现 + CLI 对账 = reconcile.mjs (just wasm-check)。cdylib-only —
+# host 进程禁止链接 (见 lib.rs 头注释)。
 name = "log-skimmer-wasm"
 version = "0.1.0"
 edition = "2021"

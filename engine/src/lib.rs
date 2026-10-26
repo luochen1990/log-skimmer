@@ -10,6 +10,11 @@ pub mod l0;
 pub mod manifest;
 pub mod sample_io;
 
+/// 引擎版本 (SSOT = 本 crate Cargo.toml 的 `version`)。宿主薄壳 (wasm crate)
+/// 经此转发给消费方做版本协商 (bundle manifest `min_engine_version`) — 薄壳
+/// crate 自身版本与 engine 无同步机制, 不得替代。
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -412,7 +417,7 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
     }
     // manifest 版本协商 (spec §1.M): 集级可选文件, 兼容性违例 = 规则集非法,
     // 整体拒载 (exit 2 族); 无 manifest 的规则集 (现存全部) 照常装载。
-    manifest::check(dir, env!("CARGO_PKG_VERSION")).map_err(|e| LoadErrors(vec![e]))?;
+    manifest::check(dir, VERSION).map_err(|e| LoadErrors(vec![e]))?;
     let mut files = Vec::new();
     collect_yaml_files(dir, &mut files);
     // manifest 保留名不作为规则解析 (spec §1.M — 根目录集级文件)。
@@ -496,7 +501,7 @@ pub fn load_rules_from_sources(sources: &[RuleSource]) -> Result<Vec<Rule>, Load
         .partition(|(name, _)| name == manifest::MANIFEST_FILENAME);
     // 版本协商先于空集判定 — 与 load_rules 的检查顺序一致 (manifest 违例优先暴露)。
     for (_, raw) in &manifests {
-        manifest::negotiate(raw, env!("CARGO_PKG_VERSION"), manifest::MANIFEST_FILENAME)
+        manifest::negotiate(raw, VERSION, manifest::MANIFEST_FILENAME)
             .map_err(|e| LoadErrors(vec![e]))?;
     }
     if rule_sources.is_empty() {

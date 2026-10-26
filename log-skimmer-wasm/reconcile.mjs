@@ -4,7 +4,9 @@
 //   4B 长度前缀 envelope 解析 (收集与入参的踩坑注释见各使用点);
 // ② 与原生 CLI --json 同样本全量对账 (blocks 深比较含 fragments/collapse 标记
 //   + stats + input/output_lines);
-// ③ 可选 --bench 计时 (预热 1 + 计时 3 取中位)。
+// ③ wasm_engine_version ↔ engine crate Cargo.toml 版本对账 (版本协商的 wasm
+//   侧事实来源 — 漂移即红);
+// ④ 可选 --bench 计时 (预热 1 + 计时 3 取中位)。
 //
 // 用法:
 //   node reconcile.mjs <rules_dir> <log_file> --native <cli_json>   # 对账 (不一致 exit 1)
@@ -71,15 +73,39 @@ function sendAll(strs) {
   views.forEach((v, i) => v.set(bufs[i]));
   return ptrs.map((p, i) => ({ ptr: p, len: bufs[i].length }));
 }
+// 读出参: 4B LE 长度前缀 + payload, 读毕归还 (sendAll 的对称读侧)。
+// 读前重建视图 — 任意导出调用可能增长 memory detach 旧视图 (spike 踩坑,
+// 见 lib.rs 宿主注意)。
+function recvOut(ptr) {
+  const mem = new Uint8Array(ex.memory.buffer);
+  const len = mem[ptr] | (mem[ptr + 1] << 8) | (mem[ptr + 2] << 16) | (mem[ptr + 3] << 24);
+  const payload = dec.decode(mem.subarray(ptr + 4, ptr + 4 + len));
+  ex.wasm_free(ptr, 4 + len);
+  return payload;
+}
 function callSkim() {
   const [r, f, l] = sendAll([rulesJson, fileName, logText]);
   const outPtr = ex.wasm_skim_json(r.ptr, r.len, f.ptr, f.len, l.ptr, l.len);
   for (const b of [r, f, l]) ex.wasm_free(b.ptr, b.len);
-  const mem = new Uint8Array(ex.memory.buffer);
-  const payloadLen = mem[outPtr] | (mem[outPtr + 1] << 8) | (mem[outPtr + 2] << 16) | (mem[outPtr + 3] << 24);
-  const payload = dec.decode(mem.subarray(outPtr + 4, outPtr + 4 + payloadLen));
-  ex.wasm_free(outPtr, 4 + payloadLen);
-  return JSON.parse(payload);
+  return JSON.parse(recvOut(outPtr));
+}
+
+// ---- 版本对账: wasm_engine_version 输出 == engine crate Cargo.toml 版本 ----
+// (版本协商的 wasm 侧事实来源; 薄壳 crate 自身版本不参与 — 见 lib.rs SSOT 注释)
+{
+  const version = recvOut(ex.wasm_engine_version());
+  const toml = fs.readFileSync(new URL('../engine/Cargo.toml', import.meta.url), 'utf8');
+  // 首个行首 version = [package] 段的引擎版本 (package 段先于 dependencies 段)
+  const m = /^version\s*=\s*"([^"]+)"/m.exec(toml);
+  if (!m) {
+    console.error('engine/Cargo.toml 版本不可解析');
+    process.exit(1);
+  }
+  if (version !== m[1]) {
+    console.error(`MISMATCH engine_version: wasm=${version} engine/Cargo.toml=${m[1]}`);
+    process.exit(1);
+  }
+  console.log(`engine_version: ${version} (== engine/Cargo.toml)`);
 }
 
 // ---- 冒烟 ----

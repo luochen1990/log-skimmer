@@ -1,15 +1,18 @@
 //! log-skimmer 引擎的 wasm 宿主薄壳 — wasm 交付形态 (浏览器/wasm runtime 侧
-//! skim, README 计 CLI/MCP/wasm 三形态)。手写 C ABI, 零 wasm-bindgen 依赖: 接口面极小且稳定 (三导出, 一次调用
-//! 入三段字节出一段字节), wasm-bindgen 的类型化绑定收益趋零, 反引入其 CLI
+//! skim, README 计 CLI/MCP/wasm 三形态)。手写 C ABI, 零 wasm-bindgen 依赖: 接口面极小且稳定 (四导出, 主调用 wasm_skim_json
+//! 一次入三段字节出一段字节), wasm-bindgen 的类型化绑定收益趋零, 反引入其 CLI
 //! 版本配对约束 (选型对比见 spike-wasm 分支 SPIKE-REPORT.md; 切换信号: 需要 JS
 //! 侧回调/多入口富接口/非标准 API 宿主)。
 //!
 //! ABI 契约 (宿主 = 任意标准 WebAssembly API 环境, 单线程假设):
 //! - `wasm_alloc(len) -> ptr` — 宿主申请入参缓冲区并写入
-//! - `wasm_free(ptr, cap)` — 归还 wasm_alloc/wasm_skim_json 的缓冲区
-//!   (cap 须与申请时一致)
+//! - `wasm_free(ptr, cap)` — 归还 wasm_alloc/wasm_skim_json/wasm_engine_version
+//!   的缓冲区 (cap 须与申请时一致)
 //! - `wasm_skim_json(rules_ptr, rules_len, file_ptr, file_len, log_ptr, log_len) -> ptr`
 //!   一次调用: 三段 UTF-8 入参 → 一段 JSON 出参
+//! - `wasm_engine_version() -> ptr` — payload = engine crate 版本字符串 (无 JSON
+//!   包装), 版本协商 (spec §1.M / bundle manifest `min_engine_version`) 的 wasm
+//!   侧事实来源
 //!
 //! 入参:
 //! - rules: JSON 数组 `[[源名, YAML 文本], ...]` — 规则目录收集语义镜像
@@ -52,7 +55,8 @@ pub extern "C" fn wasm_alloc(len: usize) -> *mut u8 {
 ///
 /// # Safety
 ///
-/// 调用方须保证 (ptr, cap) 是本实例 wasm_alloc 或 wasm_skim_json 返回的配对值
+/// 调用方须保证 (ptr, cap) 是本实例 wasm_alloc 或任一返回长度前缀缓冲区的
+/// 导出 (wasm_skim_json / wasm_engine_version) 返回的配对值
 /// — 裸指针 ABI 的调用契约; 传入其他来源的指针 = UB。
 #[no_mangle]
 pub unsafe extern "C" fn wasm_free(ptr: *mut u8, cap: usize) {
@@ -131,4 +135,25 @@ unsafe fn run(
         return Err(msg);
     }
     Ok(skim(&file, &rules, &lines))
+}
+
+/// 引擎版本 (长度前缀字符串, 无 JSON 包装 — 见模块头 ABI 契约)。SSOT =
+/// engine crate 的 `VERSION` 常量 (其 Cargo.toml version); 本薄壳 crate 的
+/// 版本与 engine 无同步机制, 不得用作引擎版本。
+#[no_mangle]
+pub extern "C" fn wasm_engine_version() -> *mut u8 {
+    write_out(log_skimmer::VERSION)
+}
+
+/// 转发契约单测: 锁定 "薄壳导出 == engine crate 版本" (wasm-check 不进 CI,
+/// 此断言是常驻防护)。`wasm_` 前缀使 host 目标链接安全 (见模块头注释)。
+#[test]
+fn engine_version_forwards_engine_crate_version() {
+    let ptr = wasm_engine_version();
+    // 4B LE 前缀 → payload 长度; 总 cap = 4 + len (与宿主 free 配对惯例一致)
+    let prefix = unsafe { std::slice::from_raw_parts(ptr, 4) };
+    let len = u32::from_le_bytes([prefix[0], prefix[1], prefix[2], prefix[3]]) as usize;
+    let payload = unsafe { std::slice::from_raw_parts(ptr.add(4), len) };
+    assert_eq!(std::str::from_utf8(payload).unwrap(), log_skimmer::VERSION);
+    unsafe { wasm_free(ptr, 4 + len) };
 }

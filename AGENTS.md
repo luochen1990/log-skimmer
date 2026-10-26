@@ -6,7 +6,7 @@
 
 - `engine/` — 纯函数核心 (`skim`/`load_rules`/`normalize_lines`) + CLI 薄壳 (`log-skimmer` bin)。
 - `server/` — MCP 集成层 (`log-skimmer-mcp` bin, rmcp stdio): `src/lib.rs` 纯逻辑视图 (skim 结果聚合/read_around 窗口/装载定位 — 三级全局层 + 项目层叠加: cwd 下 `.log-skimmer/rules/` 在场则叠加, 跨层 id 冲突 fail-fast, spec §1.S) + `src/mcp.rs` 协议层 (3 tool 宏注册, 输入 schema 结构约束) + `tests/fixtures/rules` 最小 fixture 规则集 (issue #3: 行为单测与共享规则集演进解耦; 真规则集装载面由 `real_ruleset_loads_via_production_path` 单条集成用例兜底)。零块 fallback 语义与判定矩阵见 spec §3; 协议层不得内嵌提取逻辑 (一律复用 engine lib)。
-- `log-skimmer-wasm/` — wasm 交付形态 (浏览器/wasm runtime 侧 skim, README 计 CLI/MCP/wasm 三形态): 引擎的 wasm 薄壳, 手写 C ABI 三导出 (`wasm_alloc`/`wasm_free`/`wasm_skim_json`, 零 wasm-bindgen; 导出带 `wasm_` 前缀防 host 侧 interpose libc free)。ABI 契约 SSOT = crate 头注释; `reconcile.mjs` = 宿主参考实现 + 与 CLI `--json` 全量对账 (`just wasm-check`, 独立 recipe — 不进 check/CI); `tests/fixtures/` 对账 fixture (含 manifest, 覆盖 ABI 路径的 §1.M 协商)。规则集经 engine `load_rules_from_sources` (内存源) 装载 — 与 `load_rules` 共用 negotiate/load_rule_source 单点, 见 engine/tests/sources_load.rs。
+- `log-skimmer-wasm/` — wasm 交付形态 (浏览器/wasm runtime 侧 skim, README 计 CLI/MCP/wasm 三形态): 引擎的 wasm 薄壳, 手写 C ABI 四导出 (`wasm_alloc`/`wasm_free`/`wasm_skim_json`/`wasm_engine_version`, 零 wasm-bindgen; 导出带 `wasm_` 前缀防 host 侧 interpose libc free)。ABI 契约 SSOT = crate 头注释; `reconcile.mjs` = 宿主参考实现 + 与 CLI `--json` 全量对账 + `wasm_engine_version` ↔ engine Cargo.toml 版本对账 (`just wasm-check`, 独立 recipe — 不进 check/CI); `tests/fixtures/` 对账 fixture (含 manifest, 覆盖 ABI 路径的 §1.M 协商)。规则集经 engine `load_rules_from_sources` (内存源) 装载 — 与 `load_rules` 共用 negotiate/load_rule_source 单点, 见 engine/tests/sources_load.rs。
 - `scripts/` + `data/` — L0 家族与语料 fixture (见下)。
 
 ## 工程纪律
