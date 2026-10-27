@@ -2,9 +2,10 @@
 //!
 //! 职责边界: 规则集装载定位与 fail-fast 判定 / A0 行归一 / skim 结果的
 //! 消费方视图聚合 (块摘要 + 代表 fragment + 双粒度统计) / read_around 原文窗口 /
-//! 规则清单视图。
+//! 规则清单视图 / 运行期项目层动态感知 ([DynamicRuleset], issue #58)。
 //!
-//! 语义 SSOT: docs/rule-format.md (fragment 输出协议与消费方判定矩阵见其 §3)。
+//! 语义 SSOT: docs/rule-format.md (fragment 输出协议与消费方判定矩阵见其 §3,
+//! 项目层双层装载与运行期感知语义见其 §1.S)。
 //! 状态机与提取逻辑全部复用 engine lib (本层禁止复制实现, 只做包装聚合)。
 
 use log_skimmer::{
@@ -50,7 +51,10 @@ pub const MAX_WINDOW_LINES: usize = 200;
 /// 结构失明, 与 job 成败无关, 消费方无条件 fallback — 消费方只需检查
 /// `fallback` 字段存在即一行判定。
 pub const FALLBACK_NO_BLOCKS: &str = "no-blocks";
-pub const ADVICE_NO_BLOCKS: &str = "零块=失明, 请回退 rg 基线 (如 rg -i 'error|fail|panic' <log>) 并考虑贡献新规则: https://github.com/luochen1990/log-skimmer-rules";
+/// 零块 advice 文案 (issue #58): rg 回退指令 (判定矩阵不变) + adapter 创建
+/// 引导 (派遣子任务调用 adapter_guide 拿 SOP, 项目层落盘后无需重启即时
+/// 生效) + 通用规则贡献出口。
+pub const ADVICE_NO_BLOCKS: &str = "零块=失明, 请回退 rg 基线 (如 rg -i 'error|fail|panic' <log>)。改善路径: 可派遣子任务调用 adapter_guide 工具获取 SOP, 为本仓库创建项目层 adapter (.log-skimmer/rules/, 落盘后 skim 即时生效); 规则若具通用性可贡献 https://github.com/luochen1990/log-skimmer-rules";
 
 // ---------------------------------------------------------------------------
 // 规则集装载
@@ -142,13 +146,20 @@ fn oversized_msg(n: usize) -> String {
 // 项目层叠加装载 (spec §1.S)
 // ---------------------------------------------------------------------------
 
+/// 项目层目录路径 (探测基准): `<cwd>/.log-skimmer/rules` — 拼接单点,
+/// 启动探测 ([resolve_project_rules]) 与运行期签名探测 ([project_dir_signature])
+/// 共用, 防两处路径表达式漂移。
+fn project_layer_dir(cwd: &Path) -> PathBuf {
+    cwd.join(".log-skimmer/rules")
+}
+
 /// 项目层规则探测 (spec §1.S): cwd 下 `.log-skimmer/rules/` 是目录则 Some。
 /// cwd 由调用方注入 (main 传 current_dir, 测试传 tmpdir) — 本函数不取进程状态,
 /// 保持纯函数可测。路径存在但非目录 (如误建同名文件) 视为无项目层 — 项目层是
 /// 可选增强, 不以硬错误阻塞启动 (与「在场但装载失败 fail-fast」的语义不对称
 /// 见 spec §1.S 存在谓词: 非目录 = 未声明, 声明了 = 必须能装载)。
 pub(crate) fn resolve_project_rules(cwd: &Path) -> Option<PathBuf> {
-    let dir = cwd.join(".log-skimmer/rules");
+    let dir = project_layer_dir(cwd);
     dir.is_dir().then_some(dir)
 }
 
@@ -168,6 +179,19 @@ pub struct OverlayRuleset {
     pub global_count: usize,
     /// 项目层元信息; None = 无项目层 (仅全局层, 行为与单层装载完全一致)。
     pub project: Option<ProjectLayer>,
+}
+
+impl OverlayRuleset {
+    /// 收敛出全局层 — 供 main 把启动装载的全局层移交给 [DynamicRuleset]
+    /// (项目层由运行期重载自建, 启动侧只作 fail-fast 校验, 故不导出)。
+    /// 装载序契约 ([load_ruleset_overlay]): 合并集 = 全局层在前 + 项目层
+    /// extend 在后, 故 truncate(global_count) 即得全局层 (shrink 释放项目层
+    /// 残留容量 — 移交的 Arc 是进程生命周期级持有)。
+    pub fn into_global(mut self) -> Vec<Rule> {
+        self.rules.truncate(self.global_count);
+        self.rules.shrink_to_fit();
+        self.rules
+    }
 }
 
 /// 叠加装载错误 (main 据此分形报错 — 归因到层, 各层文案契约不同):
@@ -210,15 +234,38 @@ pub fn load_ruleset_overlay(
     };
     let project =
         load_ruleset_at(&project_dir).map_err(|e| OverlayError::Project(project_dir.clone(), e))?;
+    let rules = overlay_merge(&global, global_dir, &project_dir, &project)
+        .map_err(OverlayError::Conflict)?;
+    let count = project.len();
+    Ok(OverlayRuleset {
+        rules,
+        global_count,
+        project: Some(ProjectLayer {
+            dir: project_dir,
+            count,
+        }),
+    })
+}
+
+/// 项目层与全局层的合并单点 (启动装载 [load_ruleset_overlay] 与运行期重载
+/// [DynamicRuleset::current] 共用): 同目录自撞特判 + 跨层 id 冲突检查 + 追加
+/// 合并。Err 文案自带冲突 id 与两侧来源路径 (冲突归因优先于 #47 的单层路径
+/// 去重偏好, 两消费面文案契约一致)。
+fn overlay_merge(
+    global: &[Rule],
+    global_dir: &Path,
+    project_dir: &Path,
+    project: &[Rule],
+) -> Result<Vec<Rule>, String> {
     // 同目录自撞特判 (先于逐 id 检查 — 同目录必然全量冲突, 逐 id 报错会把排障
     // 引向"改名规则"的错误方向): README 本地验证指引演示了把项目层目录直接喂给
     // --rules, 用户照搬 export LOG_SKIMMER_RULES 后启动 server 即触发此形态,
     // 正确修复是 unset env 而非删规则。
-    if same_dir(global_dir, &project_dir) {
-        return Err(OverlayError::Conflict(format!(
+    if same_dir(global_dir, project_dir) {
+        return Err(format!(
             "全局层与项目层为同一目录 {} — 同一目录不应同时充当两层来源: 若 LOG_SKIMMER_RULES 指向了项目层目录, 请 unset 或改指全局规则集目录; 若全局层来自 exe 相邻探测, 请调整布局 (bin 与项目层解耦) 或显式设置 LOG_SKIMMER_RULES",
             project_dir.display()
-        )));
+        ));
     }
     // 跨层 id 冲突 (spec §1.S): 同 id 双层各载一份 → 叠加后 id 不再全局唯一,
     // 破坏「rule-id 全局唯一」约束 — fail-fast 并列冲突 id 与两侧来源
@@ -231,24 +278,161 @@ pub fn load_ruleset_overlay(
         .collect();
     conflicts.sort_unstable(); // 报错输出可复现 (与 list_rules 按 id 排序的偏好一致)
     if !conflicts.is_empty() {
-        return Err(OverlayError::Conflict(format!(
+        return Err(format!(
             "跨层 id 冲突: {} — 全局层 {} 与项目层 {} 各有同名规则, 项目层规则 id 不得与全局规则集重复 (请改名或删除其一)",
             conflicts.join(", "),
             global_dir.display(),
             project_dir.display()
-        )));
+        ));
     }
-    let count = project.len();
-    let mut rules = global;
-    rules.extend(project);
-    Ok(OverlayRuleset {
-        rules,
-        global_count,
-        project: Some(ProjectLayer {
-            dir: project_dir,
-            count,
-        }),
-    })
+    let mut rules = global.to_vec();
+    rules.extend_from_slice(project);
+    Ok(rules)
+}
+
+// ---------------------------------------------------------------------------
+// 运行期项目层动态感知 (issue #58, spec §1.S)
+// ---------------------------------------------------------------------------
+
+/// 项目层目录签名: 递归 (相对路径, size, mtime) 清单, 排序后整组相等比较 —
+/// **stat 可观测的**文件增删改都会改变签名。相对路径 (strip 前缀) 使签名与目录
+/// 本身的位置无关, 仅由内容形态决定。
+///
+/// 取舍记录 (刻意接受, 均自愈 — 下一次可观测变更即收敛):
+/// - 签名是 engine 装载面的**超集** (全量收录, 不镜像其 `*.yaml`/隐藏路径过滤)
+///   — 宁多余载不漏重载, 非规则文件变更只多付一次装载;
+/// - `DirEntry::metadata` 为 lstat 语义 (不跟随 symlink), 同 size 且同 mtime
+///   (文件系统时间戳粒度内) 的原地改写漏检 — stdio 单客户端场景下窗口极窄。
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProjectDirSig(Vec<(PathBuf, u64, std::time::SystemTime)>);
+
+/// stat 失败哨兵 (权限/枚举竞态): 与任何正常条目都不同 → 签名必变 → 触发
+/// 重载, 由装载路径暴露真实错误或装载出当时真实状态, 而非静默沿用旧缓存。
+const SIG_STAT_SENTINEL: (u64, std::time::SystemTime) =
+    (u64::MAX, std::time::SystemTime::UNIX_EPOCH);
+
+/// 采集项目层目录签名; 目录不在场/非目录 → None (与「未声明」存在谓词同口径)。
+fn project_dir_signature(dir: &Path) -> Option<ProjectDirSig> {
+    if !dir.is_dir() {
+        return None;
+    }
+    let (sent_len, sent_mtime) = SIG_STAT_SENTINEL;
+    let mut entries: Vec<(PathBuf, u64, std::time::SystemTime)> = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(iter) = std::fs::read_dir(&d) else {
+            entries.push((d, sent_len, sent_mtime));
+            continue;
+        };
+        for entry in iter.flatten() {
+            let path = entry.path();
+            let Ok(meta) = entry.metadata() else {
+                entries.push((path, sent_len, sent_mtime));
+                continue;
+            };
+            if meta.is_dir() {
+                stack.push(path);
+            } else {
+                let mtime = meta.modified().unwrap_or(sent_mtime);
+                entries.push((
+                    path.strip_prefix(dir).unwrap_or(&path).to_path_buf(),
+                    meta.len(),
+                    mtime,
+                ));
+            }
+        }
+    }
+    entries.sort();
+    Some(ProjectDirSig(entries))
+}
+
+/// 项目层缓存态: 「已确认缺席」与「已装载 (签名配对)」二态 — 缺席态对
+/// observed=None 命中, 装载态对同签名命中; 其余组合 (含启动后首次调用)
+/// 走刷新。无「未初始化」态: 初始即缺席, 启动装载的项目层由首次调用重建
+/// (消除「启动装载 ↔ 签名采集」之间的竞态窗口, 语义始终由 current 重建)。
+#[derive(Debug)]
+enum ProjectCacheState {
+    Absent,
+    Loaded(ProjectDirSig),
+}
+
+#[derive(Debug)]
+struct ProjectCache {
+    state: ProjectCacheState,
+    /// 当前生效合并集 (全局 + 项目层); 签名未变时 Arc 克隆零重载返回。
+    merged: std::sync::Arc<Vec<Rule>>,
+}
+
+/// 运行期规则集 (issue #58): 全局层 (启动装载, 恒定) + 项目层 (每次工具调用
+/// 按目录签名感知变更, 变化即重载)。启动装载的 fail-fast 语义不变; 本结构
+/// 只在其上增加运行期感知 — 使「会话中创建 adapter → 同会话验证」闭环可行
+/// (skim 零块 advice → adapter_guide SOP → 落盘 → 再 skim 即生效)。
+/// 线程安全: current() 内短临界区 (装载+swap, 无 await), std::sync::Mutex 足够;
+/// observed 在锁外采集, 两线程交织时至多以旧签名记录新装载内容 — 良性窗口,
+/// 下一次调用即收敛 (stdio 单客户端, 实际不可达)。
+pub struct DynamicRuleset {
+    /// 全局层 (Arc 形态: 项目层移除的回退分支与初始 merged 共享同一分配,
+    /// 零深拷贝 — Rule 含编译后 regex, Vec clone 代价高)。
+    global: std::sync::Arc<Vec<Rule>>,
+    /// 全局层来源目录 — 运行期冲突报错文案的「全局层 来源」侧。
+    global_dir: PathBuf,
+    /// 项目层探测基准 (启动时 cwd 快照; server 进程不 chdir)。
+    cwd: Option<PathBuf>,
+    cache: std::sync::Mutex<ProjectCache>,
+}
+
+impl DynamicRuleset {
+    pub fn new(global: Vec<Rule>, global_dir: PathBuf, cwd: Option<PathBuf>) -> Self {
+        let global = std::sync::Arc::new(global);
+        let merged = std::sync::Arc::clone(&global);
+        Self {
+            global,
+            global_dir,
+            cwd,
+            cache: std::sync::Mutex::new(ProjectCache {
+                state: ProjectCacheState::Absent,
+                merged,
+            }),
+        }
+    }
+
+    /// 当前生效规则集 (项目层变更感知)。Err = 项目层重载失败 — 拒绝降级用
+    /// 过期规则集静默执行 (与启动 fail-fast 同哲学: 在场但装载失败 = 显式
+    /// 失败), 调用方转 MCP 错误把装载细节交还调用方修复后重试。
+    pub fn current(&self) -> Result<std::sync::Arc<Vec<Rule>>, String> {
+        let project_dir = self.cwd.as_deref().map(project_layer_dir);
+        let observed = project_dir.as_deref().and_then(project_dir_signature);
+        let mut cache = self.cache.lock().expect("项目层缓存锁");
+        let hit = match (&cache.state, &observed) {
+            (ProjectCacheState::Absent, None) => true,
+            (ProjectCacheState::Loaded(sig), Some(o)) if sig == o => true,
+            _ => false,
+        };
+        if hit {
+            return Ok(std::sync::Arc::clone(&cache.merged));
+        }
+        let (state, merged) = match (&observed, &project_dir) {
+            // 项目层被移除 (会话中删除): 回退纯全局层 (复用全局 Arc, 零拷贝)。
+            (None, _) => (
+                ProjectCacheState::Absent,
+                std::sync::Arc::clone(&self.global),
+            ),
+            (Some(sig), Some(dir)) => {
+                let project = load_ruleset_at(dir)
+                    .map_err(|e| format!("项目层规则装载失败 (来源 {}): {e}", dir.display()))?;
+                let merged = overlay_merge(&self.global, &self.global_dir, dir, &project)?;
+                (
+                    ProjectCacheState::Loaded(sig.clone()),
+                    std::sync::Arc::new(merged),
+                )
+            }
+            // observed 在场 ⇒ cwd 在场 ⇒ project_dir 必为 Some。
+            (Some(_), None) => unreachable!("签名在场则项目层目录必在场"),
+        };
+        cache.state = state;
+        cache.merged = merged;
+        Ok(std::sync::Arc::clone(&cache.merged))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -568,6 +752,32 @@ pub(crate) fn fixture_rules() -> Vec<Rule> {
     load_ruleset_at(&fixture_rules_dir()).expect("server fixture 规则集装载成功")
 }
 
+/// 项目层测试沙箱根: `<tmp>/log-skimmer-overlay-{tag}-{pid}/` (tag+pid 双维
+/// 隔离并行测试进程; lib 与 mcp 两侧测试共用 — issue #58 动态重载用例)。
+#[cfg(test)]
+pub(crate) fn overlay_root(tag: &str) -> PathBuf {
+    let root =
+        std::env::temp_dir().join(format!("log-skimmer-overlay-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    root
+}
+
+/// 在沙箱根下铺设 `.log-skimmer/rules/` 项目层 (单条规则; tool 须为 id 前缀,
+/// 引擎加载校验约束 — 冲突用例复用全局层既有 id 时 tool 随之取 cargo)。
+#[cfg(test)]
+pub(crate) fn lay_project_layer(root: &Path, id: &str, tool: &str) -> PathBuf {
+    let dir = root.join(".log-skimmer/rules");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("proj.yaml"),
+        format!(
+            "id: {id}\ntitle: 项目自研检查\ntool: {tool}\nkind: signal\npatterns:\n  - regex: '^\\[projci\\] '\n"
+        ),
+    )
+    .unwrap();
+    dir
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -877,30 +1087,6 @@ mod tests {
 
     // ---------- 项目层叠加装载 (spec §1.S) ----------
 
-    /// 项目层叠加测试助手: `<tmp>/log-skimmer-overlay-{tag}-{pid}/` 沙箱根
-    /// (tag+pid 双维隔离并行测试进程, 与 startup_diagnostics 的 sandbox 同款纪律)。
-    fn overlay_root(tag: &str) -> PathBuf {
-        let root =
-            std::env::temp_dir().join(format!("log-skimmer-overlay-{tag}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        root
-    }
-
-    /// 在沙箱根下铺设 `.log-skimmer/rules/` 项目层 (单条规则; tool 须为 id 前缀,
-    /// 引擎加载校验约束 — 冲突用例复用全局层既有 id 时 tool 随之取 cargo)。
-    fn lay_project_layer(root: &Path, id: &str, tool: &str) -> PathBuf {
-        let dir = root.join(".log-skimmer/rules");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("proj.yaml"),
-            format!(
-                "id: {id}\ntitle: 项目自研检查\ntool: {tool}\nkind: signal\npatterns:\n  - regex: '^\\[projci\\] '\n"
-            ),
-        )
-        .unwrap();
-        dir
-    }
-
     /// 项目层探测: 目录在场 → Some; 不在场 → None; 路径存在但非目录 → None
     /// (项目层是可选增强, 容错为无, 不以硬错误阻塞启动)。
     #[test]
@@ -1014,5 +1200,109 @@ mod tests {
             assert_eq!(rs.rules.len(), global.len());
             assert_eq!(rs.global_count, global.len());
         }
+    }
+
+    /// into_global 收敛契约: 装载序 global 在前 (truncate 即得全局层),
+    /// 全局侧与单层装载逐条同序同 id。
+    #[test]
+    fn overlay_into_global_is_prefix() {
+        let root = overlay_root("split");
+        lay_project_layer(&root, "split-probe", "split");
+        let rs = load_ruleset_overlay(&fixture_rules_dir(), Some(&root)).expect("叠加装载");
+        assert_eq!(rs.project.as_ref().unwrap().count, 1, "前置: 项目层在场");
+        let ids: Vec<String> = rs.into_global().into_iter().map(|r| r.id).collect();
+        assert_eq!(
+            ids,
+            fixture_rules()
+                .iter()
+                .map(|r| r.id.clone())
+                .collect::<Vec<_>>(),
+            "全局侧 = 单层装载 (装载序在前)"
+        );
+    }
+
+    // ---------- 运行期项目层动态感知 (issue #58) ----------
+
+    /// 签名采集: 不在场 → None; 在场 → 内容形态决定 (增/删/改/子目录均敏感);
+    /// 未变化 → 稳定相等。
+    #[test]
+    fn project_dir_signature_tracks_changes() {
+        let root = overlay_root("sig");
+        let dir = project_layer_dir(&root);
+        assert_eq!(project_dir_signature(&dir), None, "目录不在场 → None");
+        lay_project_layer(&root, "sig-probe", "sig");
+        let s1 = project_dir_signature(&dir).expect("在场 → Some");
+        assert_eq!(&s1, &project_dir_signature(&dir).unwrap(), "未变化 → 稳定");
+        // 改内容 (size 变) → 签名变
+        std::fs::write(dir.join("proj.yaml"), "id: sig-probe\ntool: sig\n").unwrap();
+        assert_ne!(
+            &s1,
+            &project_dir_signature(&dir).unwrap(),
+            "内容变化 → 签名变"
+        );
+        // 新增文件 → 签名变 (含子目录内文件)
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("sub/x.yaml"), "id: sub-x\ntool: sub\n").unwrap();
+        let s2 = project_dir_signature(&dir).unwrap();
+        assert_ne!(&s1, &s2);
+        assert!(
+            s2.0.iter().any(|(p, _, _)| p == Path::new("sub/x.yaml")),
+            "子目录文件以相对路径入签名: {:?}",
+            s2.0
+        );
+        // 删文件 → 签名变; 删目录 → None
+        std::fs::remove_file(dir.join("sub/x.yaml")).unwrap();
+        assert_ne!(&s2, &project_dir_signature(&dir).unwrap());
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(project_dir_signature(&dir), None);
+    }
+
+    /// 会话生命周期 (issue #58 验收路径的 lib 层缩影): 无项目层 → 创建即生效
+    /// → 坏 yaml 拒绝执行 (不降级) → 修复恢复 → 删除回退; 签名未变零重载。
+    #[test]
+    fn dynamic_ruleset_session_lifecycle() {
+        let root = overlay_root("dyn");
+        let rs = DynamicRuleset::new(fixture_rules(), fixture_rules_dir(), Some(root.clone()));
+        let base = fixture_rules().len();
+        // 初始: 无项目层 → 纯全局; 且缓存命中零重载 (Arc 同一)
+        assert_eq!(rs.current().unwrap().len(), base);
+        let a = rs.current().unwrap();
+        let b = rs.current().unwrap();
+        assert!(std::sync::Arc::ptr_eq(&a, &b), "签名未变 → 缓存命中零重载");
+        // 会话中创建项目层 → 同一实例即时生效 (issue #58 闭环关键)
+        lay_project_layer(&root, "proj-own-check", "proj");
+        let cur = rs.current().unwrap();
+        assert_eq!(cur.len(), base + 1, "项目层规则叠加进场");
+        assert!(cur.iter().any(|r| r.id == "proj-own-check"));
+        // 坏 yaml → 该次调用 Err (拒绝降级用旧规则集), 文案归因项目层
+        std::fs::write(root.join(".log-skimmer/rules/proj.yaml"), "id: [broken").unwrap();
+        let e = rs.current().unwrap_err();
+        assert!(e.contains("项目层规则装载失败"), "{e}");
+        // 修复 → 恢复
+        lay_project_layer(&root, "proj-own-check", "proj");
+        assert_eq!(rs.current().unwrap().len(), base + 1, "修复后恢复叠加");
+        // 删除项目层 → 回退纯全局
+        std::fs::remove_dir_all(root.join(".log-skimmer/rules")).unwrap();
+        assert_eq!(rs.current().unwrap().len(), base);
+    }
+
+    /// 运行期跨层 id 冲突: 项目层写了与全局层同 id 的规则 → current Err
+    /// (overlay_merge 单点, 与启动装载同一冲突文案)。
+    #[test]
+    fn dynamic_ruleset_conflict_rejected_at_runtime() {
+        let root = overlay_root("dyn-conflict");
+        let rs = DynamicRuleset::new(fixture_rules(), fixture_rules_dir(), Some(root.clone()));
+        // fixture 全局层已含 cargo-fixture-build-fail
+        lay_project_layer(&root, "cargo-fixture-build-fail", "cargo");
+        let e = rs.current().unwrap_err();
+        assert!(e.contains("跨层 id 冲突"), "{e}");
+        assert!(e.contains("cargo-fixture-build-fail"), "文案含冲突 id: {e}");
+    }
+
+    /// cwd 不可知 (None): 恒纯全局层, 与启动装载容错语义一致。
+    #[test]
+    fn dynamic_ruleset_unknown_cwd_stays_global() {
+        let rs = DynamicRuleset::new(fixture_rules(), fixture_rules_dir(), None);
+        assert_eq!(rs.current().unwrap().len(), fixture_rules().len());
     }
 }

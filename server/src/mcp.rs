@@ -5,8 +5,7 @@
 //! 统一转 MCP `invalid_params` JSON-RPC 错误 (结构化错误, 非 crash, issue #48),
 //! 成功结果为 text content 内嵌 JSON。
 
-use crate::{list_rules_view, read_around_view, skim_view};
-use log_skimmer::Rule;
+use crate::{list_rules_view, read_around_view, skim_view, DynamicRuleset};
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::handler::server::wrapper::Parameters;
@@ -42,10 +41,17 @@ pub struct ReadAroundParams {
     pub line_end: i64,
 }
 
+/// Adapter 创建指南 SOP 文档 (issue #58): `adapter_guide` tool 的载荷。
+/// 源文件 `server/adapter-guide.md`, 编译期嵌入 (部署零文件依赖), 文档与
+/// 代码同仓同 PR 演进; 供 skim 零块 advice 引导而至的 agent 消费。
+const ADAPTER_GUIDE: &str = include_str!("../adapter-guide.md");
+
 pub struct SkimServer {
     #[allow(dead_code)] // tool_router 字段由 #[tool_handler] 宏底层读取, 编译器误报
     tool_router: ToolRouter<SkimServer>,
-    rules: Vec<Rule>,
+    /// 运行期规则集 (issue #58): 项目层按目录签名动态感知 — 会话中创建/修改
+    /// `.log-skimmer/rules/` 后的下一次调用即时生效, 无需重启。
+    rules: DynamicRuleset,
 }
 
 /// 序列化输出为 text content 内嵌 pretty JSON (oss-cache 同款形态, 生产 dogfood 验证过)。
@@ -55,9 +61,16 @@ fn json_result(v: impl serde::Serialize) -> std::result::Result<CallToolResult, 
     Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
 }
 
+/// 项目层重载失败的错误映射 (issue #58): internal_error 通道 + 自明中文文案
+/// (非参数错 — 需修复的是 `.log-skimmer/rules/` 数据而非调用参数, 调用方按
+/// 文案修复后重试同一调用即可)。
+fn project_layer_error(msg: String) -> McpError {
+    McpError::internal_error(msg, None)
+}
+
 #[tool_router]
 impl SkimServer {
-    pub fn new(rules: Vec<Rule>) -> Self {
+    pub fn new(rules: DynamicRuleset) -> Self {
         Self {
             tool_router: SkimServer::tool_router(),
             rules,
@@ -65,13 +78,18 @@ impl SkimServer {
     }
 
     #[tool(
-        description = "skim CI 日志: 高信噪比提取失败证据/警示/环境快照。返回 blocks (块摘要: 坐标/规则/intent/category/输出行数/签名行数, 按 intent 优先级排序 failure>warning>info, 同级按行序) + fragments (每块代表片段全字段, 与 blocks 同序一一对应) + stats (total/out/signature 行数统计恒在场; 双粒度压缩比字段在零块时省略)。零块时返回 fallback=\"no-blocks\": 规则集对该日志失明, 请无条件回退 rg 基线 (如 rg -i 'error|fail|panic') 并考虑贡献新规则。消费方判定矩阵: job 失败而 failure-intent 块为零 = 视同失明回退 (docs/rule-format.md §3)。需要块周边原文时用 read_around 按块坐标取窗。 规则贡献: https://github.com/luochen1990/log-skimmer-rules"
+        description = "skim CI 日志: 高信噪比提取失败证据/警示/环境快照。返回 blocks (块摘要: 坐标/规则/intent/category/输出行数/签名行数, 按 intent 优先级排序 failure>warning>info, 同级按行序) + fragments (每块代表片段全字段, 与 blocks 同序一一对应) + stats (total/out/signature 行数统计恒在场; 双粒度压缩比字段在零块时省略)。零块时返回 fallback=\"no-blocks\": 规则集对该日志失明, 请无条件回退 rg 基线 (如 rg -i 'error|fail|panic'), 并按 advice 指引调用 adapter_guide 为本仓库创建项目层 adapter。消费方判定矩阵: job 失败而 failure-intent 块为零 = 视同失明回退 (docs/rule-format.md §3)。需要块周边原文时用 read_around 按块坐标取窗。 规则贡献: https://github.com/luochen1990/log-skimmer-rules"
     )]
     fn skim(
         &self,
         Parameters(p): Parameters<SkimParams>,
     ) -> std::result::Result<CallToolResult, McpError> {
-        skim_view(&self.rules, &p.log_text, p.context)
+        // 取舍记录 (review #58): 规则集新鲜度 (current) 先于参数校验 — 坏项目层
+        // 与坏参数同时在场时 internal_error 优先于 invalid_params 暴露。选择不把
+        // 参数校验前置复制一份: 校验逻辑单点在 skim_view (DRY 优先), 且「环境错
+        // 优先」对调用方反而更可操作 (修项目层是持久修复, 修参数是本次调用)。
+        let rules = self.rules.current().map_err(project_layer_error)?;
+        skim_view(&rules, &p.log_text, p.context)
             .map_err(|e| McpError::invalid_params(e.message(), None))
             .and_then(json_result)
     }
@@ -92,7 +110,17 @@ impl SkimServer {
         description = "列出已装载规则集清单 (id/tool/kind/intent/category, 按 id 升序), 用于判断规则集对目标日志的覆盖面。"
     )]
     fn list_rules(&self) -> std::result::Result<CallToolResult, McpError> {
-        json_result(list_rules_view(&self.rules))
+        let rules = self.rules.current().map_err(project_layer_error)?;
+        json_result(list_rules_view(&rules))
+    }
+
+    #[tool(
+        description = "返回 Adapter 创建指南 (markdown 文档): 为当前仓库创建项目层规则集 (.log-skimmer/rules/) 的 SOP — 采样失败日志 → 编写规则 → 落盘 → 三项质检 (装载/命中/语义) → git 持久化, 含 OSS 项目的上游贡献流程与字段速查。当 skim 零块失明 (fallback=\"no-blocks\") 的 advice 提示创建 adapter 时按本文档执行; 项目层落盘后无需重启 server, 再次调用 skim 即时生效。"
+    )]
+    fn adapter_guide(&self) -> std::result::Result<CallToolResult, McpError> {
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            ADAPTER_GUIDE.to_string(),
+        )]))
     }
 }
 
@@ -137,8 +165,10 @@ impl ServerHandler for SkimServer {
                 env!("CARGO_PKG_VERSION"),
             ))
             .with_instructions(
-                "log-skimmer: CI 日志高信噪比提取。tools: skim (结构化提取, 零块=fallback 失明警示), \
-                     read_around (按块坐标取原文窗口), list_rules (规则覆盖面)。消费方判定矩阵 \
+                "log-skimmer: CI 日志高信噪比提取。tools: skim (结构化提取, 零块=fallback 失明警示, \
+                     按 advice 引导创建项目层 adapter), read_around (按块坐标取原文窗口), \
+                     list_rules (规则覆盖面), adapter_guide (创建项目层 adapter 的 SOP — \
+                     .log-skimmer/rules/ 落盘后无需重启, 下次调用即时生效)。消费方判定矩阵 \
                      (docs/rule-format.md §3): skim 零块=失明, 无条件回退 rg; job 已知失败而 \
                      failure-intent 块为零=视同失明回退; warning/info 与成败判定无关。",
             )
@@ -195,8 +225,9 @@ impl ServerHandler for SkimServer {
 /// 运行 MCP server (stdio transport, 读侧带初始化闸门 — issue #72b:
 /// 未 initialize 先发请求回 `-32002` 而非 rmcp 默认的误导性 `-32602`,
 /// 见 [transport_gate] 模块头)。返回 Err 仅限 serve 层故障;
-/// 规则装载 fail-fast 在 main 完成 (启动前)。
-pub async fn serve(rules: Vec<Rule>) -> Result<(), String> {
+/// 规则装载 fail-fast 在 main 完成 (启动前); 项目层运行期重载失败走
+/// 工具调用错误通道 (不崩 server, issue #58)。
+pub async fn serve(rules: DynamicRuleset) -> Result<(), String> {
     let service = SkimServer::new(rules)
         .serve(crate::transport_gate::gated_stdio())
         .await
@@ -216,9 +247,25 @@ pub async fn serve(rules: Vec<Rule>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{fixture_rules, fixture_rules_dir, overlay_root, DynamicRuleset};
 
     fn server() -> SkimServer {
-        SkimServer::new(crate::fixture_rules())
+        // cwd=None: 项目层探测关闭, 规则集恒为 fixture 全局层 — 行为与改造前
+        // 的 Vec<Rule> 注入完全一致 (既有断言不受动态层影响)。
+        SkimServer::new(DynamicRuleset::new(
+            fixture_rules(),
+            fixture_rules_dir(),
+            None,
+        ))
+    }
+
+    /// 动态规则集 server: 项目层探测基准指向沙箱 root (issue #58 用例)。
+    fn dynamic_server(root: &std::path::Path) -> SkimServer {
+        SkimServer::new(DynamicRuleset::new(
+            fixture_rules(),
+            fixture_rules_dir(),
+            Some(root.to_path_buf()),
+        ))
     }
 
     /// 从 CallToolResult 提取内嵌 JSON (text content 形态)。
@@ -295,11 +342,120 @@ mod tests {
         let v = result_json(r);
         assert_eq!(v["blocks"].as_array().unwrap().len(), 0);
         assert_eq!(v["fallback"], "no-blocks");
-        assert!(v["advice"].as_str().unwrap().contains("rg"));
+        // issue #58: advice 引导 adapter 创建路径 (tool 名 + 项目层位置)
+        let advice = v["advice"].as_str().expect("advice 在场");
+        assert!(advice.contains("rg"), "回退指令保留: {advice}");
+        assert!(advice.contains("adapter_guide"), "advice: {advice}");
+        assert!(advice.contains(".log-skimmer/rules"), "advice: {advice}");
         // issue #37: 零块时 compression 字段省略 — 与 fallback 同屏不得自相矛盾
         // (compression: 1.0 意为 100% 压缩, 零命中 ≠ 高压缩)
         assert!(v["stats"].get("compression_block").is_none());
         assert!(v["stats"].get("compression_signature").is_none());
+    }
+
+    /// adapter_guide tool (issue #58): 返回 SOP markdown, 关键节齐备 —
+    /// 概念/五步 SOP/三项质检/上游贡献/速查 (消费方据此盲执行)。
+    #[test]
+    fn handler_adapter_guide_returns_sop() {
+        let s = server();
+        let r = s.adapter_guide().expect("adapter_guide 恒成功");
+        let text = r
+            .content
+            .first()
+            .and_then(|c| c.as_text())
+            .map(|t| t.text.clone())
+            .expect("text content");
+        for marker in [
+            "Adapter 创建指南",
+            ".log-skimmer/rules",
+            "SOP (五步)",
+            "质检 (三项全过)",
+            "贡献上游",
+            "字段速查",
+            "log-skimmer-rules",
+        ] {
+            assert!(text.contains(marker), "SOP 缺关键节 [{marker}]: {text}");
+        }
+        assert!(
+            text.contains("attribution"),
+            "贡献节须含 attribution 必填指引"
+        );
+    }
+
+    /// 会话内 adapter 闭环 (issue #58 验收路径的 handler 层缩影):
+    /// 零块 advice 引导 → 会话中创建项目层 → 同一 server 实例再 skim 即时生效。
+    #[test]
+    fn handler_skim_session_adapter_closed_loop() {
+        let root = overlay_root("mcp-loop");
+        let s = dynamic_server(&root);
+        // 自定义格式日志: fixture 全局层不命中 → 零块 + advice 引导
+        let log = "[projci] step 1 ok\n[projci] error: widget exploded\n";
+        let v = result_json(
+            s.skim(Parameters(SkimParams {
+                log_text: log.to_string(),
+                context: None,
+            }))
+            .unwrap(),
+        );
+        assert_eq!(v["fallback"], "no-blocks");
+        assert!(v["advice"].as_str().unwrap().contains("adapter_guide"));
+        // 会话中创建项目层 adapter (锚 ^\[projci\] error) — 无需重建 server
+        let dir = root.join(".log-skimmer/rules");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("projci.yaml"),
+            "id: projci-fail\ntitle: projci 失败\ntool: projci\nkind: signal\nintent: failure\npatterns:\n  - regex: '^\\[projci\\] error:'\n",
+        )
+        .unwrap();
+        let v2 = result_json(
+            s.skim(Parameters(SkimParams {
+                log_text: log.to_string(),
+                context: None,
+            }))
+            .expect("项目层装载成功"),
+        );
+        let blocks = v2["blocks"].as_array().expect("命中块");
+        assert!(!blocks.is_empty(), "项目层规则即时生效: {v2}");
+        assert_eq!(blocks[0]["rules"][0], "projci-fail");
+        assert_eq!(blocks[0]["intent"], "failure");
+        assert!(v2.get("fallback").is_none(), "fallback 伴随消失");
+    }
+
+    /// 项目层坏 yaml: skim 返回错误 (拒绝降级用旧规则集静默执行), 文案归因
+    /// 项目层并携带修复线索 (issue #58 运行期失败语义)。
+    #[test]
+    fn handler_skim_broken_project_layer_rejects() {
+        let root = overlay_root("mcp-broken");
+        let s = dynamic_server(&root);
+        let dir = root.join(".log-skimmer/rules");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("broken.yaml"), "id: [broken").unwrap();
+        let err = s
+            .skim(Parameters(SkimParams {
+                log_text: "some log\n".to_string(),
+                context: None,
+            }))
+            .expect_err("坏项目层须报错");
+        assert!(
+            err.message.contains("项目层规则装载失败"),
+            "报错信息: {}",
+            err.message
+        );
+        // 校验顺序契约 (review #58): current() 先于参数校验 — 坏项目层 × 坏参数
+        // 同时在场时, 环境错 (internal_error, 项目层文案) 优先暴露
+        let err2 = s
+            .skim(Parameters(SkimParams {
+                log_text: String::new(), // 空输入 = 参数错 (正常应 invalid_params)
+                context: None,
+            }))
+            .expect_err("坏项目层优先于参数错");
+        assert!(
+            err2.message.contains("项目层规则装载失败"),
+            "环境错优先: {}",
+            err2.message
+        );
+        // list_rules 同语义 (同一规则集消费面)
+        assert!(s.list_rules().is_err());
     }
 
     #[test]

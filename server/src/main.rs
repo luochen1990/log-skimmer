@@ -12,13 +12,17 @@
 //! (探测点 / 跨层 id 冲突语义的 SSOT 在 [log_skimmer_server::load_ruleset_overlay])。
 //! 装载失败 (目录缺失 / 校验违例 / 零条规则 / 跨层 id 冲突) fail-fast: stderr
 //! 中文报错 + exit 2。
+//! 运行期 (issue #58): 启动装载的全局层移交 [log_skimmer_server::DynamicRuleset];
+//! 项目层由其按目录签名在每次工具调用时动态感知 (会话中创建/修改/删除即时
+//! 生效, 重载失败走工具调用错误通道 — 不崩 server), 详见其文档。
 //! 第 3 级 fixture 兜底命中时额外打 stderr 醒目警示行 (issue #56 — 兜底是
 //! 开发形态, 生产部署命中即配置缺失, 不做静默降级)。
 //! stderr 是日志通道 (MCP 协议只占 stdout), 启动行不干扰协议。
 //!
 //! # 消费方判定矩阵 (引用, SSOT 见 docs/rule-format.md §3)
 //! - skim 零块 → 返回 `fallback: "no-blocks"`: 规则集对该日志**结构失明**,
-//!   与 job 成败无关, 消费方无条件回退 rg 基线;
+//!   与 job 成败无关, 消费方无条件回退 rg 基线 (advice 同时引导创建项目层
+//!   adapter, issue #58);
 //! - job 已知失败而 failure-intent 块为零 → 视同失明回退;
 //! - warning / info 与成败判定无关。
 
@@ -70,8 +74,12 @@ fn main() {
     if level == log_skimmer_server::RulesLevel::FixtureFallback {
         eprintln!("{}", log_skimmer_server::FIXTURE_FALLBACK_WARNING);
     }
+    // 启动装载的项目层仅作 fail-fast 校验 (上方 exit 2) 与启动日志; 全局层移交
+    // DynamicRuleset, 项目层由其运行期按签名重建 (首调用装载一次 — 语义恒由
+    // current() 重建, 消除启动装载与签名采集间的竞态窗口, 见其文档)。
+    let ruleset = log_skimmer_server::DynamicRuleset::new(rs.into_global(), dir, cwd);
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
-    if let Err(e) = runtime.block_on(log_skimmer_server::mcp::serve(rs.rules)) {
+    if let Err(e) = runtime.block_on(log_skimmer_server::mcp::serve(ruleset)) {
         eprintln!("{e}");
         std::process::exit(1);
     }

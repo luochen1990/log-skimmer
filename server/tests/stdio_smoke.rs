@@ -130,7 +130,10 @@ fn stdio_smoke_handshake_list_and_skim() {
         .collect();
     let mut sorted = names.clone();
     sorted.sort_unstable();
-    assert_eq!(sorted, vec!["list_rules", "read_around", "skim"]);
+    assert_eq!(
+        sorted,
+        vec!["adapter_guide", "list_rules", "read_around", "skim"]
+    );
 
     // tools/call skim: text content 内嵌 JSON, 命中 cargo 规则, 无 fallback
     let call = by_id(&responses, 3);
@@ -211,6 +214,56 @@ fn stdio_smoke_read_around_and_list_rules() {
         .as_str()
         .expect("错误信息")
         .contains("空或纯空白"));
+}
+
+/// issue #58: 零块引导链路 — skim 零块响应的 advice 指向 adapter_guide,
+/// 同会话调用 adapter_guide 返回 SOP markdown。协议链路层面的「自动发现
+/// 创建路径」验证 (会话内动态生效的 handler 层验证在 src/mcp.rs tests)。
+#[test]
+fn stdio_zero_block_advice_points_to_adapter_guide() {
+    let mut child = spawn_server();
+    let requests = [
+        handshake_reqs(),
+        vec![
+            req(
+                2,
+                "tools/call",
+                serde_json::json!({"name": "skim", "arguments": {"log_text": "nothing matchable\nplain lines\n"}}),
+            ),
+            req(3, "tools/call", serde_json::json!({"name": "adapter_guide", "arguments": {}})),
+        ],
+    ]
+    .concat();
+    let (out, status) = roundtrip(&mut child, &requests);
+    assert!(status.success());
+    let responses = parse_jsonl(&out);
+    // initialize 1 响应 + 2×tools/call (initialized notification 无响应)
+    assert_eq!(responses.len(), 3, "3 响应");
+
+    // 零块: fallback + advice 引导 adapter_guide
+    let skim = by_id(&responses, 2);
+    let text = skim["result"]["content"][0]["text"].as_str().expect("text");
+    let payload: serde_json::Value = serde_json::from_str(text).expect("JSON");
+    assert_eq!(payload["fallback"], "no-blocks");
+    let advice = payload["advice"].as_str().expect("advice 在场");
+    assert!(advice.contains("rg"), "回退指令保留: {advice}");
+    assert!(
+        advice.contains("adapter_guide"),
+        "引导指向 guide tool: {advice}"
+    );
+
+    // adapter_guide: SOP markdown 关键节在场 (消费方可盲执行)
+    let guide = by_id(&responses, 3);
+    assert!(
+        guide.get("error").is_none(),
+        "adapter_guide 恒成功: {guide}"
+    );
+    let sop = guide["result"]["content"][0]["text"]
+        .as_str()
+        .expect("text");
+    for marker in [".log-skimmer/rules", "质检 (三项全过)", "持久化"] {
+        assert!(sop.contains(marker), "SOP 缺关键节 [{marker}]");
+    }
 }
 
 /// issue #48: 参数错误通道统一 — 类型错/缺字段与值域错同走 JSON-RPC `-32602`

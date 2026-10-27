@@ -105,7 +105,7 @@ curl -sL <ci-log-url> | target/release/log-skimmer skim - --rules /path/to/rules
 
 ### MCP server (agent 集成形态)
 
-`log-skimmer-mcp` 以 stdio transport 暴露三个 tool: `skim(log_text, context?)` (提取块 + fragment 摘要 + 压缩比字段 (零块时省略; stats 对象本身保留); context 取值 0-10, 越界报 invalid_params; 零块时返回 `fallback: "no-blocks"` 与回退建议字段, 不报错) / `read_around(log_text, line_start, line_end)` (按坐标取原文窗口, 单次限 200 行) / `list_rules()` (装载规则清单)。
+`log-skimmer-mcp` 以 stdio transport 暴露四个 tool: `skim(log_text, context?)` (提取块 + fragment 摘要 + 压缩比字段 (零块时省略; stats 对象本身保留); context 取值 0-10, 越界报 invalid_params; 零块时返回 `fallback: "no-blocks"` 与回退建议字段, 不报错 — 建议同时指向下文的 adapter 工作流) / `read_around(log_text, line_start, line_end)` (按坐标取原文窗口, 单次限 200 行) / `list_rules()` (装载规则清单) / `adapter_guide()` (返回为本仓库创建项目层 adapter 的 SOP 文档 — 采样失败日志 → 编写规则 → 落盘 → 三项质检 → git 持久化, 含 OSS 项目的上游贡献流程; 零块 advice 引导时按文档执行)。
 
 协议行为: server 在 `initialize` 中自报身份为 `log-skimmer-mcp` (crate 版本), 且仅声明 `tools` 能力。一切参数错误 — 取值越界、类型错误、必填字段缺失 — 统一返回 JSON-RPC `-32602 invalid_params` 错误 (从不用 `isError=true` 正常响应承载), 客户端凭错误码即可判定; 未声明能力的方法 (`resources/*`、`prompts/*`) 返回 `-32601 method not found`。响应可能乱序返回 (按完成序), 客户端应按 `id` 匹配请求与响应。
 
@@ -142,13 +142,13 @@ Claude Desktop (`claude_desktop_config.json` 的 `mcpServers` 段; 环境变量�
 }
 ```
 
-规则集定位 (启动时一次性解析, 目录不存在 / 无 `*.yaml` / 加载校验失败均 fail-fast 退出码 2):
+全局规则集定位 (启动时一次性解析, 目录不存在 / 无 `*.yaml` / 加载校验失败均 fail-fast 退出码 2):
 
 1. 环境变量 `LOG_SKIMMER_RULES` 指向的**规则集目录** (log-skimmer-rules 仓的 clone, 含 `*.yaml`) — 已设置即采用、不回落后续探测 (指向无效目录直接 fail-fast; 路径存在但不是目录时如实报「不是目录」而非「不存在」), 规则集不在二进制旁时的标准部署手段。设为**空串**同样 fail-fast — 报错点名 `LOG_SKIMMER_RULES 为空串`, 不静默跳过探测 (可暴露部署脚本里的空变量传递);
 2. 缺省探测 — 可执行文件所在目录依次尝试相邻的 `rules/` → `../rules/` → `../../rules/` (首个为目录者生效; 覆盖「rules 与 bin 同级」部署布局与 cargo `target/{debug,release}/` 构建布局)。注意探测基准是**真实二进制路径** (`current_exe` 会解析 symlink): symlink 安装形态 (如 `/usr/local/bin/x -> /opt/pkg/bin/x`) 下, 放在 **symlink 旁**的 `rules/` **不会**被找到 — 请将规则集置于真实二进制旁, 或直接用 `LOG_SKIMMER_RULES`;
 3. 编译时嵌入的本仓源码树 fixture 路径 — 开发/单测形态兜底, 部署后通常不存在。**注意**: 构建机上源码树在场且未配置 env/相邻 rules 时, 此级会**装载成功** — 但装的是开发 fixture 规则集 (覆盖面远小于真规则集), 失败日志可能漏检。每次命中此级启动都会在 stderr 打一行醒目的 `⚠ fixture 兜底` 警示; 生产环境看到它即说明该配置 `LOG_SKIMMER_RULES` 了。
 
-以上三级解析的是**全局层**规则集。在此之上, MCP server 还会探测可选的**项目层** (规范 §1.S): 启动 cwd 下 `.log-skimmer/rules/` 是目录时, 其规则**叠加装载**于全局层之上 (仅对本项目生效; 不在场则仅全局层, 行为不变); 两层出现同 id 规则 = 启动装载错误 (fail-fast, 文案含冲突 id 与两侧来源)。CLI 无此探测 — `--rules` 指定什么就装载什么。详见下方「项目仓规则」。
+以上三级解析的是**全局层**规则集。在此之上, MCP server 还会探测可选的**项目层** (规范 §1.S): 启动 cwd 下 `.log-skimmer/rules/` 是目录时, 其规则**叠加装载**于全局层之上 (仅对本项目生效; 不在场则仅全局层, 行为不变)。项目层还具备运行期变更感知 — 文件变化在下一次调用即时生效, 无需重启 (机制细节与 agent 引导式 adapter 工作流见下方「项目仓规则」)。CLI 无此探测 — `--rules` 指定什么就装载什么。
 
 **规则集 manifest (可选版本契约)**: 规则集根目录可携带 `manifest.yaml`, 声明 `format_version` (规则格式版本, 当前 2 — v2 = scope/repo 字段弃用窗口: 旧字段在场容忍、值被忽略; 旧规则集零破坏装载) 与选填的 `min_engine_version` (引擎版本下限, `major.minor.patch`)。装载时引擎校验: 声明的格式版本超出引擎支持 / 引擎版本低于下限 → 拒载 (exit 2, 文案自解释 — 指明失败的校验项与补救动作); 规则文件与 manifest 的未知字段同样显式拒载而非静默忽略。无 manifest 的规则集照常装载 (向后兼容窗口)。由此「引擎 × 规则集」兼容性可静态判定 — 下游打包方双源 pin 可单侧升级, 一次装载即知兼容与否, 无需全量回归 (规范: docs/rule-format.md §1.M)。
 
@@ -179,8 +179,13 @@ nix develop -c just check  # 系统无 rust 时: devShell 内快速循环 (fmt +
 
 - **生效范围随存储位置**: 项目层规则仅对本项目生效; fork 携带目录即对新仓自动生效, 无需改任何字段。
 - **探测点**: `log-skimmer-mcp` 启动时在 cwd 下探测 `.log-skimmer/rules/`, 在场则叠加于全局规则集 (上文三级定位) 之上; 不在场仅全局层, 行为不变。CLI 无探测语义 — `--rules` 指定什么就装载什么。
-- **跨层 id 冲突 = 启动装载错误** (fail-fast, 文案含冲突 id 与两侧来源): 项目层规则 id 不得与中央规则集重复。两层指向同一目录 (如 `LOG_SKIMMER_RULES` 被指到项目层目录) 时报错直接指向 env 配置。
+- **运行期变更感知**: skim/list_rules 每次调用时比对目录签名 (递归 路径 × size × mtime 清单), 文件变化即重载并在当次调用生效 — 无需重启 server (探测基准是 server **启动时的 cwd** — MCP server 需以仓库根为启动目录, 项目层才会被看到)。重载失败 (如 YAML 写坏) 时该次调用返回装载错误而非静默沿用旧规则集; 修复文件后重试同一调用即恢复。
+- **跨层 id 冲突 = 装载错误** (启动时 fail-fast, 运行期该次调用报错; 文案含冲突 id 与两侧来源): 项目层规则 id 不得与中央规则集重复。两层指向同一目录 (如 `LOG_SKIMMER_RULES` 被指到项目层目录) 时报错直接指向 env 配置。
 - **声明了就必须装载成功**: `.log-skimmer/rules/` 在场但装载失败 (如仅含 `.gitkeep` 的空目录) = 启动装载错误 fail-fast — 坏声明宁可显式失败, 不静默降级; 路径不存在或非目录则视为未声明, 静默跳过 (spec §1.S)。
+
+### adapter 工作流 (agent 引导式, issue #58)
+
+当 `skim` 对你仓库的日志零块失明时, 响应的 `advice` 字段会为你的 agent 指出改善路径: 调用 `adapter_guide` 工具 → 按返回的 SOP 执行 (采样失败日志 → 用最小模板写规则 → 落盘 `.log-skimmer/rules/` → 通过三项质检: 装载通过 / 命中 (规则 id 进 `blocks[].rules`, `fallback` 消失) / intent 语义正确) → git 提交持久化。凭借运行期变更感知, 整个闭环在同一个 MCP 会话内完成 — 创建、验证、修复、再验证, 然后才提交 (前提: server 启动 cwd 是仓库根)。OSS 项目按 SOP 末节把具通用性的规则引导贡献上游 [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (填好 `attribution` 字段)。
 
 本地验证 (提交前跑一次; 项目层目录直接作为 `--rules` 值):
 
