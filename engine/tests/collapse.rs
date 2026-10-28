@@ -265,9 +265,9 @@ fn render_line_format_exact() {
     };
     assert_eq!(
         m.render_line(),
-        "⟨×2 t-c 折叠块 [L3-L7] 省略 4 行; 锚行 L3 L6⟩"
+        "⟨×2 t-c folded blocks [L3-L7]; 4 lines omitted; anchors L3 L6⟩"
     );
-    // >8 锚行: 前 8 + …(共 N 行) 收尾。
+    // >8 锚行: 前 8 + …(N anchors total) 收尾。
     let big = log_skimmer::CollapseMarker {
         rule: "t-c".into(),
         intent: log_skimmer::Intent::Failure,
@@ -278,10 +278,10 @@ fn render_line_format_exact() {
         frag_spans: (0..10).map(|i| (3 + i * 3, 4 + i * 3)).collect(),
     };
     let line = big.render_line();
-    assert!(
-        line.starts_with("⟨×9 t-c 折叠块 [L3-L30] 省略 18 行; 锚行 L3 L6 L9 L12 L15 L18 L21 L24")
-    );
-    assert!(line.ends_with("…(共 10 行)⟩"));
+    assert!(line.starts_with(
+        "⟨×9 t-c folded blocks [L3-L30]; 18 lines omitted; anchors L3 L6 L9 L12 L15 L18 L21 L24"
+    ));
+    assert!(line.ends_with("…(10 anchors total)⟩"));
 }
 
 // ---- R3: L0 全量口径恢复 (折叠块仍计有块, fragment 逐条计数) ----
@@ -373,7 +373,7 @@ fn cli_human_output_has_fold_line_and_stats_note() {
     let (stdout, _, code) = run_cli("human", &[]);
     assert_eq!(code, 0);
     assert!(
-        stdout.contains("⟨×3 t-c 折叠块 [L3-L7] 省略 3 行; 锚行 L3 L5 L7⟩"),
+        stdout.contains("⟨×3 t-c folded blocks [L3-L7]; 3 lines omitted; anchors L3 L5 L7⟩"),
         "折叠行格式 (spec §3.R2):\n{stdout}"
     );
     assert!(
@@ -382,7 +382,7 @@ fn cli_human_output_has_fold_line_and_stats_note() {
     );
     let (off_out, _, off_code) = run_cli("human", &["--no-collapse"]);
     assert_eq!(off_code, 0);
-    assert!(!off_out.contains("折叠块"), "--no-collapse 无折叠行");
+    assert!(!off_out.contains("folded blocks"), "--no-collapse 无折叠行");
     assert!(
         !off_out.contains("repeat-collapse"),
         "--no-collapse 无统计尾注"

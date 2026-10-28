@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub mod mcp;
+pub mod messages;
 pub mod transport_gate;
 
 /// 单次调用的日志大小硬上限 (字节)。
@@ -51,10 +52,9 @@ pub const MAX_WINDOW_LINES: usize = 200;
 /// 结构失明, 与 job 成败无关, 消费方无条件 fallback — 消费方只需检查
 /// `fallback` 字段存在即一行判定。
 pub const FALLBACK_NO_BLOCKS: &str = "no-blocks";
-/// 零块 advice 文案 (issue #58): rg 回退指令 (判定矩阵不变) + adapter 创建
-/// 引导 (派遣子任务调用 adapter_guide 拿 SOP, 项目层落盘后无需重启即时
-/// 生效) + 通用规则贡献出口。
-pub const ADVICE_NO_BLOCKS: &str = "零块=失明, 请回退 rg 基线 (如 rg -i 'error|fail|panic' <log>)。改善路径: 可派遣子任务调用 adapter_guide 工具获取 SOP, 为本仓库创建项目层 adapter (.log-skimmer/rules/, 落盘后 skim 即时生效); 规则若具通用性可贡献 https://github.com/luochen1990/log-skimmer-rules";
+// 文案单点 (issue #76): lib 侧仅重导出, SSOT 在 messages 模块 — 集成测试既有
+// 路径 log_skimmer_server::ADVICE_NO_BLOCKS / ::FIXTURE_FALLBACK_WARNING 不变。
+pub use messages::ADVICE_NO_BLOCKS;
 
 // ---------------------------------------------------------------------------
 // 规则集装载
@@ -74,8 +74,9 @@ pub enum RulesLevel {
     FixtureFallback,
 }
 
-/// 第 3 级 fixture 兜底命中时的 stderr 警示行 (issue #56; 文案 SSOT, 测试锚定)。
-pub const FIXTURE_FALLBACK_WARNING: &str = "⚠ 第 3 级 fixture 兜底生效 — 装载的是开发 fixture 规则集 (覆盖面远小于真规则集), 生产部署应配置 LOG_SKIMMER_RULES 或将规则集置于二进制旁";
+/// 第 3 级 fixture 兜底命中时的 stderr 警示行 (issue #56; 文案 SSOT 在
+/// messages 模块, 此处重导出保持测试既有路径)。
+pub use messages::FIXTURE_FALLBACK_WARNING;
 
 /// 规则目录定位, 优先级: env `LOG_SKIMMER_RULES` > 可执行文件相邻探测 > 编译期源码树。
 /// 返回 (目录, 命中层级) — 层级判定与目录选取在单函数内原子完成, 不得分叉。
@@ -122,24 +123,19 @@ pub fn resolve_rules() -> (PathBuf, RulesLevel) {
 /// LOG_SKIMMER_RULES 并指向 README 三级解析文档, 不空值裸奔。
 pub(crate) fn load_ruleset_at(dir: &Path) -> Result<Vec<Rule>, String> {
     if dir.as_os_str().is_empty() {
-        return Err("LOG_SKIMMER_RULES 为空串 — 请设置为规则集目录路径, 或 unset 后走缺省探测 (三级定位次序见 README)".into());
+        return Err(messages::rules_env_empty().into());
     }
     if !dir.is_dir() {
         if dir.exists() {
-            return Err("路径存在但不是目录 (规则集须为目录)".into());
+            return Err(messages::rules_path_not_a_dir().into());
         }
-        return Err("规则目录不存在".into());
+        return Err(messages::rules_dir_not_found().into());
     }
     let rules = load_rules(dir).map_err(|e| e.to_string())?;
     if rules.is_empty() {
-        return Err("规则目录内无 *.yaml 规则".into());
+        return Err(messages::ruleset_no_yaml().into());
     }
     Ok(rules)
-}
-
-/// 超限错误文案单点 (两 tool 的 Oversized 共用; 对外契约文案防双份分叉)。
-fn oversized_msg(n: usize) -> String {
-    format!("log_text {n} 字节超过上限 {MAX_LOG_BYTES} 字节; 请预处理截取 (如 tail -c) 后分段提交")
 }
 
 // ---------------------------------------------------------------------------
@@ -262,10 +258,7 @@ fn overlay_merge(
     // --rules, 用户照搬 export LOG_SKIMMER_RULES 后启动 server 即触发此形态,
     // 正确修复是 unset env 而非删规则。
     if same_dir(global_dir, project_dir) {
-        return Err(format!(
-            "全局层与项目层为同一目录 {} — 同一目录不应同时充当两层来源: 若 LOG_SKIMMER_RULES 指向了项目层目录, 请 unset 或改指全局规则集目录; 若全局层来自 exe 相邻探测, 请调整布局 (bin 与项目层解耦) 或显式设置 LOG_SKIMMER_RULES",
-            project_dir.display()
-        ));
+        return Err(messages::overlay_same_dir(project_dir));
     }
     // 跨层 id 冲突 (spec §1.S): 同 id 双层各载一份 → 叠加后 id 不再全局唯一,
     // 破坏「rule-id 全局唯一」约束 — fail-fast 并列冲突 id 与两侧来源
@@ -278,11 +271,10 @@ fn overlay_merge(
         .collect();
     conflicts.sort_unstable(); // 报错输出可复现 (与 list_rules 按 id 排序的偏好一致)
     if !conflicts.is_empty() {
-        return Err(format!(
-            "跨层 id 冲突: {} — 全局层 {} 与项目层 {} 各有同名规则, 项目层规则 id 不得与全局规则集重复 (请改名或删除其一)",
-            conflicts.join(", "),
-            global_dir.display(),
-            project_dir.display()
+        return Err(messages::overlay_id_conflict(
+            &conflicts.join(", "),
+            global_dir,
+            project_dir,
         ));
     }
     let mut rules = global.to_vec();
@@ -419,7 +411,7 @@ impl DynamicRuleset {
             ),
             (Some(sig), Some(dir)) => {
                 let project = load_ruleset_at(dir)
-                    .map_err(|e| format!("项目层规则装载失败 (来源 {}): {e}", dir.display()))?;
+                    .map_err(|e| messages::project_layer_load_failed(dir, &e))?;
                 let merged = overlay_merge(&self.global, &self.global_dir, dir, &project)?;
                 (
                     ProjectCacheState::Loaded(sig.clone()),
@@ -453,11 +445,9 @@ pub enum SkimInputError {
 impl SkimInputError {
     pub fn message(&self) -> String {
         match self {
-            SkimInputError::Empty => "log_text 为空或纯空白, 无可扫描内容".into(),
-            SkimInputError::Oversized(n) => oversized_msg(*n),
-            SkimInputError::InvalidContext(n) => {
-                format!("context 须在 0-10 内, 收到 {n}")
-            }
+            SkimInputError::Empty => messages::skim_log_empty().into(),
+            SkimInputError::Oversized(n) => messages::oversized_log(*n, MAX_LOG_BYTES),
+            SkimInputError::InvalidContext(n) => messages::skim_invalid_context(*n),
         }
     }
 }
@@ -629,13 +619,11 @@ pub enum ReadAroundError {
 impl ReadAroundError {
     pub fn message(&self) -> String {
         match self {
-            ReadAroundError::EmptyLog => "log_text 为空或纯空白, 无可读窗口".into(),
-            ReadAroundError::Oversized(n) => oversized_msg(*n),
-            ReadAroundError::BadRange(s, e) => {
-                format!("行号区间非法 (须 1 ≤ line_start ≤ line_end), 收到 start={s} end={e}")
-            }
+            ReadAroundError::EmptyLog => messages::read_around_log_empty().into(),
+            ReadAroundError::Oversized(n) => messages::oversized_log(*n, MAX_LOG_BYTES),
+            ReadAroundError::BadRange(s, e) => messages::read_around_bad_range(*s, *e),
             ReadAroundError::StartBeyondTotal(total, s) => {
-                format!("line_start={s} 超出日志末行 (共 {total} 行)")
+                messages::read_around_start_beyond_total(*total, *s)
             }
         }
     }
@@ -681,10 +669,7 @@ pub fn read_around_view(
     let window_end = requested_end.min(start + MAX_WINDOW_LINES - 1);
     let truncated = window_end < requested_end;
     let note = truncated.then(|| {
-        format!(
-            "请求窗口 L{start}-L{line_end} 超过 {MAX_WINDOW_LINES} 行上限, 已截断; 续读请以 L{} 为 line_start 再次调用",
-            window_end + 1
-        )
+        messages::read_around_truncated_note(start, line_end, MAX_WINDOW_LINES, window_end + 1)
     });
     let lines = (start..=window_end)
         .map(|n| format!("L{n}: {}", lines[n - 1]))
@@ -816,7 +801,7 @@ mod tests {
         let err = skim_view(&[], "x", Some(11)).unwrap_err();
         assert_eq!(err, SkimInputError::InvalidContext(11));
         let msg = err.message();
-        assert!(msg.contains("context 须在 0-10 内, 收到 11"), "{msg}");
+        assert!(msg.contains("context must be within 0-10, got 11"), "{msg}");
         assert!(!msg.contains("spec §"), "{msg}");
         let big = "x".repeat(MAX_LOG_BYTES + 1);
         assert_eq!(
@@ -1069,16 +1054,19 @@ mod tests {
     fn ruleset_location_diagnostics() {
         // (c) env 空串 → 点名 LOG_SKIMMER_RULES 并指向 README 三级解析文档
         let e = load_ruleset_at(Path::new("")).unwrap_err();
-        assert!(e.contains("LOG_SKIMMER_RULES 为空串"), "{e}");
+        assert!(
+            e.contains("LOG_SKIMMER_RULES is set to an empty string"),
+            "{e}"
+        );
         assert!(e.contains("README"), "应指向三级解析文档: {e}");
         // (a/b) 路径存在但非目录 → 如实文案, 消息内不带路径 (防双次出现)
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
         let e = load_ruleset_at(&manifest).unwrap_err();
-        assert!(e.contains("不是目录"), "{e}");
+        assert!(e.contains("not a directory"), "{e}");
         assert!(!e.contains("Cargo.toml"), "路径只出现在 main 来源前缀: {e}");
         // 不存在 → 维持既有文案 (同样不带路径)
         let e = load_ruleset_at(Path::new("/nonexistent-rules-dir")).unwrap_err();
-        assert!(e.contains("规则目录不存在"), "{e}");
+        assert!(e.contains("rules directory not found"), "{e}");
         assert!(
             !e.contains("/nonexistent"),
             "路径只出现在 main 来源前缀: {e}"
@@ -1144,14 +1132,14 @@ mod tests {
             Err(OverlayError::Conflict(e)) => e,
             other => panic!("须 Conflict 装载错误, got: {other:?}"),
         };
-        assert!(e.contains("跨层 id 冲突"), "{e}");
+        assert!(e.contains("cross-layer id conflict"), "{e}");
         assert!(e.contains("cargo-fixture-build-fail"), "文案含冲突 id: {e}");
         assert!(e.contains(".log-skimmer/rules"), "文案含项目层来源: {e}");
         assert!(e.contains("tests/fixtures/rules"), "文案含全局层来源: {e}");
         // 全局层失败透传 Global 变体 (消息不带路径 — main 的来源前缀契约不变)
         match load_ruleset_overlay(Path::new("/nonexistent-rules-dir"), Some(&root)) {
             Err(OverlayError::Global(e)) => {
-                assert!(e.contains("规则目录不存在"), "{e}");
+                assert!(e.contains("rules directory not found"), "{e}");
                 assert!(!e.contains("/nonexistent"), "消息本体不带路径: {e}");
             }
             other => panic!("全局层失败须 Global 变体, got: {other:?}"),
@@ -1169,9 +1157,9 @@ mod tests {
             Err(OverlayError::Conflict(e)) => e,
             other => panic!("同目录须 Conflict 装载错误, got: {other:?}"),
         };
-        assert!(e.contains("同一目录"), "{e}");
+        assert!(e.contains("same directory"), "{e}");
         assert!(e.contains("LOG_SKIMMER_RULES"), "指向 env 配置: {e}");
-        assert!(!e.contains("改名或删除其一"), "不得引导改名规则: {e}");
+        assert!(!e.contains("rename or remove"), "不得引导改名规则: {e}");
     }
 
     /// 项目层装载失败归因: 目录在场但零 yaml → Project 变体携带项目层目录
@@ -1184,7 +1172,8 @@ mod tests {
         match load_ruleset_overlay(&fixture_rules_dir(), Some(&root)) {
             Err(OverlayError::Project(pdir, e)) => {
                 assert_eq!(pdir, proj, "变体携带项目层目录");
-                assert!(e.contains("无 *.yaml"), "零规则集失败文案: {e}");
+                // engine LoadErrors 透传族自带源路径, 断言只钉「无 *.yaml」语义
+                assert!(e.contains("no *.yaml"), "零规则集失败文案: {e}");
             }
             other => panic!("项目层失败须 Project 变体, got: {other:?}"),
         }
@@ -1277,7 +1266,7 @@ mod tests {
         // 坏 yaml → 该次调用 Err (拒绝降级用旧规则集), 文案归因项目层
         std::fs::write(root.join(".log-skimmer/rules/proj.yaml"), "id: [broken").unwrap();
         let e = rs.current().unwrap_err();
-        assert!(e.contains("项目层规则装载失败"), "{e}");
+        assert!(e.contains("project-layer ruleset load failed"), "{e}");
         // 修复 → 恢复
         lay_project_layer(&root, "proj-own-check", "proj");
         assert_eq!(rs.current().unwrap().len(), base + 1, "修复后恢复叠加");
@@ -1295,7 +1284,7 @@ mod tests {
         // fixture 全局层已含 cargo-fixture-build-fail
         lay_project_layer(&root, "cargo-fixture-build-fail", "cargo");
         let e = rs.current().unwrap_err();
-        assert!(e.contains("跨层 id 冲突"), "{e}");
+        assert!(e.contains("cross-layer id conflict"), "{e}");
         assert!(e.contains("cargo-fixture-build-fail"), "文案含冲突 id: {e}");
     }
 

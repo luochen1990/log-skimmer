@@ -75,7 +75,7 @@ fn gate_pass_on_compliant_summary() {
     assert_eq!(v.verdict, "pass");
     assert!(v.violations.is_empty());
     assert!(!v.compression_compare.base_fail);
-    assert!(v.compression_compare.mode.contains("单测"));
+    assert!(v.compression_compare.mode.contains("single run"));
     s.totals.fn_samples = 0; // clippy: s 有后续读者前的确定性
     let _ = s;
 }
@@ -91,14 +91,14 @@ fn gate_summary_line_pairs_values_with_thresholds() {
     assert!(line.contains("verdict=pass"), "{line}");
     assert!(line.contains("FN=0/0"), "{line}");
     assert!(
-        line.contains(&format!("FP率=0.00%≤{}%", l0::FP_MAX_PCT)),
+        line.contains(&format!("FP={:.2}%<={}%", 0.0, l0::FP_MAX_PCT)),
         "{line}"
     );
-    assert!(line.contains("零块=0/0"), "{line}");
-    assert!(line.contains("边界违例=0/0"), "{line}");
+    assert!(line.contains("zero-blocks=0/0"), "{line}");
+    assert!(line.contains("boundary=0/0"), "{line}");
     assert!(
         line.contains(&format!(
-            "语料={}≥{}",
+            "samples={}>={}",
             s.structural.samples_total,
             l0::MIN_SAMPLES
         )),
@@ -106,7 +106,7 @@ fn gate_summary_line_pairs_values_with_thresholds() {
     );
     assert!(
         line.contains(&format!(
-            "仓={}≥{}",
+            "repos={}>={}",
             s.structural.repos_total,
             l0::MIN_REPOS
         )),
@@ -121,7 +121,7 @@ fn gate_summary_line_pairs_values_with_thresholds() {
     let line = v.summary_line();
     assert!(line.contains("verdict=fail"), "{line}");
     assert!(line.contains("FN=2/0"), "{line}");
-    assert!(line.contains(&format!("≤{}%", l0::FP_MAX_PCT)), "{line}");
+    assert!(line.contains(&format!("<={}%", l0::FP_MAX_PCT)), "{line}");
 }
 
 /// 判定: FN>0 → fail + fn violation (spec §0 召回优先)。
@@ -393,8 +393,8 @@ fn gate_fails_on_missing_corpus() {
         .iter()
         .find(|x| x.kind == "corpus-missing")
         .expect("corpus-missing violation 在场");
-    assert!(viol.note.contains("定向验证"), "note: {}", viol.note);
-    assert!(viol.note.contains("获取链路"), "note: {}", viol.note);
+    assert!(viol.note.contains("targeted"), "note: {}", viol.note);
+    assert!(viol.note.contains("fetch-chain"), "note: {}", viol.note);
     assert!(
         viol.note.contains("per_rule_hits"),
         "note 应指向定向验证的正向信号: {}",
@@ -417,7 +417,7 @@ fn gate_fails_on_corpus_repos_floor() {
         .iter()
         .find(|x| x.kind == "corpus-repos-missing")
         .expect("corpus-repos-missing violation 在场");
-    assert!(viol.note.contains("语料面"), "note: {}", viol.note);
+    assert!(viol.note.contains("coverage shrank"), "note: {}", viol.note);
     assert!(
         viol.note.contains(&format!("<{}", l0::MIN_REPOS)),
         "note 应带仓维度阈值对照: {}",
@@ -448,7 +448,10 @@ fn collect_missing_corpus_dir_is_err() {
         &fixtures().join("rules"),
     )
     .unwrap_err();
-    assert!(e.contains("语料目录不存在"), "Err 应点明目录不存在: {e}");
+    assert!(
+        e.contains("corpus directory not found"),
+        "Err 应点明目录不存在: {e}"
+    );
 }
 
 /// 判定: 边界违例 note 如实描述 A4 块尾行哨兵 (issue #43) — spec §4 边界完整性
@@ -465,7 +468,7 @@ fn gate_boundary_note_matches_a4_check() {
         .iter()
         .find(|x| x.kind == "boundary")
         .expect("boundary violation 在场");
-    assert!(viol.note.contains("尾行"), "note: {}", viol.note);
+    assert!(viol.note.contains("tail line"), "note: {}", viol.note);
     assert!(!viol.note.contains("[0,10]"), "note: {}", viol.note);
     assert!(!viol.note.contains("context"), "note: {}", viol.note);
 }
@@ -488,7 +491,7 @@ fn gate_dual_test_regression_and_drift() {
     pr.per_repo
         .insert("github.com/r/new".into(), Agg::default());
     let v = l0::gate(&pr, Some(&base), false);
-    assert_eq!(v.compression_compare.mode, "双测对比");
+    assert_eq!(v.compression_compare.mode, "dual-run compare");
     assert_eq!(v.compression_compare.regressions.len(), 1);
     assert_eq!(
         v.compression_compare.regressions[0].repo,
@@ -634,7 +637,7 @@ fn collect_missing_attempt_defaults_to_one_and_warns() {
         .attempt_missing_warning()
         .expect("缺口在场时警告渲染非 None");
     assert!(!warn.contains('\n'), "单行警告: {warn}");
-    assert!(warn.contains("1 个"), "计数 N 在场: {warn}");
+    assert!(warn.contains("1 sidecar"), "计数 N 在场: {warn}");
     assert!(warn.contains("attempt=1"), "按 1 处理说明在场: {warn}");
     assert!(warn.contains("§5"), "指向规范必带要求: {warn}");
 }
@@ -802,7 +805,7 @@ fn duplicate_pairing_name_fails_fast() {
         err.contains("x.log") && err.contains("x.log.gz"),
         "报错须含 plain 与 gz 双路径: {err}"
     );
-    assert!(err.contains("冲突"), "报错须点明冲突语义: {err}");
+    assert!(err.contains("conflict"), "报错须点明冲突语义: {err}");
 }
 
 /// 解压失败经 l0 采集路径 fail-fast: 非法 gz 样本 → Err 带样本路径,
@@ -819,7 +822,7 @@ fn collect_corrupt_gz_fails_with_path() {
     let err = l0::collect(&d, &fixtures().join("rules")).unwrap_err();
     assert!(err.contains("z.log.gz"), "采集报错须带样本路径: {err}");
     assert!(
-        err.contains("日志读取失败"),
+        err.contains("log read failed"),
         "与既有读取失败文案同族: {err}"
     );
 }
@@ -952,9 +955,9 @@ fn exempt_samples_skip_assertions_but_report() {
     // CLI 单行: exempt 状态单列 (计数 N 与仓数 M 在场)
     let line = v.exempt_line().expect("exempt 在场时状态行非 None");
     assert!(!line.contains('\n'), "单行: {line}");
-    assert!(line.contains("4 样本"), "{line}");
-    assert!(line.contains("2 仓"), "{line}");
-    assert!(line.contains("未入断言"), "{line}");
+    assert!(line.contains("4 sample"), "{line}");
+    assert!(line.contains("2 repo"), "{line}");
+    assert!(line.contains("not asserted"), "{line}");
 }
 
 /// 旧 sidecar (无 gate_exempt 字段) 向后兼容: 解析机制用单件直测 (IO 机制类,

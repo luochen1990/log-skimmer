@@ -44,12 +44,15 @@ fn all_rules_load_with_unique_ids() {
 fn empty_rules_dir_rejected() {
     let e = log_skimmer::load_rules(std::path::Path::new("/nonexistent-rules-dir"))
         .expect_err("不存在的规则目录必须 Err");
-    assert!(e.to_string().contains("规则目录不存在"), "got: {e}");
+    assert!(
+        e.to_string().contains("rules directory not found"),
+        "got: {e}"
+    );
 
     let empty = std::env::temp_dir().join("log-skimmer-empty-rules");
     std::fs::create_dir_all(&empty).unwrap();
     let e = log_skimmer::load_rules(&empty).expect_err("零 yaml 目录必须 Err");
-    assert!(e.to_string().contains("无 *.yaml"), "got: {e}");
+    assert!(e.to_string().contains("no *.yaml files"), "got: {e}");
 }
 
 /// #47a: 路径存在但非目录 (如误指某个 yaml 文件) — 如实报「不是目录」,
@@ -60,9 +63,9 @@ fn rules_path_not_a_dir_rejected_truthfully() {
     std::fs::write(&f, "x").unwrap(); // 内容无关 — 判定只看路径类型
     let e = log_skimmer::load_rules(&f).expect_err("文件路径 (非目录) 必须 Err");
     let msg = e.to_string();
-    assert!(msg.contains("不是目录"), "应如实报非目录: {msg}");
+    assert!(msg.contains("is not a directory"), "应如实报非目录: {msg}");
     assert!(
-        !msg.contains("规则目录不存在"),
+        !msg.contains("not found"),
         "路径在场时不得误报不存在: {msg}"
     );
 }
@@ -84,6 +87,6 @@ fn rule_context_bound_follows_engine_const() {
 
     std::fs::write(dir.join("r.yaml"), rule_yaml(log_skimmer::CONTEXT_MAX + 1)).unwrap();
     let e = log_skimmer::load_rules(&dir).expect_err("context 超上界必须整集拒载");
-    assert!(e.to_string().contains("context 超出"), "got: {e}");
+    assert!(e.to_string().contains("context out of range"), "got: {e}");
     let _ = std::fs::remove_dir_all(&dir);
 }

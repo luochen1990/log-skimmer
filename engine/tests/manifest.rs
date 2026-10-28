@@ -62,7 +62,7 @@ fn format_version_future_rejected() {
     let e = log_skimmer::load_rules(&dir).expect_err("未来格式版本须拒载");
     let msg = e.to_string();
     assert!(msg.contains("format_version"), "须指明失败校验项: {msg}");
-    assert!(msg.contains("升级引擎"), "须建议升级引擎: {msg}");
+    assert!(msg.contains("upgrade the engine"), "须建议升级引擎: {msg}");
 }
 
 #[test]

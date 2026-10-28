@@ -144,9 +144,9 @@ Claude Desktop (`claude_desktop_config.json` 的 `mcpServers` 段; 环境变量�
 
 全局规则集定位 (启动时一次性解析, 目录不存在 / 无 `*.yaml` / 加载校验失败均 fail-fast 退出码 2):
 
-1. 环境变量 `LOG_SKIMMER_RULES` 指向的**规则集目录** (log-skimmer-rules 仓的 clone, 含 `*.yaml`) — 已设置即采用、不回落后续探测 (指向无效目录直接 fail-fast; 路径存在但不是目录时如实报「不是目录」而非「不存在」), 规则集不在二进制旁时的标准部署手段。设为**空串**同样 fail-fast — 报错点名 `LOG_SKIMMER_RULES 为空串`, 不静默跳过探测 (可暴露部署脚本里的空变量传递);
+1. 环境变量 `LOG_SKIMMER_RULES` 指向的**规则集目录** (log-skimmer-rules 仓的 clone, 含 `*.yaml`) — 已设置即采用、不回落后续探测 (指向无效目录直接 fail-fast; 路径存在但不是目录时如实报「不是目录」而非「不存在」), 规则集不在二进制旁时的标准部署手段。设为**空串**同样 fail-fast — 报错点名 `LOG_SKIMMER_RULES is set to an empty string` (引擎文案默认英文, issue #76), 不静默跳过探测 (可暴露部署脚本里的空变量传递);
 2. 缺省探测 — 可执行文件所在目录依次尝试相邻的 `rules/` → `../rules/` → `../../rules/` (首个为目录者生效; 覆盖「rules 与 bin 同级」部署布局与 cargo `target/{debug,release}/` 构建布局)。注意探测基准是**真实二进制路径** (`current_exe` 会解析 symlink): symlink 安装形态 (如 `/usr/local/bin/x -> /opt/pkg/bin/x`) 下, 放在 **symlink 旁**的 `rules/` **不会**被找到 — 请将规则集置于真实二进制旁, 或直接用 `LOG_SKIMMER_RULES`;
-3. 编译时嵌入的本仓源码树 fixture 路径 — 开发/单测形态兜底, 部署后通常不存在。**注意**: 构建机上源码树在场且未配置 env/相邻 rules 时, 此级会**装载成功** — 但装的是开发 fixture 规则集 (覆盖面远小于真规则集), 失败日志可能漏检。每次命中此级启动都会在 stderr 打一行醒目的 `⚠ fixture 兜底` 警示; 生产环境看到它即说明该配置 `LOG_SKIMMER_RULES` 了。
+3. 编译时嵌入的本仓源码树 fixture 路径 — 开发/单测形态兜底, 部署后通常不存在。**注意**: 构建机上源码树在场且未配置 env/相邻 rules 时, 此级会**装载成功** — 但装的是开发 fixture 规则集 (覆盖面远小于真规则集), 失败日志可能漏检。每次命中此级启动都会在 stderr 打一行醒目的 `⚠ tier-3 fixture fallback active` 警示 (引擎文案默认英文, issue #76); 生产环境看到它即说明该配置 `LOG_SKIMMER_RULES` 了。
 
 以上三级解析的是**全局层**规则集。在此之上, MCP server 还会探测可选的**项目层** (规范 §1.S): 启动 cwd 下 `.log-skimmer/rules/` 是目录时, 其规则**叠加装载**于全局层之上 (仅对本项目生效; 不在场则仅全局层, 行为不变)。项目层还具备运行期变更感知 — 文件变化在下一次调用即时生效, 无需重启 (机制细节与 agent 引导式 adapter 工作流见下方「项目仓规则」)。CLI 无此探测 — `--rules` 指定什么就装载什么。
 

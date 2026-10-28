@@ -20,9 +20,9 @@ use std::future::Future;
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct SkimParams {
-    /// CI 日志全文 (多行原始文本; 空串/纯白与超过 32MB 均报参数错误)
+    /// Full CI log text (multi-line raw text; empty/whitespace-only and over 32MB are both parameter errors)
     pub log_text: String,
-    /// 全局覆盖 context 为 before=after=N, 取值 0-10; 缺省用各规则自带 context
+    /// Override context globally to before=after=N, range 0-10; defaults to each rule's own context
     #[serde(default)]
     // 非 dead 标记: 向 inputSchema 发布 default: null 提示 (实测去掉会改变 tools/list 输出)
     // 同界单源: 上界引用 engine 常量 (issue #28), schema 数值断言见 tests 内锁界用例
@@ -32,12 +32,12 @@ pub struct SkimParams {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct ReadAroundParams {
-    /// CI 日志全文 (与 skim 调用同一份日志, 行号才能对齐)
+    /// Full CI log text (the same log as the skim call, so line numbers align)
     pub log_text: String,
-    /// 窗口起点行号 (1-based)
+    /// Window start line (1-based)
     #[schemars(range(min = 1))]
     pub line_start: i64,
-    /// 窗口终点行号 (1-based, 含端点; 超出日志末尾自动收缩到末行)
+    /// Window end line (1-based, inclusive; shrinks to the last line if beyond it)
     pub line_end: i64,
 }
 
@@ -56,12 +56,13 @@ pub struct SkimServer {
 
 /// 序列化输出为 text content 内嵌 pretty JSON (oss-cache 同款形态, 生产 dogfood 验证过)。
 fn json_result(v: impl serde::Serialize) -> std::result::Result<CallToolResult, McpError> {
-    let text = serde_json::to_string_pretty(&v)
-        .map_err(|e| McpError::internal_error(format!("结果序列化失败: {e}"), None))?;
+    let text = serde_json::to_string_pretty(&v).map_err(|e| {
+        McpError::internal_error(crate::messages::result_serialize_failed(&e), None)
+    })?;
     Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
 }
 
-/// 项目层重载失败的错误映射 (issue #58): internal_error 通道 + 自明中文文案
+/// 项目层重载失败的错误映射 (issue #58): internal_error 通道 + 自明文案
 /// (非参数错 — 需修复的是 `.log-skimmer/rules/` 数据而非调用参数, 调用方按
 /// 文案修复后重试同一调用即可)。
 fn project_layer_error(msg: String) -> McpError {
@@ -78,7 +79,7 @@ impl SkimServer {
     }
 
     #[tool(
-        description = "skim CI 日志: 高信噪比提取失败证据/警示/环境快照。返回 blocks (块摘要: 坐标/规则/intent/category/输出行数/签名行数, 按 intent 优先级排序 failure>warning>info, 同级按行序) + fragments (每块代表片段全字段, 与 blocks 同序一一对应) + stats (total/out/signature 行数统计恒在场; 双粒度压缩比字段在零块时省略)。零块时返回 fallback=\"no-blocks\": 规则集对该日志失明, 请无条件回退 rg 基线 (如 rg -i 'error|fail|panic'), 并按 advice 指引调用 adapter_guide 为本仓库创建项目层 adapter。消费方判定矩阵: job 失败而 failure-intent 块为零 = 视同失明回退 (docs/rule-format.md §3)。需要块周边原文时用 read_around 按块坐标取窗。 规则贡献: https://github.com/luochen1990/log-skimmer-rules"
+        description = "Skim a CI log: high-signal extraction of failure evidence / warnings / environment snapshots. Returns blocks (block summaries: coordinates / rules / intent / category / out-lines / signature-lines, ordered by intent priority failure>warning>info, ties by line order) + fragments (the representative fragment of each block with full fields, one-to-one with blocks in the same order) + stats (total/out/signature line counts always present; the two compression-ratio fields are omitted on zero blocks). On zero blocks returns fallback=\"no-blocks\": the ruleset is blind to this log — unconditionally fall back to the rg baseline (e.g. rg -i 'error|fail|panic'), and follow the advice to call adapter_guide to create a project-layer adapter for this repo. Consumer decision matrix: a failed job with zero failure-intent blocks = treat as blind and fall back (docs/rule-format.md §3). Use read_around with block coordinates to fetch surrounding raw lines. Rule contribution: https://github.com/luochen1990/log-skimmer-rules"
     )]
     fn skim(
         &self,
@@ -95,7 +96,7 @@ impl SkimServer {
     }
 
     #[tool(
-        description = "按 1-based 行号窗口读取日志原文 (输出行带 L{n}: 前缀)。用于展开 skim 块坐标周边的上下文。窗口上限 200 行, 超出截断并在 note 给出续读起点; line_end 超出日志末尾自动收缩。"
+        description = "Read raw log lines in a 1-based line-number window (output lines carry an L{n}: prefix). Used to expand the context around skim block coordinates. Window limit is 200 lines; beyond that it truncates and the note gives the resume point; line_end beyond the last line shrinks to it."
     )]
     fn read_around(
         &self,
@@ -107,7 +108,7 @@ impl SkimServer {
     }
 
     #[tool(
-        description = "列出已装载规则集清单 (id/tool/kind/intent/category, 按 id 升序), 用于判断规则集对目标日志的覆盖面。"
+        description = "List the loaded ruleset (id/tool/kind/intent/category, ascending by id), for judging the ruleset's coverage of the target log."
     )]
     fn list_rules(&self) -> std::result::Result<CallToolResult, McpError> {
         let rules = self.rules.current().map_err(project_layer_error)?;
@@ -115,7 +116,7 @@ impl SkimServer {
     }
 
     #[tool(
-        description = "返回 Adapter 创建指南 (markdown 文档): 为当前仓库创建项目层规则集 (.log-skimmer/rules/) 的 SOP — 采样失败日志 → 编写规则 → 落盘 → 三项质检 (装载/命中/语义) → git 持久化, 含 OSS 项目的上游贡献流程与字段速查。当 skim 零块失明 (fallback=\"no-blocks\") 的 advice 提示创建 adapter 时按本文档执行; 项目层落盘后无需重启 server, 再次调用 skim 即时生效。"
+        description = "Returns the Adapter Creation Guide (a markdown document): the SOP for creating a project-layer ruleset (.log-skimmer/rules/) for the current repo — sample failing logs → write rules → write to disk → three acceptance checks (load / hit / semantics) → persist via git, plus the upstream contribution flow for OSS projects and a field quick reference. Follow this document when the skim zero-block advice (fallback=\"no-blocks\") tells you to create an adapter; once the project layer is on disk no server restart is needed — the next skim call picks it up immediately."
     )]
     fn adapter_guide(&self) -> std::result::Result<CallToolResult, McpError> {
         Ok(CallToolResult::success(vec![ContentBlock::text(
@@ -148,7 +149,10 @@ fn reraise_argument_error(resp: CallToolResponse) -> Result<CallToolResponse, Mc
         _ => None,
     };
     match detail {
-        Some(d) => Err(McpError::invalid_params(format!("参数格式非法: {d}"), None)),
+        Some(d) => Err(McpError::invalid_params(
+            crate::messages::invalid_parameter_format(&d),
+            None,
+        )),
         None => Ok(resp),
     }
 }
@@ -165,12 +169,16 @@ impl ServerHandler for SkimServer {
                 env!("CARGO_PKG_VERSION"),
             ))
             .with_instructions(
-                "log-skimmer: CI 日志高信噪比提取。tools: skim (结构化提取, 零块=fallback 失明警示, \
-                     按 advice 引导创建项目层 adapter), read_around (按块坐标取原文窗口), \
-                     list_rules (规则覆盖面), adapter_guide (创建项目层 adapter 的 SOP — \
-                     .log-skimmer/rules/ 落盘后无需重启, 下次调用即时生效)。消费方判定矩阵 \
-                     (docs/rule-format.md §3): skim 零块=失明, 无条件回退 rg; job 已知失败而 \
-                     failure-intent 块为零=视同失明回退; warning/info 与成败判定无关。",
+                "log-skimmer: high-signal CI log extraction. tools: skim (structured extraction; \
+                      zero blocks = fallback blind warning, follow the advice to create a \
+                      project-layer adapter), read_around (raw-line window by block \
+                      coordinates), list_rules (ruleset coverage), adapter_guide (SOP for \
+                      creating a project-layer adapter — once written to .log-skimmer/rules/ \
+                      no restart is needed, the next call picks it up immediately). Consumer \
+                      decision matrix (docs/rule-format.md §3): skim zero blocks = blind, \
+                      unconditionally fall back to rg; a job known to have failed with zero \
+                      failure-intent blocks = treat as blind and fall back; warning/info is \
+                      irrelevant to pass/fail judgment.",
             )
     }
 
@@ -231,11 +239,11 @@ pub async fn serve(rules: DynamicRuleset) -> Result<(), String> {
     let service = SkimServer::new(rules)
         .serve(crate::transport_gate::gated_stdio())
         .await
-        .map_err(|e| format!("MCP server 启动失败: {e:?}"))?;
+        .map_err(|e| crate::messages::mcp_server_start_failed(&format!("{e:?}")))?;
     service
         .waiting()
         .await
-        .map_err(|e| format!("MCP server 结束: {e:?}"))?;
+        .map_err(|e| crate::messages::mcp_server_terminated(&format!("{e:?}")))?;
     Ok(())
 }
 
@@ -366,12 +374,12 @@ mod tests {
             .map(|t| t.text.clone())
             .expect("text content");
         for marker in [
-            "Adapter 创建指南",
+            "Adapter Creation Guide",
             ".log-skimmer/rules",
-            "SOP (五步)",
-            "质检 (三项全过)",
-            "贡献上游",
-            "字段速查",
+            "SOP (five steps)",
+            "Acceptance check",
+            "Contributing upstream",
+            "field quick reference",
             "log-skimmer-rules",
         ] {
             assert!(text.contains(marker), "SOP 缺关键节 [{marker}]: {text}");
@@ -437,7 +445,7 @@ mod tests {
             }))
             .expect_err("坏项目层须报错");
         assert!(
-            err.message.contains("项目层规则装载失败"),
+            err.message.contains("project-layer ruleset load failed"),
             "报错信息: {}",
             err.message
         );
@@ -450,7 +458,7 @@ mod tests {
             }))
             .expect_err("坏项目层优先于参数错");
         assert!(
-            err2.message.contains("项目层规则装载失败"),
+            err2.message.contains("project-layer ruleset load failed"),
             "环境错优先: {}",
             err2.message
         );
@@ -469,7 +477,7 @@ mod tests {
                 }))
                 .expect_err("空输入须报错");
             assert!(
-                err.message.contains("空或纯空白"),
+                err.message.contains("empty or whitespace-only"),
                 "报错信息: {}",
                 err.message
             );

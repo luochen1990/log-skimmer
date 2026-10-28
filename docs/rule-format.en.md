@@ -267,10 +267,10 @@ Folded blocks are removed from the `blocks` array (JSON and human-readable outpu
 **Human-readable fold line** (emitted after the anchor block's text, single line, not counted into output_lines — metadata, same family as block headers):
 
 ```text
-⟨×327 rust-test-panic 折叠块 [L3163-L4796] 省略 981 行; 锚行 L3163 L3167 L3171 L3175 L3179 L3183 L3187 L3191 …(共 327 行)⟩
+⟨×327 rust-test-panic folded blocks [L3163-L4796]; 981 lines omitted; anchors L3163 L3167 L3171 L3175 L3179 L3183 L3187 L3191 …(327 anchors total)⟩
 ```
 
-Format (literal output keeps the Chinese wording): `⟨×{repeat_blocks} {rule} 折叠块 [L{start}-L{end}] 省略 {omitted} 行; 锚行 {first 8 anchor lines, space-separated}{appended ` …(共 {frag_spans.len()} 行)` when more than 8}⟩`. The CLI stats line appends `, repeat-collapse folded {folded_blocks} blocks (-{omitted_lines} lines)` when folding occurred (not appended at zero folding — zero behavior change).
+Format: `⟨×{repeat_blocks} {rule} folded blocks [L{start}-L{end}]; {omitted} lines omitted; anchors {first 8 anchor lines, space-separated}{appended ` …({frag_spans.len()} anchors total)` when more than 8}⟩`. The CLI stats line appends `, repeat-collapse folded {folded_blocks} blocks (-{omitted_lines} lines)` when folding occurred (not appended at zero folding — zero behavior change).
 
 **R3 statistics criteria (ruling table — every L0 metric under folding)**:
 

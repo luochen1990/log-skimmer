@@ -266,10 +266,10 @@ run 长度 (含锚块) ≥ `min_repeat` (默认 **3**) 才折叠: 保留 run 首
 **人类可读折叠行** (锚块文本之后输出, 单行, 不计入 output_lines — 元数据与块头同族不计):
 
 ```text
-⟨×327 rust-test-panic 折叠块 [L3163-L4796] 省略 981 行; 锚行 L3163 L3167 L3171 L3175 L3179 L3183 L3187 L3191 …(共 327 行)⟩
+⟨×327 rust-test-panic folded blocks [L3163-L4796]; 981 lines omitted; anchors L3163 L3167 L3171 L3175 L3179 L3183 L3187 L3191 …(327 anchors total)⟩
 ```
 
-格式: `⟨×{repeat_blocks} {rule} 折叠块 [L{start}-L{end}] 省略 {omitted} 行; 锚行 {前 8 个锚行, 空格分隔}{超过 8 个时追加 ` …(共 {frag_spans.len()} 行)`}⟩`。CLI 统计行在有折叠时追加 `, repeat-collapse folded {folded_blocks} blocks (-{omitted_lines} lines)` (零折叠时不追加 — 零行为变更)。
+格式 (引擎实际输出文案, i18n 后为英文): `⟨×{repeat_blocks} {rule} folded blocks [L{start}-L{end}]; {omitted} lines omitted; anchors {前 8 个锚行, 空格分隔}{超过 8 个时追加 ` …({frag_spans.len()} anchors total)`}⟩`。CLI 统计行在有折叠时追加 `, repeat-collapse folded {folded_blocks} blocks (-{omitted_lines} lines)` (零折叠时不追加 — 零行为变更)。
 
 **R3 统计口径 (裁决表 — L0 全部指标在折叠下的取值)**:
 

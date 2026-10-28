@@ -11,7 +11,7 @@
 //! 项目层叠加 (spec §1.S): cwd 下 `.log-skimmer/rules/` 在场时叠加于全局层
 //! (探测点 / 跨层 id 冲突语义的 SSOT 在 [log_skimmer_server::load_ruleset_overlay])。
 //! 装载失败 (目录缺失 / 校验违例 / 零条规则 / 跨层 id 冲突) fail-fast: stderr
-//! 中文报错 + exit 2。
+//! 报错 + exit 2 (文案 SSOT 在 messages 模块, issue #76)。
 //! 运行期 (issue #58): 启动装载的全局层移交 [log_skimmer_server::DynamicRuleset];
 //! 项目层由其按目录签名在每次工具调用时动态感知 (会话中创建/修改/删除即时
 //! 生效, 重载失败走工具调用错误通道 — 不崩 server), 详见其文档。
@@ -26,10 +26,15 @@
 //! - job 已知失败而 failure-intent 块为零 → 视同失明回退;
 //! - warning / info 与成败判定无关。
 
+/// 启动期装载失败单一出口: stderr 报错 + exit 2 (文案经 messages 模块构造)。
+fn die(msg: impl std::fmt::Display) -> ! {
+    eprintln!("{msg}");
+    std::process::exit(2)
+}
+
 fn main() {
-    let (dir, level) = log_skimmer_server::resolve_rules();
-    // 项目层探测 (spec §1.S): cwd 注入 — current_dir 获取失败由装载函数容错为
-    // 无项目层 (cwd 不可知则探测无从谈起, 不阻塞启动)。
+    let (dir, level) = log_skimmer_server::resolve_rules(); // 项目层探测 (spec §1.S): cwd 注入 — current_dir 获取失败由装载函数容错为
+                                                            // 无项目层 (cwd 不可知则探测无从谈起, 不阻塞启动)。
     let cwd = std::env::current_dir().ok();
     let rs = match log_skimmer_server::load_ruleset_overlay(&dir, cwd.as_deref()) {
         Ok(rs) => rs,
@@ -38,12 +43,10 @@ fn main() {
             // 来源前缀携带路径唯一一次 (Err 消息本体不带路径, #47 防双次出现);
             // 空串路径 (resolve_rules 对 env 空串的返回, 唯一来源) 无「来源」可标
             // — 报错文案已自点名 LOG_SKIMMER_RULES。
-            if dir.as_os_str().is_empty() {
-                eprintln!("规则集装载失败: {e}");
-            } else {
-                eprintln!("规则集装载失败 (来源 {}): {e}", dir.display());
-            }
-            std::process::exit(2);
+            let source = (!dir.as_os_str().is_empty()).then_some(dir.as_path());
+            die(log_skimmer_server::messages::ruleset_load_failed(
+                source, &e,
+            ));
         }
         Err(log_skimmer_server::OverlayError::Project(pdir, e)) => {
             // 项目层失败: 目录由错误变体携带, 不得误挂全局层来源前缀 — 错层归因
@@ -51,25 +54,28 @@ fn main() {
             // LoadErrors 按设计自带源路径 (issue #14B grep-ability 契约), 与 #47
             // 的预检文案族是两条文案轴 — 前缀与消息本体路径双现是该契约下的
             // 既定形态 (测试侧 startup_diagnostics 同口径)。
-            eprintln!("规则集装载失败 (项目层 来源 {}): {e}", pdir.display());
-            std::process::exit(2);
+            die(log_skimmer_server::messages::project_layer_load_failed_at_startup(&pdir, &e));
         }
         Err(log_skimmer_server::OverlayError::Conflict(e)) => {
             // 冲突文案自带两侧来源路径, 不再加前缀 (防路径双现)
-            eprintln!("规则集装载失败: {e}");
-            std::process::exit(2);
+            die(log_skimmer_server::messages::ruleset_load_failed(None, &e));
         }
     };
     // serverInfo (协议身份) 在 mcp::get_info; stderr 启动行带产品版本备诊断 (issue #49)
     eprintln!(
-        "log-skimmer-mcp v{}: 装载 {} 条规则 (来源 {})",
-        env!("CARGO_PKG_VERSION"),
-        rs.global_count,
-        dir.display()
+        "{}",
+        log_skimmer_server::messages::startup_banner(
+            env!("CARGO_PKG_VERSION"),
+            rs.global_count,
+            &dir
+        )
     );
     // 项目层在场才打印 (spec §1.S; 不在场静默 — 可选增强不刷屏)
     if let Some(p) = &rs.project {
-        eprintln!("项目层规则叠加: +{} 条 (来源 {})", p.count, p.dir.display());
+        eprintln!(
+            "{}",
+            log_skimmer_server::messages::project_overlay_line(p.count, &p.dir)
+        );
     }
     if level == log_skimmer_server::RulesLevel::FixtureFallback {
         eprintln!("{}", log_skimmer_server::FIXTURE_FALLBACK_WARNING);

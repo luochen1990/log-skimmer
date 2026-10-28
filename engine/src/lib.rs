@@ -8,6 +8,7 @@
 pub mod hygiene;
 pub mod l0;
 pub mod manifest;
+pub mod messages;
 pub mod sample_io;
 
 /// 引擎版本 (SSOT = 本 crate Cargo.toml 的 `version`)。宿主薄壳 (wasm crate)
@@ -285,20 +286,17 @@ pub struct CollapseMarker {
 
 impl CollapseMarker {
     /// 人类可读折叠行 (spec §3.R2): 单行, 锚行最多列 8 个, 超出以
-    /// `…(共 N 行)` 收尾。不计入 output_lines (元数据与块头同族不计)。
+    /// `…(N anchors total)` 收尾。不计入 output_lines (元数据与块头同族不计)。
+    /// 文案单点: messages::collapse_line (issue #76 — 锚行截断与 `⟩` 收尾同在其中)。
     pub fn render_line(&self) -> String {
-        let mut s = format!(
-            "⟨×{} {} 折叠块 [L{}-L{}] 省略 {} 行; 锚行",
-            self.repeat_blocks, self.rule, self.start_line, self.end_line, self.omitted_lines
-        );
-        for (start, _) in self.frag_spans.iter().take(8) {
-            s.push_str(&format!(" L{start}"));
-        }
-        if self.frag_spans.len() > 8 {
-            s.push_str(&format!(" …(共 {} 行)", self.frag_spans.len()));
-        }
-        s.push('⟩');
-        s
+        messages::collapse_line(
+            self.repeat_blocks,
+            &self.rule,
+            self.start_line,
+            self.end_line,
+            self.omitted_lines,
+            &self.frag_spans,
+        )
     }
 }
 
@@ -380,12 +378,8 @@ pub struct LoadErrors(pub Vec<String>);
 
 impl fmt::Display for LoadErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "规则集非法 ({} 处):\n{}",
-            self.0.len(),
-            self.0.join("\n")
-        )
+        // 文案单点: messages::ruleset_invalid (issue #76)。
+        f.write_str(&messages::ruleset_invalid(self.0.len(), &self.0.join("\n")))
     }
 }
 
@@ -406,12 +400,9 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
     // 与「不存在」区分 — 误报不存在会误导排障方向。
     if !dir.is_dir() {
         if dir.exists() {
-            errs.0.push(format!(
-                "{}: 路径存在但不是目录 (规则集须为目录)",
-                dir.display()
-            ));
+            errs.0.push(messages::rules_path_not_a_dir(dir));
         } else {
-            errs.0.push(format!("{}: 规则目录不存在", dir.display()));
+            errs.0.push(messages::rules_dir_not_found(dir));
         }
         return Err(errs);
     }
@@ -424,10 +415,7 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
     let manifest_path = dir.join(manifest::MANIFEST_FILENAME);
     files.retain(|p| *p != manifest_path);
     if files.is_empty() {
-        errs.0.push(format!(
-            "{}: 目录下无 *.yaml (规则集为空 = 引擎失明)",
-            dir.display()
-        ));
+        errs.0.push(messages::ruleset_no_yaml(dir));
         return Err(errs);
     }
     files.sort();
@@ -438,7 +426,7 @@ pub fn load_rules(dir: &Path) -> Result<Vec<Rule>, LoadErrors> {
         let raw = match std::fs::read_to_string(path) {
             Ok(r) => r,
             Err(e) => {
-                errs.0.push(format!("{rel}: 读取失败: {e}"));
+                errs.0.push(messages::source_read_failed(&rel, &e));
                 continue;
             }
         };
@@ -466,14 +454,13 @@ fn load_rule_source(
             // id 全局唯一: 报错并列首见文件与冲突文件 (issue #14 B — 只报 id
             // 字符串在多文件规则仓里等于让人肉 grep 定位)。
             if let Some(first) = seen.get(&rule.id) {
-                errs.0
-                    .push(format!("id 重复: {} ({first} vs {rel})", rule.id));
+                errs.0.push(messages::dup_rule_id(&rule.id, first, rel));
             } else {
                 seen.insert(rule.id.clone(), rel.to_string());
             }
             rules.push(rule);
         }
-        Err(e) => errs.0.push(format!("{rel}: YAML/字段解析失败: {e}")),
+        Err(e) => errs.0.push(messages::rule_parse_failed(rel, &e)),
     }
 }
 
@@ -505,8 +492,7 @@ pub fn load_rules_from_sources(sources: &[RuleSource]) -> Result<Vec<Rule>, Load
             .map_err(|e| LoadErrors(vec![e]))?;
     }
     if rule_sources.is_empty() {
-        errs.0
-            .push("(sources): 无规则源 (规则集为空 = 引擎失明)".to_string());
+        errs.0.push(messages::sources_no_rules().to_string());
         return Err(errs);
     }
     let mut rules = Vec::new();
@@ -547,34 +533,29 @@ fn collect_yaml_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
 
 fn validate_rule(rule: &mut Rule, rel: &str, errs: &mut LoadErrors) {
     if !is_valid_id(&rule.id) {
-        errs.0
-            .push(format!("{rel}: id 非法 (须 ^[a-z0-9-]+$): {}", rule.id));
+        errs.0.push(messages::bad_rule_id(rel, &rule.id));
     }
     if !rule.id.starts_with(&format!("{}-", rule.tool)) {
-        errs.0.push(format!(
-            "{rel}: id 须以 tool 为前缀: id={} tool={}",
-            rule.id, rule.tool
-        ));
+        errs.0
+            .push(messages::id_prefix_mismatch(rel, &rule.id, &rule.tool));
     }
     // scope/repo: 弃用窗口 (format_version 2) — 字段在场容忍、值被完全忽略,
     // 不做任何校验 (v1 的 scope/repo 约束已随字段退役, spec §1.S)。
     if rule.patterns.is_empty() {
-        errs.0.push(format!("{rel}: patterns 为空"));
+        errs.0.push(messages::patterns_empty(rel));
     }
     if rule.kind == Kind::Noise && rule.intent.is_some() {
-        errs.0.push(format!("{rel}: kind=noise 时 intent 必须缺省"));
+        errs.0.push(messages::noise_with_intent(rel));
     }
     if rule.context.before > CONTEXT_MAX || rule.context.after > CONTEXT_MAX {
         // 判定引用 CONTEXT_MAX 单源; 文案 "[0,10]" 是 spec 人话表述, 有意不随常量
-        // 动态化 (与 server/src/lib.rs skim_view 侧同款决策)。
-        errs.0.push(format!("{rel}: context 超出 [0,10]"));
+        // 动态化 (与 server skim_view 侧同款决策)。
+        errs.0.push(messages::context_out_of_range(rel));
     }
     for (i, p) in rule.patterns.iter_mut().enumerate() {
         match Regex::new(&p.regex) {
             Ok(c) => p.compiled = Some(c),
-            Err(e) => errs
-                .0
-                .push(format!("{rel}: patterns[{i}] regex 编译失败: {e}")),
+            Err(e) => errs.0.push(messages::regex_compile_failed(rel, i, &e)),
         }
     }
 }
@@ -684,14 +665,11 @@ pub fn classify_input(lines: &[String]) -> InputClass {
 
 /// 输入拒斥文案 (classify_input 拒斥两态的文案 SSOT): CLI stderr 与 wasm ABI
 /// envelope 共用 — 数据错误族文案 (行数 + 排障指引) 不得在消费点分叉。
-/// Content → None (可扫描)。
+/// Content → None (可扫描)。文案单点: engine::messages (issue #76)。
 pub fn input_reject_message(lines: &[String]) -> Option<String> {
     match classify_input(lines) {
-        InputClass::Empty => Some("日志为空 (0 行): 疑似下载截断, 拒绝静默通过".to_string()),
-        InputClass::WhitespaceOnly => Some(format!(
-            "日志为纯空白 ({} 行均为空白行): 疑似下载截断或空跑, 请检查日志源, 拒绝静默通过",
-            lines.len()
-        )),
+        InputClass::Empty => Some(messages::log_empty().to_string()),
+        InputClass::WhitespaceOnly => Some(messages::log_whitespace_only(lines.len())),
         InputClass::Content => None,
     }
 }

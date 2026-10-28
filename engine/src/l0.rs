@@ -48,6 +48,7 @@
 //!   CI 与贡献者本地; 本仓 ci-merge 默认不开 — 存量规则集在公开语料上有天然
 //!   零命中规则, 语料未覆盖的工具)。
 
+use crate::messages;
 use crate::{load_rules, skim, Intent};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -202,13 +203,8 @@ impl Collected {
     /// 警告只对真实缺口发出); 文本必须含 计数 N 与 按 attempt=1 处理 的说明
     /// — spec §5 必带字段的可见性配套, 消除「rerun 排除永不触发」的静默漂移。
     pub fn attempt_missing_warning(&self) -> Option<String> {
-        (self.sidecars_missing_attempt > 0).then(|| {
-            format!(
-                "l0: 警告: {} 个 sidecar 缺失 attempt 字段 \
-                 (按 attempt=1 处理; 规范 §5 要求必带, 建议 refetch)",
-                self.sidecars_missing_attempt
-            )
-        })
+        (self.sidecars_missing_attempt > 0)
+            .then(|| messages::attempt_missing_warning(self.sidecars_missing_attempt))
     }
 }
 
@@ -220,10 +216,11 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
     // 语料目录不存在 = 语料非法 (与 load_rules 的规则目录对称, issue #44) —
     // 采集层失败不是质量门禁红, CLI 侧映射 exit 2。
     if !corpus_dir.is_dir() {
-        return Err(format!("语料目录不存在: {}", corpus_dir.display()));
+        return Err(messages::corpus_dir_not_found(corpus_dir));
     }
-    // LoadErrors Display 自带 "规则集非法 (N 处):" 前缀, 直接透传 — 不得再包
-    // 同名前缀 (会叠成 "规则集非法: 规则集非法 (1 处):", issue #73b)。
+    // LoadErrors Display 自带 "invalid ruleset (N issues):" 前缀, 直接透传 — 不得再包
+    // 同名前缀 (会叠成 "l0 collection failed: invalid ruleset: invalid ruleset
+    // (1 issue):", issue #73b)。
     let rules = load_rules(rules_dir).map_err(|e| e.to_string())?;
     let (mut logs, mut sidecars) = (Vec::new(), Vec::new());
     walk_corpus_files(corpus_dir, &mut logs, &mut sidecars);
@@ -245,20 +242,17 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
                 continue;
             }
             (true, true) => {
-                return Err(format!(
-                    "样本配对名冲突: {plain} 与 {gz} 同配对名 (sidecar {sc_str}), 拒绝静默择一"
-                ));
+                return Err(messages::pairing_name_conflict(&plain, &gz, &sc_str));
             }
             (true, false) => PathBuf::from(&plain),
             (false, true) => PathBuf::from(&gz),
         };
         let sc: Sidecar = serde_json::from_str(
-            &std::fs::read_to_string(j)
-                .map_err(|e| format!("sidecar 读取失败 {}: {e}", j.display()))?,
+            &std::fs::read_to_string(j).map_err(|e| messages::sidecar_read_failed(j, &e))?,
         )
-        .map_err(|e| format!("sidecar 解析失败 {}: {e}", j.display()))?;
+        .map_err(|e| messages::sidecar_parse_failed(j, &e))?;
         let raw = crate::sample_io::read_log_sample(&log_path)
-            .map_err(|e| format!("日志读取失败 {e}"))?;
+            .map_err(|e| messages::l0_log_read_failed(&e))?;
         let lines = crate::normalize_lines(&raw);
         let r = skim(&log_path.display().to_string(), &rules, &lines);
         let sample = log_path
@@ -1040,12 +1034,7 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
     if st.samples_total < MIN_SAMPLES {
         violations.push(Violation {
             kind: "corpus-missing",
-            note: format!(
-                "语料样本数不足 ({} <{MIN_SAMPLES}) — 定向验证小语料属预期 \
-                 (fail 为防空转设计, 正向信号以 per_rule_hits 为准); \
-                 全量语料下则疑获取链路故障",
-                st.samples_total
-            ),
+            note: messages::note_corpus_missing(st.samples_total, MIN_SAMPLES),
             detail: None,
         });
     }
@@ -1054,11 +1043,11 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
     if st.samples_total >= MIN_SAMPLES && st.repos_total < MIN_REPOS {
         violations.push(Violation {
             kind: "corpus-repos-missing",
-            note: format!(
-                "语料面静默缩水: 样本 {}≥{MIN_SAMPLES} 但去重仓数 {}<{MIN_REPOS} — \
-                 覆盖广度不足 (获取链路只深挖少数仓的形态, 样本维度哨兵探不到); \
-                 定向验证请以 per_rule_hits 为信号",
-                st.samples_total, st.repos_total
+            note: messages::note_corpus_repos_missing(
+                st.samples_total,
+                MIN_SAMPLES,
+                st.repos_total,
+                MIN_REPOS,
             ),
             detail: None,
         });
@@ -1069,13 +1058,9 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
         // 极端多时上限 FN_DETAIL_MAX, 总数进 note (fn-responder 免全语料扫描)。
         let listed: Vec<FnDetail> = pr.fn_detail.iter().take(FN_DETAIL_MAX).cloned().collect();
         let note = if pr.fn_detail.len() > FN_DETAIL_MAX {
-            format!(
-                "失败样本零 failure-intent fragment (完全漏检, 召回优先不变量) \
-                 — FN 样本 {} 个, detail 上限 {FN_DETAIL_MAX} 仅列前 {FN_DETAIL_MAX}",
-                t.fn_samples
-            )
+            messages::note_fn_capped(t.fn_samples, FN_DETAIL_MAX)
         } else {
-            "失败样本零 failure-intent fragment (完全漏检, 召回优先不变量)".into()
+            messages::note_fn().to_string()
         };
         violations.push(Violation {
             kind: "fn",
@@ -1088,17 +1073,14 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
         // 定位 "哪条规则在哪些样本上 FP"; 极端多时上限 FP_DETAIL_MAX, 总数进 note。
         let listed: Vec<FpDetail> = pr.fp_detail.iter().take(FP_DETAIL_MAX).cloned().collect();
         let note = if pr.fp_detail.len() > FP_DETAIL_MAX {
-            format!(
-                "success 样本 failure-intent 假阳性率超阈 ({:.2}% >{FP_MAX_PCT}%) \
-                 — FP 定位对 {} 个, detail 上限 {FP_DETAIL_MAX} 仅列前 {FP_DETAIL_MAX}",
+            messages::note_fp_rate_capped(
                 t.fp_rate_pct,
-                pr.fp_detail.len()
+                FP_MAX_PCT,
+                pr.fp_detail.len(),
+                FP_DETAIL_MAX,
             )
         } else {
-            format!(
-                "success 样本 failure-intent 假阳性率超阈 ({:.2}% >{FP_MAX_PCT}%)",
-                t.fp_rate_pct
-            )
+            messages::note_fp_rate(t.fp_rate_pct, FP_MAX_PCT)
         };
         violations.push(Violation {
             kind: "fp-rate",
@@ -1113,26 +1095,21 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
     if st.boundary_violations > 0 {
         violations.push(Violation {
             kind: "boundary",
-            note: "block 尾行未被该规则任一 pattern 匹配 (A4 边界完整性哨兵, \
-                   按构造恒真 — 非零 = 引擎 bug)"
-                .into(),
+            note: messages::note_boundary().to_string(),
             detail: None,
         });
     }
     if st.zero_block > 0 {
         violations.push(Violation {
             kind: "zero-block",
-            note: "存在 skim 零块样本 — 规则集对该日志失明 (结构承诺)".into(),
+            note: messages::note_zero_block().to_string(),
             detail: None,
         });
     }
     if require_all_rules_hit && !dead_rules.is_empty() {
         violations.push(Violation {
             kind: "dead-rules",
-            note: format!(
-                "存在语料零命中规则 {} 条 (正向验证: 拼错的正则不得全绿合入, issue #19)",
-                dead_rules.len()
-            ),
+            note: messages::note_dead_rules(dead_rules.len()),
             detail: Some(serde_json::json!(dead_rules)),
         });
     }
@@ -1143,9 +1120,7 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
             let mut drifts = Vec::new();
             for (repo, cur) in &pr.per_repo {
                 match b.per_repo.get(repo) {
-                    None => {
-                        drifts.push(format!("{repo}: base 侧无此 repo (语料集漂移?), 人工核对"))
-                    }
+                    None => drifts.push(messages::drift_notice(repo)),
                     Some(base_agg) => {
                         let delta = if base_agg.comp_blk_pct == 0.0 {
                             0.0
@@ -1166,14 +1141,14 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
             }
             let base_fail = !regressions.is_empty();
             CompressionCompare {
-                mode: "双测对比",
+                mode: messages::COMPARE_MODE_DUAL,
                 regressions,
                 drift_notices: drifts,
                 base_fail,
             }
         }
         None => CompressionCompare {
-            mode: "单测 (未提供 base summary, 压缩率对比跳过 — CI 编排应提供 base 以启用退化哨兵)",
+            mode: messages::COMPARE_MODE_SINGLE,
             regressions: Vec::new(),
             drift_notices: Vec::new(),
             base_fail: false,
@@ -1223,16 +1198,15 @@ pub fn gate(pr: &Summary, base: Option<&Summary>, require_all_rules_hit: bool) -
 impl Verdict {
     /// stderr 单行摘要 — 自解释 (issue #74): 阈值对照随行, pass 时验收线也一眼
     /// 可见, fail 时超标值与线同在。零阈值断言族用 `值/上限` (FN/零块/边界违例),
-    /// 方向性断言用 `≤/≥` (FP 率上限 / 语料下限, 阈值字面量从常量派生);
+    /// 方向性断言用 `<=`/`>=` (FP 率上限 / 语料下限, 阈值字面量从常量派生);
     /// 压缩率无数值阈值 (双测对比专用) 与 规则零命中 (默认无断言) 只报值。
     /// 注: 值须经 as_f64/as_u64 取出后再 {:.2} 格式化 — serde_json::Value 的
     /// Display 忽略 precision 参数 (master 曾因此漏出全精度尾巴)。
+    /// 文案单点: messages::l0_summary_line (issue #76)。
     pub fn summary_line(&self) -> String {
         let num = |k: &str| self.stats[k].as_f64().unwrap_or(0.0);
         let cnt = |k: &str| self.stats[k].as_u64().unwrap_or(0);
-        format!(
-            "l0-gate: verdict={} FN={}/0 FP率={:.2}%≤{}% 零块={}/0 边界违例={}/0 \
-             语料={}≥{} 仓={}≥{} 压缩 blk={:.2}% sig={:.2}% 规则零命中={}",
+        messages::l0_summary_line(
             self.verdict,
             cnt("fn"),
             num("fp_rate_pct"),
@@ -1253,14 +1227,10 @@ impl Verdict {
     /// attempt_missing_warning 同族 — 状态行只对真实豁免发出); 文本必含
     /// 计数 N / 仓数 M / 未入断言 说明 — 豁免余量是适配进度度量, 逐仓适配
     /// 后移出豁免 (sidecar 翻 false), 该行随之归零。
+    /// 文案单点: messages::l0_exempt_line (issue #76)。
     pub fn exempt_line(&self) -> Option<String> {
         let n = self.stats["exempt"]["samples"].as_u64().unwrap_or(0);
         let m = self.stats["exempt"]["repos"].as_u64().unwrap_or(0);
-        (n > 0).then(|| {
-            format!(
-                "l0: exempt: {n} 样本 ({m} 仓) 未入断言 \
-                 (sidecar gate_exempt — 适配后移出, 豁免余量=适配进度)"
-            )
-        })
+        (n > 0).then(|| messages::l0_exempt_line(n, m))
     }
 }

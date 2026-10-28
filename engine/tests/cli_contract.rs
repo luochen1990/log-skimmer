@@ -52,10 +52,13 @@ fn empty_log_rejected_exit_2() {
     let out = run_skim(&rules, &log, &[]);
     assert_eq!(out.status.code(), Some(2), "空日志 → exit 2 (数据错误族)");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("日志为空 (0 行)"), "stderr: {stderr}");
-    assert!(stderr.contains("下载截断"), "stderr: {stderr}");
     assert!(
-        !stderr.contains("失明"),
+        stderr.contains("log is empty (0 lines)"),
+        "stderr: {stderr}"
+    );
+    assert!(stderr.contains("truncated download"), "stderr: {stderr}");
+    assert!(
+        !stderr.contains("blind"),
         "空日志是数据错误, 不进入零块 (exit 3) 判定; stderr: {stderr}"
     );
 }
@@ -102,7 +105,10 @@ fn stdin_dash_empty_is_data_error() {
     let out = child.wait_with_output().unwrap();
     assert_eq!(out.status.code(), Some(2), "stdin 空输入是数据错误族");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("日志为空 (0 行)"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("log is empty (0 lines)"),
+        "stderr: {stderr}"
+    );
 }
 
 // #53: stdin 读取失败 (非 UTF-8 字节流) 报错语义与文件路径一致 — exit 2 +
@@ -126,7 +132,10 @@ fn stdin_dash_invalid_utf8_is_read_failure() {
     let out = child.wait_with_output().unwrap();
     assert_eq!(out.status.code(), Some(2), "stdin 读取失败是数据错误族");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("读取日志失败 (stdin)"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("failed to read log (stdin)"),
+        "stderr: {stderr}"
+    );
     assert!(
         !stderr.contains("No such file"),
         "不得再把 `-` 当文件名报不存在: {stderr}"
@@ -143,7 +152,7 @@ fn help_documents_stdin_and_single_file() {
     let text = String::from_utf8_lossy(&help.stdout);
     assert!(text.contains("LOG_FILE"), "参数名应出现: {text}");
     assert!(text.contains("stdin"), "应说明 `-` 表示 stdin: {text}");
-    assert!(text.contains("只接受一个"), "应说明单文件约束: {text}");
+    assert!(text.contains("exactly one"), "应说明单文件约束: {text}");
 }
 
 // #10: 人类模式统计行连同前导空行与块内容同走 stdout — `> out.txt` 完整保留输出成果;
@@ -203,7 +212,7 @@ fn json_mode_zero_block_na_stats_on_stderr() {
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("(n/a compression)"), "stderr: {stderr}");
-    assert!(stderr.contains("失明"), "stderr: {stderr}");
+    assert!(stderr.contains("blind"), "stderr: {stderr}");
 }
 
 // #17-A: 零块时压缩率无意义 → 统计行显示 n/a (拒绝 100.0% 伪统计), 统计行本身保留。
@@ -270,13 +279,13 @@ fn whitespace_log_rejected_exit_2() {
         String::from_utf8_lossy(&out.stderr)
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("纯空白"), "stderr: {stderr}");
+    assert!(stderr.contains("whitespace-only"), "stderr: {stderr}");
     assert!(
-        stderr.contains("日志源"),
+        stderr.contains("log source"),
         "应指向日志源排障 (疑下载截断/空跑): {stderr}"
     );
     assert!(
-        !stderr.contains("失明") && !stderr.contains("贡献规则"),
+        !stderr.contains("blind") && !stderr.contains("contributing"),
         "纯空白是数据错误, 不得给失明导向文案: {stderr}"
     );
     // 块渲染前拒绝: stdout 不得残留统计行/块内容
@@ -292,8 +301,8 @@ fn zero_block_content_input_keeps_blindness_advice_exit_3() {
     let out = run_skim(&rules, &log, &[]);
     assert_eq!(out.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("失明"), "stderr: {stderr}");
-    assert!(stderr.contains("贡献规则"), "stderr: {stderr}");
+    assert!(stderr.contains("blind"), "stderr: {stderr}");
+    assert!(stderr.contains("contributing"), "stderr: {stderr}");
 }
 
 // #78a: 首部 UTF-8 BOM 在 A0 归一层剥除 — L1 锚定规则可命中, 输出不回显 BOM 字节。
@@ -325,7 +334,10 @@ fn bom_only_log_is_empty_rejected_exit_2() {
     let out = run_skim(&rules, &log, &[]);
     assert_eq!(out.status.code(), Some(2), "仅 BOM → 0 行 → exit 2");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("日志为空 (0 行)"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("log is empty (0 lines)"),
+        "stderr: {stderr}"
+    );
 }
 
 // #78b: 人类可读输出首块前无前导空行 (输出顶格开始); 块间空行与统计行前空行保留。
@@ -426,7 +438,7 @@ fn l0_orphan_sample_warned_and_skipped() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("b.log"), "孤儿文件名应出现在警告: {stderr}");
     assert!(
-        stderr.contains("缺 sidecar") && stderr.contains("跳过"),
+        stderr.contains("missing sidecar (*.log.json)") && stderr.contains("skipped"),
         "警告应含缺侧与跳过语义: {stderr}"
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
@@ -446,7 +458,7 @@ fn l0_help_documents_pairing_semantics() {
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("同名"),
+        stdout.contains("matching"),
         "l0 --help 的 --corpus 应声明配对语义: {stdout}"
     );
 }
@@ -495,7 +507,7 @@ fn corrupt_gz_input_exit_2() {
     let out = run_skim(&rules, &gz, &[]);
     assert_eq!(out.status.code(), Some(2), "非法 gz → exit 2 (数据错误族)");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("读取日志失败"), "stderr: {stderr}");
+    assert!(stderr.contains("failed to read log"), "stderr: {stderr}");
     assert!(
         stderr.contains("bad.log.gz"),
         "stderr 须带样本路径: {stderr}"

@@ -73,7 +73,7 @@ fn format_version_future_rejected() {
     let e = log_skimmer::load_rules_from_sources(&sources).expect_err("未来格式版本须拒载");
     let msg = e.to_string();
     assert!(msg.contains("format_version"), "须指明失败校验项: {msg}");
-    assert!(msg.contains("升级引擎"), "须建议升级引擎: {msg}");
+    assert!(msg.contains("upgrade the engine"), "须建议升级引擎: {msg}");
 }
 
 #[test]
@@ -112,7 +112,7 @@ fn empty_sources_rejected() {
     // 空列表 → 拒绝: 空规则集 = 引擎失明 (与「目录下无 *.yaml」同族)
     let e = log_skimmer::load_rules_from_sources(&[]).expect_err("空源列表须拒载");
     assert!(
-        e.to_string().contains("引擎失明"),
+        e.to_string().contains("leaves the engine blind"),
         "文案须点明失明语义: {e}"
     );
 }
@@ -129,7 +129,7 @@ fn manifest_only_rejected() {
     )];
     let e = log_skimmer::load_rules_from_sources(&sources).expect_err("仅 manifest 须拒载");
     assert!(
-        e.to_string().contains("无规则源"),
+        e.to_string().contains("no rule sources"),
         "文案须点明无规则源: {e}"
     );
 }

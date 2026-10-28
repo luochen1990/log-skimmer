@@ -164,7 +164,10 @@ fn invalid_rules_dir_exits_2() {
         code, 2,
         "规则集非法是运行期数据错误, 应保持 exit 2, stderr:\n{stderr}"
     );
-    assert!(stderr.contains("规则目录不存在"), "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("rules directory not found"),
+        "stderr:\n{stderr}"
+    );
 }
 
 // #47a CLI 面: --rules 误指已存在文件 → 如实报「不是目录」, 不误报「不存在」。
@@ -179,9 +182,9 @@ fn rules_path_is_file_exits_2_truthfully() {
         code, 2,
         "规则路径非目录是运行期数据错误, 应保持 exit 2, stderr:\n{stderr}"
     );
-    assert!(stderr.contains("不是目录"), "stderr:\n{stderr}");
+    assert!(stderr.contains("is not a directory"), "stderr:\n{stderr}");
     assert!(
-        !stderr.contains("规则目录不存在"),
+        !stderr.contains("not found"),
         "路径在场不得误报不存在: {stderr}"
     );
 }
@@ -194,7 +197,7 @@ fn unreadable_log_file_exits_2() {
         code, 2,
         "日志读取失败是运行期数据错误, 应保持 exit 2, stderr:\n{stderr}"
     );
-    assert!(stderr.contains("读取日志失败"), "stderr:\n{stderr}");
+    assert!(stderr.contains("failed to read log"), "stderr:\n{stderr}");
 }
 
 // ---- --rules 值文案: 空串 ≠ 缺值 (issue #73a) -----------------------------------
@@ -217,7 +220,10 @@ fn assert_dedicated_empty_copy(form: &[&str]) {
         code, 64,
         "空串是解析期用法错误, form={form:?}, stderr:\n{stderr}"
     );
-    assert!(stderr.contains("不能为空串"), "空串须有专属文案: {stderr}");
+    assert!(
+        stderr.contains("cannot be empty"),
+        "空串须有专属文案: {stderr}"
+    );
     assert!(
         !stderr.contains("but none was supplied"),
         "空串不得冒充缺值文案: {stderr}"
@@ -311,7 +317,10 @@ fn l0_missing_corpus_dir_exits_2() {
         code, 2,
         "语料目录不存在应 exit 2 (语料非法), stderr:\n{stderr}"
     );
-    assert!(stderr.contains("语料目录不存在"), "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("corpus directory not found"),
+        "stderr:\n{stderr}"
+    );
 }
 
 #[test]
@@ -319,7 +328,7 @@ fn l0_zero_paired_samples_exits_2() {
     // 目录存在但零配对样本 = 采集层面失败 (空语料上拒绝判定/出 summary)。
     let (code, _, stderr) = run_l0_on("empty");
     assert_eq!(code, 2, "零配对样本应 exit 2, stderr:\n{stderr}");
-    assert!(stderr.contains("零配对样本"), "stderr:\n{stderr}");
+    assert!(stderr.contains("zero paired samples"), "stderr:\n{stderr}");
     // --emit-summary 路径同守卫: CI base 侧消费 summary, 空语料 summary =
     // 防空转要拦的伪基线 (否则双测对比对空 base 出伪结论)。
     let corpus = std::env::temp_dir().join("ls-cli-exit-l0-empty");
@@ -344,10 +353,10 @@ fn l0_orphan_only_corpus_exits_2_with_warning() {
         "孤儿-only 语料 = 零配对样本 → exit 2, stderr:\n{stderr}"
     );
     assert!(
-        stderr.contains("b.log") && stderr.contains("缺 sidecar"),
+        stderr.contains("b.log") && stderr.contains("missing sidecar"),
         "stderr:\n{stderr}"
     );
-    assert!(stderr.contains("零配对样本"), "stderr:\n{stderr}");
+    assert!(stderr.contains("zero paired samples"), "stderr:\n{stderr}");
 }
 
 // P0-2: sidecar 缺失 attempt 字段 — 不中断判定 (exit 1 来自小语料下限, 与
@@ -361,14 +370,14 @@ fn l0_missing_attempt_warns_on_stderr() {
         "缺失 attempt 不升级采集层错误 (统计按 1 兜底), stderr:\n{stderr}"
     );
     assert!(
-        stderr.contains("1 个 sidecar 缺失 attempt 字段"),
+        stderr.contains("1 sidecar(s) missing the attempt field"),
         "stderr:\n{stderr}"
     );
-    assert!(stderr.contains("按 attempt=1 处理"), "stderr:\n{stderr}");
+    assert!(stderr.contains("treated as attempt=1"), "stderr:\n{stderr}");
     assert_eq!(
         stderr
             .lines()
-            .filter(|l| l.contains("缺失 attempt"))
+            .filter(|l| l.contains("missing the attempt"))
             .count(),
         1,
         "单行聚合警告 (非逐样本): stderr:\n{stderr}"
@@ -383,7 +392,7 @@ fn l0_small_corpus_fails_exit_1_with_targeted_note() {
     assert_eq!(code, 1, "小语料 = 语料在场下限违例 → fail + exit 1");
     assert!(stderr.contains("verdict=fail"), "stderr:\n{stderr}");
     assert!(
-        stdout.contains("定向验证"),
+        stdout.contains("targeted"),
         "corpus-missing note 应分流读法: {stdout}"
     );
     assert!(
@@ -392,10 +401,10 @@ fn l0_small_corpus_fails_exit_1_with_targeted_note() {
     );
 }
 
-// #73b: l0 规则集非法 stderr 前缀不得叠成「l0 采集失败: 规则集非法: 规则集非法
-// (1 处):」— collect 曾在 LoadErrors Display 自带前缀 ("规则集非法 (N 处):") 外
-// 再包一层同名前缀; 三个变体 (目录不存在/空目录无 yaml/坏 yaml) 全走同一
-// Display, 一并钉单层。
+// #73b: l0 规则集非法 stderr 前缀不得叠成「l0 collection failed: invalid ruleset:
+// invalid ruleset (1 issue):」— collect 曾在 LoadErrors Display 自带前缀
+// ("invalid ruleset (N issues):") 外再包一层同名前缀; 三个变体 (目录不存在/
+// 空目录无 yaml/坏 yaml) 全走同一 Display, 一并钉单层。
 #[test]
 fn l0_invalid_rules_stderr_single_prefix() {
     let tmp = std::env::temp_dir().join("ls-cli-exit-l0-rules-73b");
@@ -416,12 +425,17 @@ fn l0_invalid_rules_stderr_single_prefix() {
             "规则集非法是采集层数据错误, rules={rules}, stderr:\n{stderr}"
         );
         assert!(
-            !stderr.contains("规则集非法: 规则集非法"),
+            !stderr.contains("invalid ruleset: invalid ruleset"),
             "前缀不得连续重复: {stderr}"
         );
         assert!(
-            stderr.contains("规则集非法 ("),
-            "单层前缀 (N 处形态) 仍须在场: {stderr}"
+            stderr.contains("invalid ruleset ("),
+            "单层前缀 (N issue(s) 形态) 仍须在场: {stderr}"
+        );
+        // 单数形态钉 (issue #76): 三变体均为单违例 → Display 头随 n 变形
+        assert!(
+            stderr.contains("invalid ruleset (1 issue):"),
+            "单数形态: {stderr}"
         );
     }
 }

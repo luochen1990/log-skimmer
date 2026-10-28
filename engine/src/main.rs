@@ -21,24 +21,29 @@ const EX_USAGE: i32 = 64;
 /// supplied" — 与真缺值 (clap verify_num_args 路径) 逐字节同文案, 与「用户
 /// 提供了空串」的事实不符 (不可分诊)。inner 换不拒空串的 OsStringValueParser
 /// (OsStr 直通, 非 UTF-8 路径行为不变) 再 try_map: 空串 → 专属文案 (风格对齐
-/// MCP 侧 env 空串先例 "LOG_SKIMMER_RULES 为空串"), 非空路径行为零变化; 真缺值
-/// 发生在值抵达 parser 之前, 文案不受影响 (回归钉: cli_exit.rs
-/// rules_missing_value_keeps_missing_copy)。三入口共用 (推广回归钉:
+/// MCP 侧 env 空串先例 "LOG_SKIMMER_RULES is set to an empty string"), 非空路径
+/// 行为零变化; 真缺值发生在值抵达 parser 之前, 文案不受影响 (回归钉:
+/// cli_exit.rs rules_missing_value_keeps_missing_copy)。三入口共用 (推广回归钉:
 /// empty_path_values_get_dedicated_copy_across_subcommands)。
+/// 文案单点: messages::empty_path_arg (issue #76)。
 fn non_empty_arg(
     label: &'static str,
     hint: &'static str,
 ) -> impl clap::builder::TypedValueParser<Value = PathBuf> {
     clap::builder::OsStringValueParser::new().try_map(move |s: OsString| {
         if s.is_empty() {
-            return Err(format!("{label} 不能为空串 ({hint})"));
+            return Err(log_skimmer::messages::empty_path_arg(label, hint));
         }
         Ok(PathBuf::from(s))
     })
 }
 
 #[derive(Parser)]
-#[command(name = "log-skimmer", version, about = "CI 日志高信噪比提取 (POC)")]
+#[command(
+    name = "log-skimmer",
+    version,
+    about = "High-signal CI log extraction (POC)"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -46,17 +51,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// 扫描日志, 输出提取块
+    /// Skim a log and print the extracted blocks
     Skim {
-        /// 日志文件 (只接受一个; 多文件须分别调用; *.gz 透明解压), `-` 表示 stdin (Unix 管道惯例)
+        /// Log file (exactly one; run per file for multiple logs; *.gz transparently decompressed); `-` reads stdin (Unix pipe convention)
         log_file: PathBuf,
-        /// 规则目录 (递归加载 *.yaml; 空串有专属报错, 见 non_empty_arg — issue #73a)
-        #[arg(long, value_parser = non_empty_arg("--rules", "须为规则集目录"))]
+        /// Rules directory (loads *.yaml recursively; an empty value gets a dedicated error — issue #73a)
+        #[arg(long, value_parser = non_empty_arg("--rules", "must be a rules directory"))]
         rules: PathBuf,
-        /// 输出 JSON 协议 (默认人类可读)
+        /// Output the JSON protocol (default: human-readable)
         #[arg(long)]
         json: bool,
-        /// 关闭输出层折叠 repeat-collapse (spec §3.R; 默认开启: 同规则级联块折叠为锚块+标记)
+        /// Disable output-layer repeat-collapse (default on: same-rule cascading blocks fold into the anchor block + a marker)
         #[arg(long)]
         no_collapse: bool,
         // 取值范围同界单源: engine lib 常量 CONTEXT_MAX (spec §1; issue #28) —
@@ -65,42 +70,40 @@ enum Cmd {
         // allow_negative_numbers (issue #52b): `-1` 这类负数字面量被送入值校验器
         // (invalid value ... not in 0..=10), 而非停在分词器的 `-- -1` 死路 tip;
         // 仅匹配负数形态, 其余 flag 仍按 flag 识别 (缺值报错不退化, 有 e2e 钉)。
-        /// 全局覆盖 context 为 before=N/after=N (默认按规则自带; 取值 0-10, 越界为用法错误; 以 - 开头的值请用 --context=N 形式)
+        /// Override context globally to before=N/after=N (default: per-rule values; range 0-10, out of range is a usage error; values starting with - require the --context=N form)
         #[arg(long, allow_negative_numbers = true, value_parser = clap::value_parser!(u32).range(0..=log_skimmer::CONTEXT_MAX as i64))]
         context: Option<u32>,
     },
-    /// L0 全语料回归门禁 (采集→汇总→判定; 退出码 0=pass / 1=fail / 2=语料或规则非法:
-    /// 语料目录不存在/零配对样本/规则集非法; 0<n<50 小语料属判定 fail — 定向验证以 per_rule_hits 为信号;
-    /// 流分离: stdout=完整 JSON 判定报告 (可重定向存档), stderr=l0-gate 单行摘要)
+    /// L0 whole-corpus regression gate (collect→summarize→judge; exit 0=pass / 1=judge-layer fail / 2=invalid corpus or rules: corpus dir missing / zero paired samples / invalid ruleset; a small corpus 0<n<50 fails by design — use per_rule_hits for targeted validation; stream split: stdout=full JSON verdict report, stderr=one-line l0-gate summary)
     // 公开门禁工具 (issue #45): README 贡献教程 ③④ 与规则仓 CI 依赖 → 进公共
     // 帮助面; 可见性口径与 hygiene (#38) 互补 — 公开工具可见 / 内部发布链工具隐藏。
     L0 {
-        /// 语料根目录 (递归; 样本 = *.log 或 *.log.gz + 配对名同名 *.log.json 配对, 配对名 = 样本名去 .gz 后缀; 单侧缺失的孤儿样本 stderr 警告并跳过)
-        #[arg(long, value_parser = non_empty_arg("--corpus", "须为语料根目录"))]
+        /// Corpus root directory (recursive; a sample = a *.log or *.log.gz plus a matching *.log.json sidecar named like the log without the .gz suffix; one-sided orphans are warned on stderr and skipped)
+        #[arg(long, value_parser = non_empty_arg("--corpus", "must be a corpus root directory"))]
         corpus: PathBuf,
-        /// 规则目录 (空串专属报错同 skim --rules — issue #73a 推广)
-        #[arg(long, value_parser = non_empty_arg("--rules", "须为规则集目录"))]
+        /// Rules directory (empty value gets the same dedicated error as skim --rules — issue #73a)
+        #[arg(long, value_parser = non_empty_arg("--rules", "must be a rules directory"))]
         rules: PathBuf,
-        /// base 侧 summary JSON (双测压缩率对比; 缺省单测模式)
-        #[arg(long, value_parser = non_empty_arg("--base", "须为 base summary JSON 文件"))]
+        /// Base-side summary JSON (dual-run compression comparison; omit for single-run mode)
+        #[arg(long, value_parser = non_empty_arg("--base", "must be a base summary JSON file"))]
         base: Option<PathBuf>,
-        /// 仅输出 summary JSON (实测交换用, 不判定)
+        /// Emit only the summary JSON (for measurement exchange; no judging)
         #[arg(long)]
         emit_summary: bool,
-        /// 正向验证: 存在语料零命中规则 (dead_rules) 时 fail (issue #19;
-        /// 默认关 — 存量规则集在公开语料上有天然零命中规则 (语料未覆盖的工具),
-        /// rules 仓 CI 与贡献者本地按需开; --emit-summary 优先于本开关, 不判定)
+        // 正向验证: 存在语料零命中规则 (dead_rules) 时 fail (issue #19;
+        // 默认关 — 存量规则集在公开语料上有天然零命中规则 (语料未覆盖的工具),
+        // rules 仓 CI 与贡献者本地按需开; --emit-summary 优先于本开关, 不判定)。
+        /// Positive validation: fail when a rule has zero corpus hits (issue #19; off by default; --emit-summary takes precedence — no judging)
         #[arg(long)]
         require_all_rules_hit: bool,
     },
-    /// 凭据形态卫生检查: 扫描目录内凭据形态 (secret-scan/publish 必经机械防线;
-    /// 0=干净 / 1=命中 / 2=清单或目录非法)
+    /// Credential-pattern hygiene check: scan a directory for credential shapes (mechanical gate for secret-scan/publish; 0=clean / 1=hits / 2=invalid list or directory)
     #[command(hide = true)] // 内部门禁工具, 不占公共帮助面 (issue #38; 与 l0 同款)
     Hygiene {
-        /// 凭据形态清单文件 (一行一正则, # 注释; SSOT data/secret-patterns.txt)
-        #[arg(long, value_parser = non_empty_arg("--patterns", "须为模式清单文件"))]
+        /// Credential-pattern list file (one regex per line, # comments; SSOT data/secret-patterns.txt)
+        #[arg(long, value_parser = non_empty_arg("--patterns", "must be a pattern list file"))]
         patterns: PathBuf,
-        /// 待扫描目录 (git 树根, 递归)
+        /// Directory to scan (git tree root, recursive)
         dir: PathBuf,
     },
 }
@@ -132,28 +135,25 @@ fn main() {
     }
 }
 
+/// 运行期数据错误族单一出口 (退出码契约见文件头): stderr 报错 + exit 2。
+/// 控制流辅助 (非文案), 文案由调用方经 messages 模块构造。
+fn die(msg: impl std::fmt::Display) -> ! {
+    eprintln!("{msg}");
+    std::process::exit(2)
+}
+
 fn hygiene_cmd(patterns: PathBuf, dir: PathBuf) {
-    let pats = log_skimmer::hygiene::load_patterns(&patterns).unwrap_or_else(|e| {
-        eprintln!("hygiene: 模式清单装载失败 — {e}");
-        std::process::exit(2);
-    });
+    let pats = log_skimmer::hygiene::load_patterns(&patterns)
+        .unwrap_or_else(|e| die(log_skimmer::messages::hygiene_patterns_load_failed(&e)));
     if !dir.is_dir() {
-        eprintln!("hygiene: 目录不存在 {}", dir.display());
-        std::process::exit(2);
+        die(log_skimmer::messages::hygiene_dir_not_found(&dir));
     }
     let hits = log_skimmer::hygiene::scan(&dir, &pats);
     if hits.is_empty() {
-        println!(
-            "hygiene: 通过 — {} 项凭据形态零命中 ({})",
-            pats.len(),
-            dir.display()
-        );
+        println!("{}", log_skimmer::messages::hygiene_pass(pats.len(), &dir));
         return;
     }
-    eprintln!(
-        "hygiene: 凭据形态命中 {} 处 — 关键隐私红线, 禁止入仓 (修复: 凭据移至 CI secret/运行环境; 已入历史需 git filter-repo 清除):",
-        hits.len()
-    );
+    eprintln!("{}", log_skimmer::messages::hygiene_hits_header(hits.len()));
     for h in &hits {
         eprintln!(
             "  {}:{}: [{}] {}",
@@ -173,18 +173,16 @@ fn l0_cmd(
     emit_summary: bool,
     require_all_rules_hit: bool,
 ) {
-    let collected = log_skimmer::l0::collect(&corpus, &rules).unwrap_or_else(|e| {
-        eprintln!("l0 采集失败: {e}");
-        std::process::exit(2);
-    });
+    let collected = log_skimmer::l0::collect(&corpus, &rules)
+        .unwrap_or_else(|e| die(log_skimmer::messages::l0_collect_failed(&e)));
     // 孤儿样本可见性 (issue #46): 配对缺口逐条 stderr 警告 (已跳过, 不计数) —
     // 自组语料的命名手误可见, 门禁不因配对缺口静默缩水; 是否升级硬错误留需求方。
     for o in &collected.orphans {
-        let side = match o.missing {
-            log_skimmer::l0::MissingSide::Sidecar => "sidecar (*.log.json)",
-            log_skimmer::l0::MissingSide::Log => "日志 (*.log)",
-        };
-        eprintln!("l0: 警告: 孤儿样本 {} 缺 {side}, 已跳过 (不计数)", o.path);
+        let side = log_skimmer::messages::missing_side_label(&o.missing);
+        eprintln!(
+            "{}",
+            log_skimmer::messages::l0_orphan_warning(&o.path, side)
+        );
     }
     // sidecar 缺失 attempt 可见性 (P0-2): 聚合计数单行警告 — 统计按 attempt=1
     // 兜底不中断, 但缺口不得静默 (规范 §5 必带字段; 存量语料曾 57/57 缺失,
@@ -195,11 +193,7 @@ fn l0_cmd(
     // 零配对样本 = 采集层面失败: 语料非法 exit 2 (issue #44, 与规则侧对称) —
     // 拒绝在空语料上判定/出 summary (防空转假绿); 孤儿警告已先行给出线索。
     if collected.samples.is_empty() {
-        eprintln!(
-            "l0: 语料零配对样本 ({}) — 语料非法, 拒绝判定 (检查目录内容/获取链路)",
-            corpus.display()
-        );
-        std::process::exit(2);
+        die(log_skimmer::messages::l0_zero_paired_samples(&corpus));
     }
     let summary = log_skimmer::l0::summarize(&collected);
     if emit_summary {
@@ -207,14 +201,10 @@ fn l0_cmd(
         return;
     }
     let base_summary = base.map(|p| {
-        let raw = std::fs::read_to_string(&p).unwrap_or_else(|e| {
-            eprintln!("base summary 读取失败 {}: {e}", p.display());
-            std::process::exit(2);
-        });
-        serde_json::from_str(&raw).unwrap_or_else(|e| {
-            eprintln!("base summary 解析失败 {}: {e}", p.display());
-            std::process::exit(2);
-        })
+        let raw = std::fs::read_to_string(&p)
+            .unwrap_or_else(|e| die(log_skimmer::messages::l0_base_read_failed(&p, &e)));
+        serde_json::from_str(&raw)
+            .unwrap_or_else(|e| die(log_skimmer::messages::l0_base_parse_failed(&p, &e)))
     });
     let v = log_skimmer::l0::gate(&summary, base_summary.as_ref(), require_all_rules_hit);
     println!("{}", serde_json::to_string_pretty(&v).unwrap());
@@ -241,10 +231,7 @@ fn skim_cmd(
             Some(n) => log_skimmer::override_context(&r, n),
             None => r,
         },
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(2);
-        }
+        Err(e) => die(e),
     };
     // #53 Unix 管道惯例: LOG_FILE 为 `-` 时读 stdin (32MB 上限仅 MCP 侧, CLI 文件
     // 输入无此限制 — stdin 与文件路径同口径); 读取失败报错标注来源是 stdin,
@@ -253,17 +240,12 @@ fn skim_cmd(
         let mut buf = String::new();
         std::io::stdin()
             .read_to_string(&mut buf)
-            .unwrap_or_else(|e| {
-                eprintln!("读取日志失败 (stdin): {e}");
-                std::process::exit(2);
-            });
+            .unwrap_or_else(|e| die(log_skimmer::messages::read_log_failed_stdin(&e)));
         buf
     } else {
         // 文件路径读取 (gz 透明解压单一入口, *.gz 与 plain 输出逐字节一致)
-        log_skimmer::sample_io::read_log_sample(&log_file).unwrap_or_else(|e| {
-            eprintln!("读取日志失败 {e}");
-            std::process::exit(2);
-        })
+        log_skimmer::sample_io::read_log_sample(&log_file)
+            .unwrap_or_else(|e| die(log_skimmer::messages::read_log_failed(&e)))
     };
     // 行归一: A0 (engine lib SSOT) — 剥首部 BOM (#78), 去 \r (CRLF), 保内容; 尾部空行不计。
     let lines = log_skimmer::normalize_lines(&raw);
@@ -273,8 +255,7 @@ fn skim_cmd(
     // 拒斥文案 SSOT: engine input_reject_message (与 wasm ABI envelope 共用)。
     // 数据错误族单一出口 (exit 2), 文案逐字不变。
     if let Some(msg) = log_skimmer::input_reject_message(&lines) {
-        eprintln!("{msg}");
-        std::process::exit(2);
+        die(msg);
     }
     let result = if no_collapse {
         log_skimmer::skim_with(
@@ -297,21 +278,22 @@ fn skim_cmd(
             100.0 - 100.0 * result.output_lines as f64 / result.input_lines as f64
         )
     };
-    // 折叠审计尾注 (spec §3.R2): 零折叠时不追加 — 零行为变更保证。
+    // 折叠审计尾注 (spec §3.R2): 零折叠时不追加 — 零行为变更保证 (文案单点 messages)。
     let fold_note = if result.stats.collapse.folded_blocks > 0 {
-        format!(
-            ", repeat-collapse folded {} blocks (-{} lines)",
-            result.stats.collapse.folded_blocks, result.stats.collapse.omitted_lines
+        log_skimmer::messages::fold_note(
+            result.stats.collapse.folded_blocks,
+            result.stats.collapse.omitted_lines,
         )
     } else {
         String::new()
     };
-    let stats_line = format!(
-        "input {} lines -> output {} lines ({pct} compression), noise removed {}, boundary violations {}{fold_note}",
+    let stats_line = log_skimmer::messages::stats_line(
         result.input_lines,
         result.output_lines,
+        &pct,
         result.stats.noise_lines_removed,
-        result.stats.boundary_violations.len()
+        result.stats.boundary_violations.len(),
+        &fold_note,
     );
     if json {
         // --json 流分离: stdout 纯 JSON (程序化消费), 诊断走 stderr。
@@ -353,7 +335,7 @@ fn skim_cmd(
     // #71a: 纯空白输入已在上方三分类处 exit 2 前置拦截, 不达此处 — 警示恒为
     // 失明导向文案, 无需按输入形态分流 (#51 分流形态随纯空白归 exit 2 退役)。
     if zero_blocks {
-        eprintln!("⚠ 零提取 — 规则集对该日志失明; 建议回退 rg error|warn && tail 基线; 新工具日志可贡献规则: https://github.com/luochen1990/log-skimmer-rules");
+        eprintln!("{}", log_skimmer::messages::zero_blocks_warning());
         std::process::exit(3);
     }
 }

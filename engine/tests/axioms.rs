@@ -229,7 +229,7 @@ fn a8_regex_compile_gate() {
     )
     .unwrap();
     let err = load_rules(&dir).expect_err("lookahead 须被 regex crate 拒绝");
-    assert!(err.0.iter().any(|e| e.contains("编译失败")));
+    assert!(err.0.iter().any(|e| e.contains("compile failed")));
 }
 
 // 加载校验: 重复 id / patterns 空。(scope/repo 校验已随字段退役 — v0.6 弃用窗口,
@@ -255,8 +255,8 @@ fn load_validation_errors() {
     )
     .unwrap();
     let err = load_rules(&dir).unwrap_err();
-    assert!(err.0.iter().any(|e| e.contains("id 重复")));
-    assert!(err.0.iter().any(|e| e.contains("patterns 为空")));
+    assert!(err.0.iter().any(|e| e.contains("duplicate rule id")));
+    assert!(err.0.iter().any(|e| e.contains("patterns is empty")));
 }
 
 // 弃用窗口 (format_version 2, spec §1.S): scope/repo 字段在场容忍、值被完全
@@ -309,7 +309,7 @@ fn load_validation_duplicate_id_reports_both_files() {
     let msg = err
         .0
         .iter()
-        .find(|e| e.contains("id 重复"))
+        .find(|e| e.contains("duplicate rule id"))
         .unwrap_or_else(|| panic!("须报 id 重复, got: {err}"));
     assert!(msg.contains("t/a.yaml"), "报错带文件1: {msg}");
     assert!(msg.contains("t/b.yaml"), "报错带文件2: {msg}");
@@ -328,10 +328,19 @@ fn load_validation_triple_duplicate_anchors_first_file() {
         std::fs::write(dir.join(format!("t/{f}")), format!("id: t-x\n{yaml}")).unwrap();
     }
     let err = load_rules(&dir).unwrap_err();
-    let dups: Vec<&String> = err.0.iter().filter(|e| e.contains("id 重复")).collect();
+    let dups: Vec<&String> = err
+        .0
+        .iter()
+        .filter(|e| e.contains("duplicate rule id"))
+        .collect();
     assert_eq!(dups.len(), 2, "三处重复报两条: {err}");
-    assert_eq!(dups[0], "id 重复: t-x (t/a.yaml vs t/b.yaml)");
-    assert_eq!(dups[1], "id 重复: t-x (t/a.yaml vs t/c.yaml)");
+    // 单复数回归钉 (issue #76): Display 头随 n 变形, 防静默回退固定复数
+    assert!(
+        err.to_string().starts_with("invalid ruleset (2 issues):"),
+        "Display 头 (复数形态): {err}"
+    );
+    assert_eq!(dups[0], "duplicate rule id: t-x (t/a.yaml vs t/b.yaml)");
+    assert_eq!(dups[1], "duplicate rule id: t-x (t/a.yaml vs t/c.yaml)");
 }
 
 // 端到端: 锚 + loop + context + noise 组合。
@@ -424,7 +433,7 @@ fn intent_defaults_and_inheritance() {
     )
     .unwrap();
     let err = load_rules(&dir).unwrap_err();
-    assert!(err.0.iter().any(|e| e.contains("noise 时 intent 必须缺省")));
+    assert!(err.0.iter().any(|e| e.contains("must omit intent")));
 }
 
 // 签名行级粒度 (spec §3): signature_output_lines = 各 fragment 锚行去重计数。
@@ -482,7 +491,7 @@ fn zero_block_guard_unconditional() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(3), "零块无条件 → exit 3");
-    assert!(String::from_utf8_lossy(&out.stderr).contains("失明"));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("blind"));
     let dirty = dir.join("dirty.log");
     std::fs::write(&dirty, "ERR boom\n").unwrap();
     let out2 = std::process::Command::new(bin)

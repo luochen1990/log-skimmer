@@ -80,10 +80,10 @@ unsafe fn str_from(ptr: *const u8, len: usize) -> Result<String, String> {
     // null 守卫: from_raw_parts(null, 0) 即 UB — 第三方宿主传 (0, 0) 的集成 bug
     // 转为 envelope 错误而非 UB (与 wasm_free 的 null 早退对称)。
     if ptr.is_null() {
-        return Err("入参指针为空".to_string());
+        return Err("input pointer is null".to_string());
     }
     let slice = std::slice::from_raw_parts(ptr, len);
-    String::from_utf8(slice.to_vec()).map_err(|e| format!("入参非 UTF-8: {e}"))
+    String::from_utf8(slice.to_vec()).map_err(|e| format!("input is not valid UTF-8: {e}"))
 }
 
 /// # Safety
@@ -127,7 +127,7 @@ unsafe fn run(
     let log_raw = str_from(log_ptr, log_len)?;
     // ABI 的 rules 入参类型 = engine RuleSource (serde 数组形态, 见其 doc)。
     let sources: Vec<log_skimmer::RuleSource> =
-        serde_json::from_str(&rules_raw).map_err(|e| format!("rules JSON 解析失败: {e}"))?;
+        serde_json::from_str(&rules_raw).map_err(|e| format!("rules JSON parse failed: {e}"))?;
     let rules = load_rules_from_sources(&sources).map_err(|e| e.to_string())?;
     let lines = normalize_lines(&log_raw);
     // 拒斥文案 SSOT: engine input_reject_message (与 CLI stderr 共用, 不分叉)。

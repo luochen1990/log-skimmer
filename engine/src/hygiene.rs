@@ -10,6 +10,7 @@
 //!   实现约束: 二进制文件 (NUL 探测) 跳过; 符号链接不跟随 (扫描域 = 目标树自身);
 //!   路径字典序遍历, 报告稳定可 diff。
 
+use crate::messages;
 use std::path::{Path, PathBuf};
 
 use regex::Regex;
@@ -27,28 +28,28 @@ pub struct HygieneHit {
     pub text: String,
 }
 
-/// 模式清单装载 (noun=模式): 行式装载 + 逐条正则编译 (原文保留作命中报告)。
+/// 模式清单装载: 行式装载 + 逐条正则编译 (原文保留作命中报告)。
 /// 编译失败即 Err — 清单笔误 (非法正则) 在装载期暴露, 不静默失明。
+/// 文案单点: engine::messages (issue #76)。
 pub fn load_patterns(path: &Path) -> Result<Vec<(String, Regex)>, String> {
-    load_lines(path, "模式")?
+    load_lines(path)?
         .into_iter()
         .map(|p| {
-            let re = Regex::new(&p)
-                .map_err(|e| format!("{}: 模式非法正则 — {p:?}: {e}", path.display()))?;
+            let re = Regex::new(&p).map_err(|e| messages::hygiene_bad_regex(path, &p, &e))?;
             Ok((p, re))
         })
         .collect()
 }
 
-/// 行式清单装载器 (通用; noun 为错误文案名词)。
+/// 行式清单装载器 (通用)。
 /// 语义: 一行一条目; 空行与 `#` 独占的注释行忽略; 两端 trim; 返回排序序
 /// (命中报告稳定可 diff)。
 /// 校验: 文件可读 / 至少一条有效条目 (空清单 = 防线失效, 拒绝) / 无重复
 /// (清单手维护, 重复是笔误信号) / 条目行不含 `#` (行内注释是 gitignore 事故
 /// 同款笔误形态 — 整行成为含 `#` 的字面模式, 防线静默失效)。
-pub(crate) fn load_lines(path: &Path, noun: &str) -> Result<Vec<String>, String> {
-    let raw = std::fs::read_to_string(path)
-        .map_err(|e| format!("{}: {e} (清单须随仓在场)", path.display()))?;
+pub(crate) fn load_lines(path: &Path) -> Result<Vec<String>, String> {
+    let raw =
+        std::fs::read_to_string(path).map_err(|e| messages::hygiene_list_read_failed(path, &e))?;
     let mut pats: Vec<String> = raw
         .lines()
         .map(str::trim)
@@ -56,20 +57,14 @@ pub(crate) fn load_lines(path: &Path, noun: &str) -> Result<Vec<String>, String>
         .map(String::from)
         .collect();
     if let Some(bad) = pats.iter().find(|p| p.contains('#')) {
-        return Err(format!(
-            "{}: {noun}含 # (行内注释?) — {bad:?}; 注释须独占一行",
-            path.display()
-        ));
+        return Err(messages::hygiene_inline_comment(path, bad));
     }
     pats.sort_unstable();
     if let Some(i) = (1..pats.len()).find(|&i| pats[i - 1] == pats[i]) {
-        return Err(format!("{}: {noun}重复 ({})", path.display(), pats[i]));
+        return Err(messages::hygiene_duplicate(path, &pats[i]));
     }
     if pats.is_empty() {
-        return Err(format!(
-            "{}: 零有效{noun} — 空清单即防线失效",
-            path.display()
-        ));
+        return Err(messages::hygiene_empty_list(path));
     }
     Ok(pats)
 }

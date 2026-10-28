@@ -213,7 +213,7 @@ fn stdio_smoke_read_around_and_list_rules() {
     assert!(err["error"]["message"]
         .as_str()
         .expect("错误信息")
-        .contains("空或纯空白"));
+        .contains("empty or whitespace-only"));
 }
 
 /// issue #58: 零块引导链路 — skim 零块响应的 advice 指向 adapter_guide,
@@ -261,7 +261,7 @@ fn stdio_zero_block_advice_points_to_adapter_guide() {
     let sop = guide["result"]["content"][0]["text"]
         .as_str()
         .expect("text");
-    for marker in [".log-skimmer/rules", "质检 (三项全过)", "持久化"] {
+    for marker in [".log-skimmer/rules", "Acceptance check", "Persist"] {
         assert!(sop.contains(marker), "SOP 缺关键节 [{marker}]");
     }
 }
@@ -316,22 +316,22 @@ fn stdio_param_error_channel_unified() {
             "id={id} 不得走 isError 正常响应通道: {r}"
         );
     }
-    // 形态①: 值域错中文文案 (既有契约锁定)
+    // 形态①: 值域错文案 (既有契约锁定)
     assert!(
         by_id(&responses, 2)["error"]["message"]
             .as_str()
             .unwrap()
-            .contains("context 须在 0-10 内"),
+            .contains("context must be within 0-10"),
         "值域文案: {}",
         by_id(&responses, 2)["error"]["message"]
     );
-    // 形态②③: 反序列化错中文框架 + serde 细节透传
+    // 形态②③: 参数格式框架 + serde 细节透传
     // (形态② 实测细节 "invalid type: string \"3\", expected i32" — from_value 不带字段路径)
     let m3 = by_id(&responses, 3)["error"]["message"].as_str().unwrap();
-    assert!(m3.contains("参数格式非法"), "id=3 中文框架: {m3}");
+    assert!(m3.contains("invalid parameter format"), "id=3 框架: {m3}");
     assert!(m3.contains("invalid type"), "id=3 serde 细节透传: {m3}");
     let m4 = by_id(&responses, 4)["error"]["message"].as_str().unwrap();
-    assert!(m4.contains("参数格式非法"), "id=4 中文框架: {m4}");
+    assert!(m4.contains("invalid parameter format"), "id=4 框架: {m4}");
     assert!(m4.contains("log_text"), "id=4 缺字段名透传: {m4}");
     let ok = by_id(&responses, 5);
     assert!(ok.get("error").is_none(), "错误不影响后续正常调用: {ok}");

@@ -58,10 +58,13 @@ fn fixture_rules_dir() -> PathBuf {
 fn env_empty_string_names_variable_and_docs() {
     let (code, stderr) = run_with_env("");
     assert_eq!(code, 2, "装载失败 fail-fast exit 2, stderr:\n{stderr}");
-    assert!(stderr.contains("LOG_SKIMMER_RULES 为空串"), "{stderr}");
+    assert!(
+        stderr.contains("LOG_SKIMMER_RULES is set to an empty string"),
+        "{stderr}"
+    );
     assert!(stderr.contains("README"), "应指向三级解析文档: {stderr}");
     assert!(
-        !stderr.contains("(来源 )") && !stderr.contains("(来源:)"),
+        !stderr.contains("(source )") && !stderr.contains("(source:)"),
         "不得输出空来源前缀: {stderr}"
     );
 }
@@ -76,9 +79,9 @@ fn env_file_path_reports_not_dir_once() {
     );
     let (code, stderr) = run_with_env(path);
     assert_eq!(code, 2, "stderr:\n{stderr}");
-    assert!(stderr.contains("不是目录"), "{stderr}");
+    assert!(stderr.contains("is not a directory"), "{stderr}");
     assert!(
-        !stderr.contains("规则目录不存在"),
+        !stderr.contains("not found"),
         "路径在场不得误报不存在: {stderr}"
     );
     assert_eq!(
@@ -93,7 +96,7 @@ fn env_file_path_reports_not_dir_once() {
 fn env_missing_dir_reports_not_found_once() {
     let (code, stderr) = run_with_env("/nonexistent-rules-dir");
     assert_eq!(code, 2, "stderr:\n{stderr}");
-    assert!(stderr.contains("规则目录不存在"), "{stderr}");
+    assert!(stderr.contains("rules directory not found"), "{stderr}");
     assert_eq!(
         stderr.matches("/nonexistent-rules-dir").count(),
         1,
@@ -249,9 +252,12 @@ fn project_layer_overlay_startup_log() {
         !stderr.contains(log_skimmer_server::FIXTURE_FALLBACK_WARNING),
         "env 级命中不得有兜底警示, stderr 实际:\n{stderr}"
     );
-    assert!(stderr.contains("装载 4 条规则"), "全局层计数不变: {stderr}");
     assert!(
-        stderr.contains("项目层规则叠加: +1 条")
+        stderr.contains("loaded 4 rules"),
+        "全局层计数不变: {stderr}"
+    );
+    assert!(
+        stderr.contains("project-layer rules overlay: +1")
             && stderr.contains(proj.display().to_string().as_str()),
         "项目层在场须打印条数与路径, stderr 实际:\n{stderr}"
     );
@@ -269,7 +275,7 @@ fn project_layer_failure_attributed_e2e() {
     // 归因断言 (路径去重不适用: engine LoadErrors 按设计带源路径 — issue #14B
     // 的 grep-ability 契约, 与 #47 的预检文案族是两条文案轴)
     assert!(
-        stderr.contains("项目层 来源") && stderr.contains("无 *.yaml"),
+        stderr.contains("project layer, source") && stderr.contains("no *.yaml"),
         "报错须归因到项目层: {stderr}"
     );
     assert!(
@@ -295,7 +301,7 @@ fn cross_layer_conflict_e2e_no_prefix() {
     .unwrap();
     let (code, stderr) = run_with_env_in(&fixture_rules_dir(), Some(&root));
     assert_eq!(code, 2, "冲突 fail-fast exit 2, stderr:\n{stderr}");
-    assert!(stderr.contains("跨层 id 冲突"), "{stderr}");
+    assert!(stderr.contains("cross-layer id conflict"), "{stderr}");
     assert!(
         stderr.contains("cargo-fixture-build-fail"),
         "文案含冲突 id: {stderr}"
@@ -309,7 +315,7 @@ fn cross_layer_conflict_e2e_no_prefix() {
         "自带全局层来源: {stderr}"
     );
     assert!(
-        !stderr.contains("规则集装载失败 ("),
+        !stderr.contains("ruleset load failed ("),
         "Conflict 臂不加来源前缀 (Global/Project 臂形态均为带括号前缀): {stderr}"
     );
 }
@@ -334,11 +340,11 @@ fn exe_adjacent_ruleset_no_fallback_warning() {
         "第 2 级相邻命中不得有兜底警示, stderr 实际:\n{stderr}"
     );
     // 探测路径不归一 (`x/bin/../../rules` 原样呈现), 用同构 join 构造期望串;
-    // 「装载 1 条」(相邻集单条) 亦区分于兜底集 (engine fixture 4 条)。
+    // 「loaded 1 rule」(相邻集单条, 单复数随计数) 亦区分于兜底集 (engine fixture 4 条)。
     let probe_path = root.join("x/bin/../../rules");
     assert!(
         stderr.contains(probe_path.display().to_string().as_str())
-            && stderr.contains("装载 1 条规则"),
+            && stderr.contains("loaded 1 rule"),
         "须从相邻规则集装载, stderr 实际:\n{stderr}"
     );
 }
