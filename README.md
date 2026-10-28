@@ -34,13 +34,14 @@ Core results: FN (failure completely missed) 0/49; FP 0 lines vs the baseline's 
 
 ## Repository Topology
 
-The project consists of three public repositories, with all dependencies one-way (acyclic):
+The project consists of four public repositories, with all dependencies one-way (acyclic):
 
 | Repo | Role | Cadence | Dependencies |
 | --- | --- | --- | --- |
 | `luochen1990/log-skimmer` (this repo) | **Engine** — CLI + MCP server | Mirrored from the dev history (manual `just publish`) | None (consumed by the rules repo CI) |
 | `luochen1990/log-skimmer-rules` | **Rule library** — the project's core asset, community-maintained + agent-assisted | Community PRs | One-way runtime dependency on this repo's engine |
 | `luochen1990/log-skimmer-corpus` | **Corpus library** — regression corpus, source, self-contained | GHA weekly slot refresh | **Zero dependencies** |
+| `luochen1990/log-skimmer-web` | **Browser delivery** — skim panel + inline failure highlights on CI log pages (Chrome MV3 extension, userscript alternative) | Feature-driven | Engine wasm build artifact + one-way runtime dependency on the rules bundle |
 
 ```
 rules repo ◀──one-way runtime dependency── CLI (log-skimmer skim --rules)
@@ -58,7 +59,7 @@ Invariant: one-way dependencies — corpus is the source (zero dependencies, dep
 - **Repeat-collapse (cascade folding)**: same-rule cascade blocks — the "one root cause, a thousand lines" shape (bazel `--keep_going` error storms, swiftc type-error cascades, repeated test panics) — are folded at the output layer into an anchor block plus a collapse marker (count, hull, omitted lines, and every folded anchor line). Evidence semantics are untouched: signature-level indexing loses nothing, FN/FP statistics stay full-scope; only what you actually read shrinks (spec §3.R — e.g. a 937-block swiftc cascade presents as 90 lines). Byte-identical output whenever thresholds are not met.
 - **Rule folksonomy**: no central registry — a rule file's existence defines the tool ID (`<tool-id>/<rule-id>.yaml`, one rule per file). The rule set is independent of the engine and lives in [log-skimmer-rules](https://github.com/luochen1990/log-skimmer-rules) (community-maintained + agent-assisted); coverage grows weekly across mainstream toolchains — live counts in the badges above (the directory listing is the SSOT; this README does not enumerate).
 
-Roadmap: the LLM rule-learning Adapter (log → rule-draft PR + backtest report), two-layer Validator verification, and a WebPage rule browser are future plans; the MCP server (`server/`) and the WebAssembly build (`log-skimmer-wasm/`) are delivered.
+Roadmap: the LLM rule-learning Adapter (log → rule-draft PR + backtest report), two-layer Validator verification, and a WebPage rule browser are future plans; the MCP server (`server/`), the WebAssembly build (`log-skimmer-wasm/`), and the browser extension ([log-skimmer-web](https://github.com/luochen1990/log-skimmer-web)) are delivered.
 
 ## Quick Start
 
