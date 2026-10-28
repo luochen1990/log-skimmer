@@ -47,6 +47,9 @@
 //!   规则集全部规则应在语料上生效时开启 (`--require-all-rules-hit`, rules 仓
 //!   CI 与贡献者本地; 本仓 ci-merge 默认不开 — 存量规则集在公开语料上有天然
 //!   零命中规则, 语料未覆盖的工具)。
+//! 覆盖缺口工单 (issue #106, 软指标报告面): 安全网命中使 FN 恒绿但输出空心
+//!   (结论复述零信息) 的「部分漏检」形态 — coverage_gaps 逐样本定位 (语义
+//!   SSOT 见 gap_candidates/summarize 侧注释; 整体闭环方案 docs/diagnostic-loop.md)。
 
 use crate::messages;
 use crate::{load_rules, skim, Intent};
@@ -77,7 +80,13 @@ pub const FP_DETAIL_MAX: usize = 50;
 /// 数为 0 (完全漏检)。agg 的 fn_samples 计数与 fn_detail 逐样本清单共用此
 /// 单点定义 — 两处口径不得漂移 (计数≠清单长度 = 引擎 bug)。
 fn is_fn(s: &L0Sample) -> bool {
-    (s.conclusion == "failure" || s.conclusion == "timed_out") && s.failure_frags == 0
+    failure_family(&s.conclusion) && s.failure_frags == 0
+}
+
+/// 失败族谓词 (口径单点): FN 断言域 / 健康档案域 / 覆盖缺口工单域共用。
+/// cancelled 截断日志证据不可靠 (三态: 只记命中不记缺失), 恒不入失败族。
+fn failure_family(conclusion: &str) -> bool {
+    conclusion == "failure" || conclusion == "timed_out"
 }
 
 // ---- 采集层 ----
@@ -106,6 +115,10 @@ pub struct L0Sample {
     /// noise 规则闭块计数 (规则 id → 剔除区块数) — 正向验证域覆盖 noise 规则:
     /// noise 不产 fragment, 其命中只能以剔除区块计 (lib SkimResult 旁路数据)。
     pub noise_hits: BTreeMap<String, u64>,
+    /// 覆盖缺口候选行 (issue #106; 仅 gated 失败族样本在采集时计算, 其余恒空):
+    /// 语义见 gap_candidates 注释 — 工单化 (sample 入选判定) 在 summarize 侧
+    /// (需语料级健康档案), 此处只存逐行证据。
+    pub gap_candidates: Vec<GapLine>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -265,9 +278,13 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
         let mut warning_frags = 0u64;
         let mut info_frags = 0u64;
         let mut frags = Vec::new();
+        let mut signal_spans: Vec<(usize, usize)> = Vec::new();
         // 全量口径恢复 (spec §3.R3): 折叠块 fragment 照常逐条计数 — 折叠是
         // 呈现层概念, FN/FP/per_rule_hits 消费 frag_spans (锚块 rules[0] 同规则,
         // intent 规则级常量), 与未折叠引擎逐值等价。
+        // signal_spans (issue #106): 同循环收集 fragment 区间 (存活 fragment 的
+        // block 区间 ∪ 折叠 frag_spans) — 覆盖缺口候选的 signal 消费面, 与 frags
+        // 记录同源收集, 口径结构上不漂移。
         let mut record = |rule: &str, intent: Intent, span: (usize, usize)| {
             let lines = (span.1 - span.0 + 1) as u64;
             match intent {
@@ -283,6 +300,7 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
                 intent,
                 lines,
             });
+            signal_spans.push(span);
         };
         for b in &r.blocks {
             for f in &b.fragments {
@@ -294,6 +312,13 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
                 }
             }
         }
+        // 覆盖缺口候选 (issue #106): 仅 gated 失败族样本计算 (豁免/其余结论样本
+        // 永不入工单, 采集侧短路免一遍关键词扫描); noise 剔除面 = noise 行集。
+        let gaps = if !sc.gate_exempt && failure_family(&sc.conclusion) {
+            gap_candidates(&lines, &signal_spans, &r.noise_lines)
+        } else {
+            Vec::new()
+        };
         // P0-2: 缺失 attempt 按 1 处理 (统计口径不变), 缺口聚合计数不静默。
         let attempt = sc.attempt.unwrap_or(1);
         sidecars_missing_attempt += usize::from(sc.attempt.is_none());
@@ -316,6 +341,7 @@ pub fn collect(corpus_dir: &Path, rules_dir: &Path) -> Result<Collected, String>
             boundary_violations: r.stats.boundary_violations.len(),
             frags,
             noise_hits: r.noise_rule_hits,
+            gap_candidates: gaps,
         });
     }
     for l in &logs {
@@ -552,8 +578,10 @@ pub fn health(
     BTreeMap<String, RuleHealth>,
     DiagCoverage,
 ) {
-    let failure_family = |s: &L0Sample| s.conclusion == "failure" || s.conclusion == "timed_out";
-    let n_f = samples.iter().filter(|s| failure_family(s)).count();
+    let n_f = samples
+        .iter()
+        .filter(|s| failure_family(&s.conclusion))
+        .count();
     let n_s = samples.iter().filter(|s| s.conclusion == "success").count();
     let base_rate = if n_f + n_s > 0 {
         n_f as f64 / (n_f + n_s) as f64
@@ -569,7 +597,7 @@ pub fn health(
                 continue; // 样本级去重: 一样本多 fragment 只计一次触发
             }
             let e = fire.entry(f.rule.clone()).or_default();
-            if failure_family(s) {
+            if failure_family(&s.conclusion) {
                 e.fire_failure += 1;
             } else if s.conclusion == "success" {
                 e.fire_success += 1;
@@ -594,14 +622,10 @@ pub fn health(
         })
         .collect();
     // 诊断覆盖: 失败族样本含 ≥1 诊断规则的 failure fragment
-    let diag: HashSet<&str> = health_map
-        .iter()
-        .filter(|(_, h)| h.grade != RuleGrade::Restating)
-        .map(|(k, _)| k.as_str())
-        .collect();
+    let diag = non_restating_rules(&health_map);
     let covered = samples
         .iter()
-        .filter(|s| failure_family(s))
+        .filter(|s| failure_family(&s.conclusion))
         .filter(|s| {
             s.frags
                 .iter()
@@ -614,6 +638,129 @@ pub fn health(
         pct: round2(ratio_pct(covered as f64, n_f as f64)),
     };
     (fire, health_map, coverage)
+}
+
+/// 诊断侧规则 id 集 (非 restating — boundary 计入, 保守方向见健康档案节注释):
+/// 诊断覆盖率与覆盖缺口工单共用同一诊断规则集口径, 单点防漂移。
+fn non_restating_rules(h: &BTreeMap<String, RuleHealth>) -> HashSet<&str> {
+    h.iter()
+        .filter(|(_, x)| x.grade != RuleGrade::Restating)
+        .map(|(k, _)| k.as_str())
+        .collect()
+}
+
+// ---- 覆盖缺口工单 (issue #106, 语义 SSOT 本节注释) ----
+//
+// 动机: 安全网 (annotation/runner 失败信号) 兜底使 FN 断言恒绿, 但其命中是
+// 结论复述 (restating) — 消费方拿到「有块但零诊断信息」的空心输出, 真实原因
+// 行无规则捕获 (#106 实例: 轮询回显前缀的 nix 错误树)。诊断覆盖率只答「多大
+// 比例」, 本工单答「哪些样本哪些行」。
+//
+// 样本入选谓词 (summarize 侧, 与 FN 断言分域互补 — 二者划分失败族样本):
+//   gated 域 ∧ 失败族 (failure|timed_out) ∧ 非 FN (failure fragment ≥1,
+//   FN 样本归 FN 断言/fn-responder 管, 不重复入工单) ∧ failure-intent
+//   fragment 中无一来自非 restating 规则 (grade 判定同健康档案 — boundary
+//   计入诊断侧, 保守方向是高估覆盖)。cancelled 截断日志证据不可靠, 不入
+//   (三态: 只记命中不记缺失); 豁免样本不入 (未适配仓的缺口由豁免余量跟踪,
+//   不混入响应器工单)。
+//
+// 候选行谓词 (gap_candidates, 采集侧纯函数):
+//   该行命中内置失败关键词集 (召回优先, 与 rules 仓 fn-evidence.sh 关键词
+//   同源 — 宁可多列不可漏列, 「0 failed」类良性命中由响应端过滤)
+// ∧ 未被任何 signal fragment 消费 (block 区间, 含折叠块 frag_spans; context
+//   扩展不算消费 — 呈现非捕获)
+// ∧ 未被 noise 规则剔除 (noise 标记是规则集的显式决定, 剔除优先于工单 —
+//   误剔的真错误仍由 FN/FP 断言族兜底)。
+//
+// 上限: 尾部优先取后 GAP_CAND_MAX 行 (直接原因通常在日志尾部, 与 fn-evidence
+//   选窗一致), 行序升序不变; 单行摘录 ≤GAP_TEXT_MAX 字符 (越界截断加 …)。
+//
+// 消费面: l0 summary JSON `coverage_gaps` 数组 (报告面 — 不入 verdict 断言);
+// 运行期零变更 (skim/CLI/MCP 输出不动)。维护闭环 = rules 仓 gap-responder
+// (fn-responder 同模式), 全景见 docs/diagnostic-loop.md。
+
+/// 每样本候选行上限 (尾部优先)。
+pub const GAP_CAND_MAX: usize = 10;
+/// 单行摘录字符上限 (越界截断加 …) — 工单是给响应端 (agent/人) 读的索引行,
+/// 非日志替代品; 200 字符足够锚定形态且控住报告体积。已知局限: 前缀截断可能
+/// 截掉行尾的关键词本身 — 响应端以 line_no 回原文定位, 不依赖摘录含关键词。
+pub const GAP_TEXT_MAX: usize = 200;
+
+/// 内置失败关键词集 (召回优先, 行内不锚定, 大小写不敏感; 逐字拷贝自 rules
+/// 仓 fn-evidence.sh 的 RE — 两侧演进需人工同步 (分支间有子串包含关系, 如
+/// {error, ⊂ error, 为逐字保真保留) — 覆盖: 编译器诊断 error:/error[E..]/make ***,
+/// 运行时 panic/segfault/core dumped, 测试框架 FAILED/✗/not ok/❌, 栈痕迹
+/// Traceback/Exception/assert, erlang 崩溃 badmatch/badarg/..., 进程终局
+/// exit code/exited with/OOM/killed)。
+pub const GAP_KEYWORDS_RE: &str = concat!(
+    "(?i)error|\\{error,|fatal|panic|fail|✗|✘|✕|×|❌|not ok |assert|exception|",
+    "traceback|undefined reference|make.{2,4}\\*\\*\\*|segmentation fault|sigsegv|",
+    "core dumped|badmatch|badarg|badrecord|function_clause|case_clause|",
+    "exit code|exited with|command failed|out of memory|killed"
+);
+
+fn gap_keywords() -> &'static regex::Regex {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(GAP_KEYWORDS_RE).expect("内置关键词集恒合法"))
+}
+
+/// 单行摘录: 超 GAP_TEXT_MAX 字符截断加 … (字符口径, 不切断多字节)。
+fn gap_excerpt(line: &str) -> String {
+    // 第 MAX+1 个字符在场 ⇔ 超限; idx 即恰含 MAX 个字符的字节边界。
+    match line.char_indices().nth(GAP_TEXT_MAX) {
+        Some((idx, _)) => format!("{}…", &line[..idx]),
+        None => line.to_string(),
+    }
+}
+
+/// 覆盖缺口候选行 (1-based 行号 + 摘录)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GapLine {
+    pub line_no: usize,
+    pub text: String,
+}
+
+/// 逐样本覆盖缺口工单条目 (Summary.coverage_gaps 元素)。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CoverageGap {
+    pub repo: String,
+    pub sample: String,
+    pub conclusion: String,
+    pub input_lines: u64,
+    /// 该样本命中的全部 signal 规则 (升序去重; noise 命中在 noise_hits, 不入
+    /// 列) — 响应端上下文 (典型形态: 仅安全网)。
+    pub hit_rules: Vec<String>,
+    /// 缺口证据候选行 (升序, 可空 — 空清单本身也是信号: 失败原因无文本显著
+    /// 性, 需人工看样本; 谓词/上限见本节头注释)。
+    pub candidates: Vec<GapLine>,
+}
+
+/// 缺口候选提取 (纯函数, 谓词/上限语义 SSOT 见本节头注释): signal_spans =
+/// 存活 fragment 的 block 区间集 (含折叠 frag_spans — 调用侧与 frags 记录
+/// 同源收集)。
+pub fn gap_candidates(
+    lines: &[String],
+    signal_spans: &[(usize, usize)],
+    noise_lines: &HashSet<usize>,
+) -> Vec<GapLine> {
+    let mut cands: Vec<GapLine> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| gap_keywords().is_match(l))
+        .filter(|(i, _)| {
+            let n = i + 1;
+            !signal_spans.iter().any(|(s, e)| n >= *s && n <= *e)
+        })
+        .filter(|(i, _)| !noise_lines.contains(&(i + 1)))
+        .map(|(i, l)| GapLine {
+            line_no: i + 1,
+            text: gap_excerpt(l),
+        })
+        .collect();
+    if cands.len() > GAP_CAND_MAX {
+        cands.drain(..cands.len() - GAP_CAND_MAX);
+    }
+    cands
 }
 
 /// 断言面哨兵聚合 (域分层, T-P2b-2): `zero_block` = gated 样本 (含
@@ -727,6 +874,12 @@ pub struct Summary {
     /// 诊断覆盖率 (软指标, 报告面): 见 health() 模块注释。
     #[serde(default)]
     pub diagnostic_coverage: DiagCoverage,
+    /// 覆盖缺口工单 (issue #106, 软指标报告面 — 不入 verdict 断言): 逐样本
+    /// 定位「安全网命中但无诊断级 failure 命中」的部分漏检 (谓词/域见
+    /// coverage_gaps 构建处注释)。serde(default): 旧 base summary 无此字段,
+    /// 判定侧不消费 (双测对比不涉及), base 侧缺省无碍。
+    #[serde(default)]
+    pub coverage_gaps: Vec<CoverageGap>,
     /// FN violation detail 数据源: 逐 FN 样本清单 (repo/相对路径/输入行数),
     /// 域与谓词 = totals.fn_samples (gated 主指标, is_fn 单点) — 豁免仓的 FN
     /// 不进断言细节, rerun-through 滤除。serde(default): 旧 base summary 无此
@@ -943,6 +1096,34 @@ pub fn summarize(c: &Collected) -> Summary {
     }
     // 健康档案三元组 (main 域 — 滤 rerun-through, 与 per_rule 同域)
     let (per_rule_fire, per_rule_health, diagnostic_coverage) = health(&main, &c.rule_tools);
+    // 覆盖缺口工单 (issue #106): 入选谓词/分域 SSOT = 本文件「覆盖缺口工单」
+    // 节注释 (与 FN 断言分域互补, grade 判定同健康档案)。
+    let diag_rules = non_restating_rules(&per_rule_health);
+    let coverage_gaps: Vec<CoverageGap> = gated
+        .iter()
+        .filter(|s| {
+            failure_family(&s.conclusion)
+                && !is_fn(s)
+                && !s
+                    .frags
+                    .iter()
+                    .any(|f| f.intent == Intent::Failure && diag_rules.contains(f.rule.as_str()))
+        })
+        .map(|s| CoverageGap {
+            repo: s.repo.clone(),
+            sample: s.sample.clone(),
+            conclusion: s.conclusion.clone(),
+            input_lines: s.input_lines as u64,
+            hit_rules: s
+                .frags
+                .iter()
+                .map(|f| f.rule.clone())
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect(),
+            candidates: s.gap_candidates.clone(),
+        })
+        .collect();
     Summary {
         per_repo_conclusion,
         per_repo,
@@ -956,6 +1137,7 @@ pub fn summarize(c: &Collected) -> Summary {
         per_rule_fire,
         per_rule_health,
         diagnostic_coverage,
+        coverage_gaps,
         fn_detail,
         fp_detail,
     }
