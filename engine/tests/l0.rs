@@ -849,7 +849,7 @@ fn lit(repo: &str, conclusion: &str, gate_exempt: bool) -> L0Sample {
         boundary_violations: 0,
         frags: vec![],
         noise_hits: BTreeMap::new(),
-        gap_candidates: vec![],
+        diag_candidates: vec![],
     }
 }
 
@@ -1210,7 +1210,7 @@ fn hsample(conclusion: &str, frags: &[(&str, Intent)]) -> L0Sample {
                 lines: 1,
             })
             .collect(),
-        gap_candidates: vec![],
+        diag_candidates: vec![],
         noise_hits: BTreeMap::new(),
     }
 }
@@ -1371,7 +1371,7 @@ fn health_aggregates_sample_level_and_coverage() {
 }
 
 /// 最小合法旧版 summary JSON (serde 兼容测试共用 fixture — 无健康三字段、无
-/// coverage_gaps; 各测试只断言各自关注字段的默认值)。
+/// diagnostic_gaps; 各测试只断言各自关注字段的默认值)。
 const OLD_SUMMARY_MIN_JSON: &str = r#"{"per_repo_conclusion":{},"per_repo":{},"totals":{"runs":1,
     "input_lines":10,"output_lines":2,"signature_output_lines":1,"fn":0,
     "success_input_lines":4,"fp_frags":0,"fp_lines":0,
@@ -1388,12 +1388,12 @@ fn old_summary_without_health_fields_deserializes() {
     assert_eq!(s.diagnostic_coverage.covered, 0);
 }
 
-// ---- 覆盖缺口工单 (issue #106): 候选谓词纯函数直测 + 工单分域内存直测 + 接线最小构造件 ----
+// ---- 诊断缺口清单 (issue #106): 候选谓词纯函数直测 + 清单分域内存直测 + 接线最小构造件 ----
 
 /// 候选谓词语义 (纯函数直测): 关键词命中 (大小写不敏感/行内) ∧ 未被 signal
 /// 消费 ∧ 未被 noise 剔除; 尾部优先截断 (行序升序不变); 单行摘录越界截断加 …。
 #[test]
-fn gap_candidates_predicate_semantics() {
+fn diag_gap_candidates_predicate_semantics() {
     let lines: Vec<String> = vec![
         "build start".into(),                // L1 无关键词
         "error: boom".into(),                // L2 关键词, 被 signal 消费
@@ -1405,52 +1405,52 @@ fn gap_candidates_predicate_semantics() {
     ];
     let spans = [(2usize, 2usize)]; // signal 消费 L2
     let noise: std::collections::HashSet<usize> = [6usize].into_iter().collect();
-    let cands = l0::gap_candidates(&lines, &spans, &noise);
+    let cands = l0::diag_gap_candidates(&lines, &spans, &noise);
     assert_eq!(
         cands,
         vec![
-            l0::GapLine {
+            l0::CandidateLine {
                 line_no: 4,
                 text: "AssertionError: uncovered".into()
             },
-            l0::GapLine {
+            l0::CandidateLine {
                 line_no: 5,
                 text: "tests: 0 failed".into()
             },
-            l0::GapLine {
+            l0::CandidateLine {
                 line_no: 7,
                 text: "panic in the middle".into()
             },
         ],
         "signal 消费与 noise 剔除均不进候选; 其余关键词行全进 (召回优先)"
     );
-    // 尾部优先截断: 12 个关键词行 → 恰后 GAP_CAND_MAX 个, 升序
+    // 尾部优先截断: 12 个关键词行 → 恰后 DIAG_CAND_MAX 个, 升序
     let many: Vec<String> = (0..12).map(|i| format!("error {i}")).collect();
-    let capped = l0::gap_candidates(&many, &[], &Default::default());
-    assert_eq!(capped.len(), l0::GAP_CAND_MAX);
+    let capped = l0::diag_gap_candidates(&many, &[], &Default::default());
+    assert_eq!(capped.len(), l0::DIAG_CAND_MAX);
     assert_eq!(capped.first().unwrap().text, "error 2", "截断保尾部");
     assert_eq!(capped.last().unwrap().text, "error 11");
     assert!(
         capped.windows(2).all(|w| w[0].line_no < w[1].line_no),
         "行序升序"
     );
-    // 摘录截断: 超长行截至 GAP_TEXT_MAX 字符 + …
-    let long_line: Vec<String> = vec!["x".repeat(l0::GAP_TEXT_MAX + 50) + " error tail"];
-    let excerpt = &l0::gap_candidates(&long_line, &[], &Default::default())[0].text;
+    // 摘录截断: 超长行截至 DIAG_CAND_TEXT_MAX 字符 + …
+    let long_line: Vec<String> = vec!["x".repeat(l0::DIAG_CAND_TEXT_MAX + 50) + " error tail"];
+    let excerpt = &l0::diag_gap_candidates(&long_line, &[], &Default::default())[0].text;
     assert_eq!(
         excerpt.chars().count(),
-        l0::GAP_TEXT_MAX + 1,
+        l0::DIAG_CAND_TEXT_MAX + 1,
         "MAX 字符 + 省略号"
     );
     assert!(excerpt.ends_with('…'));
 }
 
-/// 工单化内存直测 (lit 构造器, 与 FN 断言分域互补):
-/// - floor 规则 (30 失败触发 0 成功 → restating) 独撑的失败样本 = 缺口工单;
+/// 清单化内存直测 (lit 构造器, 与 FN 断言分域互补):
+/// - floor 规则 (30 失败触发 0 成功 → restating) 独撑的失败样本 = 缺口清单;
 /// - 含 diag 规则失败块的样本不入; FN 样本 (零 failure fragment) 归 FN 断言不入;
-/// - timed_out 属失败族入工单; 豁免样本不入 (豁免余量另跟踪); success 不入。
+/// - timed_out 属失败族入清单; 豁免样本不入 (豁免余量另跟踪); success 不入。
 #[test]
-fn coverage_gaps_partition_and_domain() {
+fn diagnostic_gaps_partition_and_domain() {
     let mut samples: Vec<L0Sample> = Vec::new();
     for i in 0..30 {
         samples.push(L0Sample {
@@ -1462,7 +1462,7 @@ fn coverage_gaps_partition_and_domain() {
                 intent: Intent::Failure,
                 lines: 1,
             }],
-            gap_candidates: vec![l0::GapLine {
+            diag_candidates: vec![l0::CandidateLine {
                 line_no: 3,
                 text: format!("error batch{i}"),
             }],
@@ -1534,11 +1534,15 @@ fn coverage_gaps_partition_and_domain() {
         sidecars_missing_attempt: 0,
     };
     let s = l0::summarize(&c);
-    // 工单 (gated 失败族 29 = 30 - 1 豁免): - 1 FN - 1 诊断覆盖 = 27
+    // 清单 (gated 失败族 29 = 30 - 1 豁免): - 1 FN - 1 诊断覆盖 = 27
     // (timed_out 2 个在内 — 失败族)
-    assert_eq!(s.coverage_gaps.len(), 27, "FN/诊断覆盖/豁免样本均不入工单");
+    assert_eq!(
+        s.diagnostic_gaps.len(),
+        27,
+        "FN/诊断覆盖/豁免样本均不入清单"
+    );
     let g = s
-        .coverage_gaps
+        .diagnostic_gaps
         .iter()
         .find(|g| g.sample.contains("r/3"))
         .unwrap();
@@ -1550,39 +1554,45 @@ fn coverage_gaps_partition_and_domain() {
     assert_eq!(g.conclusion, "failure");
     assert_eq!(g.candidates.len(), 1, "采集侧候选原样透传");
     assert_eq!(g.candidates[0].text, "error batch3");
-    // timed_out 入工单 (失败族)
-    assert!(s.coverage_gaps.iter().any(|g| g.conclusion == "timed_out"));
-    // FN 样本与诊断覆盖样本与豁免样本不在工单
-    assert!(!s.coverage_gaps.iter().any(|g| g.sample.contains("r/fn")));
-    assert!(!s.coverage_gaps.iter().any(|g| g.sample.contains("r/diag")));
+    // timed_out 入清单 (失败族)
+    assert!(s
+        .diagnostic_gaps
+        .iter()
+        .any(|g| g.conclusion == "timed_out"));
+    // FN 样本与诊断覆盖样本与豁免样本不在清单
+    assert!(!s.diagnostic_gaps.iter().any(|g| g.sample.contains("r/fn")));
     assert!(!s
-        .coverage_gaps
+        .diagnostic_gaps
+        .iter()
+        .any(|g| g.sample.contains("r/diag")));
+    assert!(!s
+        .diagnostic_gaps
         .iter()
         .any(|g| g.sample.contains("r/exempt")));
-    // 互补关系: 诊断覆盖率 (main 域比值) covered=1/30; 工单 (gated 域) = 27
+    // 互补关系: 诊断覆盖率 (main 域比值) covered=1/30; 清单 (gated 域) = 27
     assert_eq!(cov.total, 30);
     assert_eq!(cov.covered, 1);
-    // verdict 不因工单非空而红 (软指标, 报告面)
+    // verdict 不因清单非空而红 (软指标, 报告面)
     let v = l0::gate(&s, None, false);
     assert!(
         !v.violations.iter().any(|x| x.kind.contains("coverage")),
-        "coverage_gaps 不产断言违例"
+        "diagnostic_gaps 不产断言违例"
     );
 }
 
-/// serde 兼容: 旧 summary JSON (无 coverage_gaps 字段) 可解析, 字段取默认空值
+/// serde 兼容: 旧 summary JSON (无 diagnostic_gaps 字段) 可解析, 字段取默认空值
 /// (base summary 产自旧引擎时 --base 消费路径不破)。
 #[test]
-fn old_summary_without_coverage_gaps_deserializes() {
+fn old_summary_without_diagnostic_gaps_deserializes() {
     let s: Summary = serde_json::from_str(OLD_SUMMARY_MIN_JSON).expect("旧 summary 可解析");
-    assert!(s.coverage_gaps.is_empty());
+    assert!(s.diagnostic_gaps.is_empty());
 }
 
 /// 接线最小构造件 (IO 机制测试, AGENTS.md 测试纪律): 采集侧把 #106 形态 replay
 /// 成候选 — 失败样本中未被 fixture 规则消费的 `… ` 前缀错误行进候选; 已被
 /// `^error:` 锚消费的行不进; success 样本不计算 (恒空)。
 #[test]
-fn collect_gap_candidates_wiring() {
+fn collect_diag_gap_candidates_wiring() {
     let d = gz_tmp_corpus("gapwiring");
     std::fs::write(
         d.join("fail.log"),
@@ -1612,8 +1622,8 @@ fn collect_gap_candidates_wiring() {
         .find(|s| s.conclusion == "failure")
         .unwrap();
     assert_eq!(
-        fail.gap_candidates,
-        vec![l0::GapLine {
+        fail.diag_candidates,
+        vec![l0::CandidateLine {
             line_no: 2,
             text: "  … error: opening file '/nix/store/aaaa-example.conf.drv': No such file or directory".into(),
         }],
@@ -1624,5 +1634,5 @@ fn collect_gap_candidates_wiring() {
         .iter()
         .find(|s| s.conclusion == "success")
         .unwrap();
-    assert!(ok.gap_candidates.is_empty(), "success 样本不计算候选");
+    assert!(ok.diag_candidates.is_empty(), "success 样本不计算候选");
 }
