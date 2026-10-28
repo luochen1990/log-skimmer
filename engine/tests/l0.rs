@@ -1215,13 +1215,13 @@ fn hsample(conclusion: &str, frags: &[(&str, Intent)]) -> L0Sample {
     }
 }
 
-/// 分级断崖 (实测形态注入): 注解地板 → restating; 工具规则 → diagnostic;
+/// 分级断崖 (实测形态注入): 注解地板 → trivial; 工具规则 → diagnostic;
 /// 中间带与纯成功异常 → boundary。
 #[test]
 fn rule_health_grading_cliff() {
     let (nf, ns) = (943usize, 375usize);
     let base = nf as f64 / (nf + ns) as f64;
-    // 地板: P_f=932/943=0.988, P_s=2/375=0.005 → restating, 高可靠零信息
+    // 地板: P_f=932/943=0.988, P_s=2/375=0.005 → trivial, 高可靠零信息
     let floor = l0::rule_health(
         l0::RuleFire {
             fire_failure: 932,
@@ -1233,7 +1233,7 @@ fn rule_health_grading_cliff() {
         Intent::Failure,
         "t".to_string(),
     );
-    assert_eq!(floor.grade, l0::RuleGrade::Restating);
+    assert_eq!(floor.grade, l0::RuleGrade::Trivial);
     assert!((floor.ppv - 0.998).abs() < 0.001, "ppv={}", floor.ppv);
     assert!(floor.ppv_lo >= 0.99, "Wilson 下界={}", floor.ppv_lo);
     assert!(floor.spec_bits < 0.1, "零信息: {}", floor.spec_bits);
@@ -1318,8 +1318,8 @@ fn wilson_lower_bound_sanity() {
     assert_eq!(l0::wilson_lo(0.0, 0.0), 0.0);
 }
 
-/// health() 聚合口径: 样本级去重 / 三级分级各归其位 / 覆盖只认非 restating 块。
-/// 场景 30 失败 + 10 成功: floor 30/30 失败 + 0/10 成功 (restating); diag 2 样本
+/// health() 聚合口径: 样本级去重 / 三级分级各归其位 / 覆盖只认非 trivial 块。
+/// 场景 30 失败 + 10 成功: floor 30/30 失败 + 0/10 成功 (trivial); diag 2 样本
 /// (其一双 fragment 验去重) p_f=0.067 (diagnostic); mid 14 样本 p_f=0.467 (boundary,
 /// 亦计覆盖); 仅 floor 的失败样本不计覆盖。
 #[test]
@@ -1360,10 +1360,10 @@ fn health_aggregates_sample_level_and_coverage() {
         (fire["mid"].fire_failure, fire["mid"].fire_success),
         (14, 0)
     );
-    assert_eq!(health_map["floor"].grade, l0::RuleGrade::Restating);
+    assert_eq!(health_map["floor"].grade, l0::RuleGrade::Trivial);
     assert_eq!(health_map["diag"].grade, l0::RuleGrade::Diagnostic);
     assert_eq!(health_map["mid"].grade, l0::RuleGrade::Boundary);
-    // 覆盖: diag 2 + mid 14 = 16/30 (boundary 计覆盖, 仅 restating 不计);
+    // 覆盖: diag 2 + mid 14 = 16/30 (boundary 计覆盖, 仅 trivial 不计);
     // 其余 14 个仅 floor 的失败样本是 "泛化独撑" 形态, 不计
     assert_eq!(cov.total, 30);
     assert_eq!(cov.covered, 16);
@@ -1446,7 +1446,7 @@ fn diag_gap_candidates_predicate_semantics() {
 }
 
 /// 清单化内存直测 (lit 构造器, 与 FN 断言分域互补):
-/// - floor 规则 (30 失败触发 0 成功 → restating) 独撑的失败样本 = 缺口清单;
+/// - floor 规则 (30 失败触发 0 成功 → trivial) 独撑的失败样本 = 缺口清单;
 /// - 含 diag 规则失败块的样本不入; FN 样本 (零 failure fragment) 归 FN 断言不入;
 /// - timed_out 属失败族入清单; 豁免样本不入 (豁免余量另跟踪); success 不入。
 #[test]
@@ -1517,7 +1517,7 @@ fn diagnostic_gaps_partition_and_domain() {
     let (_, health_map, cov) = l0::health(&refs, &tools);
     assert_eq!(
         health_map["floor"].grade,
-        l0::RuleGrade::Restating,
+        l0::RuleGrade::Trivial,
         "前置: floor 全失败触发"
     );
     assert_eq!(
@@ -1635,4 +1635,18 @@ fn collect_diag_gap_candidates_wiring() {
         .find(|s| s.conclusion == "success")
         .unwrap();
     assert!(ok.diag_candidates.is_empty(), "success 样本不计算候选");
+}
+
+#[test]
+fn rule_grade_backcompat_restating() {
+    // 双测链契约 (见 l0.rs RuleGrade 注释): base summary 产自 master 引擎,
+    // 历史值 "restating" 必须可反序列化; 序列化只出新值 "trivial"。
+    let old = serde_json::from_str::<l0::RuleGrade>("\"restating\"").unwrap();
+    assert_eq!(old, l0::RuleGrade::Trivial);
+    let new = serde_json::from_str::<l0::RuleGrade>("\"trivial\"").unwrap();
+    assert_eq!(new, l0::RuleGrade::Trivial);
+    assert_eq!(
+        serde_json::to_string(&l0::RuleGrade::Trivial).unwrap(),
+        "\"trivial\""
+    );
 }

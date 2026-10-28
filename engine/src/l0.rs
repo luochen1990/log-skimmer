@@ -453,7 +453,8 @@ pub struct RuleAgg {
 //   spec_bits = -log2(a/N_f)       触发携带的样本信息量 (选择性; 0 = 处处触发零信息)
 //
 // 分级 (grade):
-//   restating   P_f ≥ 0.8 ∧ P_s ≤ 0.05 — 触发由结论决定而非内容 (注解地板形态):
+//   trivial (群体, 原 restating — 结论复述)
+//               P_f ≥ 0.8 ∧ P_s ≤ 0.05 — 触发由结论决定而非内容 (注解地板形态):
 //               高可靠零信息, 计入零块防线不计入诊断覆盖
 //   diagnostic  P_f ≤ 0.2 — 触发由内容决定 (≥2.3 比特/块), 计入诊断覆盖
 //   boundary    其余 (含 a=0∧b>0 的纯成功异常) — 分布中不应存在 (断裂带空无一
@@ -468,8 +469,8 @@ pub struct RuleAgg {
 // 容语义 — 健康档案验证声明而非替代标注。
 
 /// 分级阈值 (断裂带内取值, 见上注释; 测试锁定判定不变性)。
-pub const RESTATE_PF_MIN: f64 = 0.8;
-pub const RESTATE_PS_MAX: f64 = 0.05;
+pub const TRIVIAL_PF_MIN: f64 = 0.8;
+pub const TRIVIAL_PS_MAX: f64 = 0.05;
 pub const DIAG_PF_MAX: f64 = 0.2;
 
 /// 每规则触发计数 (样本级) — 健康档案基数。域 = main (滤 rerun-through, 与
@@ -481,10 +482,13 @@ pub struct RuleFire {
 }
 
 /// 规则分级 (serde 小写字符串 — 报告/徽章消费)。
+/// 契约: 枚举值演进必须向后兼容反序列化 — 双测链的 base summary 产自 master
+/// 引擎, 历史值经 serde alias 接受, 序列化只出新值 (Trivial 原名 restating)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RuleGrade {
-    Restating,
+    #[serde(alias = "restating")]
+    Trivial,
     Diagnostic,
     Boundary,
 }
@@ -542,8 +546,8 @@ pub fn rule_health(
     let grade = if a == 0.0 && b > 0.0 {
         // 纯成功触发 = FP 形态异常, 进人工审桶 (ppv=0/lift=0 明示)
         RuleGrade::Boundary
-    } else if p_f >= RESTATE_PF_MIN && p_s <= RESTATE_PS_MAX {
-        RuleGrade::Restating
+    } else if p_f >= TRIVIAL_PF_MIN && p_s <= TRIVIAL_PS_MAX {
+        RuleGrade::Trivial
     } else if p_f <= DIAG_PF_MAX {
         RuleGrade::Diagnostic
     } else {
@@ -622,7 +626,7 @@ pub fn health(
         })
         .collect();
     // 诊断覆盖: 失败族样本含 ≥1 诊断规则的 failure fragment
-    let diag = non_restating_rules(&health_map);
+    let diag = non_trivial_rules(&health_map);
     let covered = samples
         .iter()
         .filter(|s| failure_family(&s.conclusion))
@@ -640,11 +644,11 @@ pub fn health(
     (fire, health_map, coverage)
 }
 
-/// 诊断侧规则 id 集 (非 restating — boundary 计入, 保守方向见健康档案节注释):
+/// 诊断侧规则 id 集 (非 trivial — boundary 计入, 保守方向见健康档案节注释):
 /// 诊断覆盖率与诊断缺口清单共用同一诊断规则集口径, 单点防漂移。
-fn non_restating_rules(h: &BTreeMap<String, RuleHealth>) -> HashSet<&str> {
+fn non_trivial_rules(h: &BTreeMap<String, RuleHealth>) -> HashSet<&str> {
     h.iter()
-        .filter(|(_, x)| x.grade != RuleGrade::Restating)
+        .filter(|(_, x)| x.grade != RuleGrade::Trivial)
         .map(|(k, _)| k.as_str())
         .collect()
 }
@@ -652,14 +656,14 @@ fn non_restating_rules(h: &BTreeMap<String, RuleHealth>) -> HashSet<&str> {
 // ---- 诊断缺口清单 (issue #106, 语义 SSOT 本节注释) ----
 //
 // 动机: 安全网 (annotation/runner 失败信号) 兜底使 FN 断言恒绿, 但其命中是
-// 结论复述 (restating) — 消费方拿到「有块但零诊断信息」的空心输出, 真实原因
+// 结论复述 (trivial) — 消费方拿到「有块但零诊断信息」的空心输出, 真实原因
 // 行无规则捕获 (#106 实例: 轮询回显前缀的 nix 错误树)。诊断覆盖率只答「多大
 // 比例」, 本清单答「哪些样本哪些行」。
 //
 // 样本入选谓词 (summarize 侧, 与 FN 断言分域互补 — 二者划分失败族样本):
 //   gated 域 ∧ 失败族 (failure|timed_out) ∧ 非 FN (failure fragment ≥1,
 //   FN 样本归 FN 断言/fn-responder 管, 不重复入清单) ∧ failure-intent
-//   fragment 中无一来自非 restating 规则 (grade 判定同健康档案 — boundary
+//   fragment 中无一来自非 trivial 规则 (grade 判定同健康档案 — boundary
 //   计入诊断侧, 保守方向是高估覆盖)。cancelled 截断日志证据不可靠, 不入
 //   (三态: 只记命中不记缺失); 豁免样本不入 (未适配仓的缺口由豁免余量跟踪,
 //   不混入响应器清单)。
@@ -1098,7 +1102,7 @@ pub fn summarize(c: &Collected) -> Summary {
     let (per_rule_fire, per_rule_health, diagnostic_coverage) = health(&main, &c.rule_tools);
     // 诊断缺口清单 (issue #106): 入选谓词/分域 SSOT = 本文件「诊断缺口清单」
     // 节注释 (与 FN 断言分域互补, grade 判定同健康档案)。
-    let diag_rules = non_restating_rules(&per_rule_health);
+    let diag_rules = non_trivial_rules(&per_rule_health);
     let diagnostic_gaps: Vec<DiagnosticGap> = gated
         .iter()
         .filter(|s| {

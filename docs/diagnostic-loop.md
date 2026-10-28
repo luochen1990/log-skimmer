@@ -23,10 +23,11 @@
 | intent | 规则声明的提取意图: failure (失败证据) / warning (问题倾向) / info (环境快照) | spec §1 |
 | 健康档案 | 每规则在全语料上的触发统计档案 (P_f, P_s, ppv, lift, spec_bits, 分级), 每周随 sweep 重算发布 | l0.rs |
 | P_f / P_s | P(规则触发 \| 样本属失败族) / P(规则触发 \| 样本成功) — 分级的输入统计量 | l0.rs |
-| restating 级 | P_f ≥ 0.8 ∧ P_s ≤ 0.05: 失败必触发, 触发只是复述「失败了」这个已知结论 — 零信息 | l0.rs |
+| trivial (群体) | 分级 (原 restating): P_f≥0.8 ∧ P_s≤0.05 — 触发事件几乎零比特 (spec_bits ≤ log₂(1.25) ≈ 0.32); 与内容 trivial (常量型) 合称 trivial 规则 | l0.rs |
+| spec_bits | 触发事件的自信息 −log₂(P_f) 比特数 — 既有健康档案字段 | l0.rs |
 | diagnostic 级 | P_f ≤ 0.2: 只有特定失败模式才触发 — 触发本身携带「哪种失败」的信息 | l0.rs |
 | boundary 级 | 两者之间的断裂带: 分布上几乎不存在, 出现即人工审; 计覆盖分子 (保守方向) | l0.rs |
-| 诊断覆盖率 | 失败族样本中含 ≥1 非 restating (diagnostic ∪ boundary) failure 命中的比例 — 软指标, 报告面 | l0.rs |
+| 诊断覆盖率 | 失败族样本中含 ≥1 非 trivial (diagnostic ∪ boundary) failure 命中的比例 — 软指标, 报告面 | l0.rs |
 | sweep / lint | rules 仓两个 workflow: sweep = 每周漂移哨兵 (最新语料 × master 规则); lint = PR 时点门禁 | rules 仓 |
 | 双测 | 同语料同规则 (引擎侧) 或同语料同引擎 (规则侧) 下 master vs PR 两轮对比 — 纯单变量归因 | spec §4 |
 | fn-responder | 已部署的 FN 红事件自动响应链: 派遣门控差集判定 → 唤醒内网 agent → 起草规则 PR → 人工合并 (永不自动) | rules 仓 |
@@ -36,9 +37,9 @@
 
 | 术语 | 定义 | 落点 |
 | --- | --- | --- |
-| 诊断缺口 (diagnostic gap, DG) | 诊断覆盖率的逐样本化: gated ∧ 失败族 ∧ 非 FN ∧ failure 命中全为 restating 的样本 — 即「安全网命中但输出 trivial」 | PR #107 (引擎) |
+| 诊断缺口 (diagnostic gap, DG) | 诊断覆盖率的逐样本化: gated ∧ 失败族 ∧ 非 FN ∧ failure 命中全为 trivial 的样本 — 即「安全网命中但输出 trivial」 | PR #107 (引擎) |
 | 清单 | diagnostic_gaps 报告条目的口语指称 (样本定位 + 候选行); 正式场合恒用 diagnostic_gaps | PR #107 |
-| trivial | 「有块但块里零信息」— 取数学「平凡解」义 (存在而无信息量): 该样本的命中全部来自 restating 级规则 | 本文 §1 |
+| trivial | 「有块但块里零信息」— 取数学「平凡解」义 (存在而无信息量): 该样本的命中全部来自 trivial (群体) 级规则 | 本文 §1 |
 | 候选行 (candidate) | 缺口样本中: 命中内置失败关键词 ∧ 未被任何 signal fragment 消费 ∧ 未被 noise 剔除 的行 — 疑似被漏掉的真实原因 | PR #107 (引擎) |
 | dg-responder | 诊断缺口的自动响应器 (fn-responder 同构, 唤醒面换成缺口差集) | #108 (待落地) |
 | 诊断信息有效率 | 抽样人工审计估计的「skim 输出确实指出可行动真因」的样本比例 — 地面真值指标 | §4.2 D2 (待落地) |
@@ -48,6 +49,8 @@
 | 成本反转 + 留痕 | 防灌水的工程目标: 灌水比真实改进更贵, 且必在公开数据面留下指纹 | §4 |
 | 指标-校验配对 | 设计原则: 每个可被优化的代理指标, 配一个不可被同一手段优化的正交校验 | §4 |
 | trivial 捕获提示 (advisory) | Phase 2 提案: 全部 failure 块来自显式声明安全网角色 (`role: safety_net`) 的规则时, skim 输出附 advisory 字段提示「捕获 trivial」 | §3 (待落地) |
+| provisional / confirmed | (提议) 规则时间维两态: 合入即 provisional 不计覆盖分子; 对 ≥k 个合入后新进样本触发过则转 confirmed | §4.2 D1.3 (待落地) |
+| 确认比特率 | (提议) 规则在其合入后新进样本上的触发率 × spec_bits — 样本外信息交付率; 排序辅助, 不做门禁 | §4.2 D1.4 (待落地) |
 
 ## 1. 问题定义: 「有块」≠「捕获了原因」
 
@@ -56,7 +59,7 @@ issue #106 实例 (forgejo nixos CI): 失败日志中规则命中的只有编排
 为什么既有门禁全绿却仍是盲区:
 
 - **FN 断言只测完全漏检** (失败样本 failure-intent fragment = 0)。安全网兜底后 fragment ≥1, 断言恒绿 — 「部分漏检」永不触发。
-- **诊断覆盖率是比值不是清单**。健康档案 (l0 规则分级: restating = 触发由结论决定的结论复述型 / diagnostic = 触发由内容决定 / boundary = 断裂带人工审) 已能量化「失败族 (failure|timed_out) 样本中含**非 restating** (diagnostic ∪ boundary) failure 命中的比例」— 公开语料实测 568/975 = 58.26% (2026-10-28): 四成失败样本的 skim 输出是「结论复述的 trivial 输出」。但比值答不了「哪个样本的哪些行是被漏掉的真实原因」。
+- **诊断覆盖率是比值不是清单**。健康档案 (l0 规则分级: trivial = 触发由结论决定的结论复述型 / diagnostic = 触发由内容决定 / boundary = 断裂带人工审) 已能量化「失败族 (failure|timed_out) 样本中含**非 trivial** (diagnostic ∪ boundary) failure 命中的比例」— 公开语料实测 568/975 = 58.26% (2026-10-28): 四成失败样本的 skim 输出是「结论复述的 trivial 输出」。但比值答不了「哪个样本的哪些行是被漏掉的真实原因」。
 - **fn-responder 只被 FN 红事件唤醒**。trivial 样本不产生任何事件。
 
 一句话: 召回优先的结构承诺 (spec §0 零块=0) 保证「有块」, 但不保证「块里有原因」; 缺的是把 trivial **定位成清单**并**自动响应**的闭环。
@@ -95,7 +98,7 @@ FN 与诊断覆盖率精确互补: FN 保证「有块」, 诊断覆盖率保证�
 
 ### 2.1 度量层 (引擎, 确定性 — 已交付)
 
-`l0` summary 新增 `diagnostic_gaps` 数组: **逐样本清单**, 入选 = gated 域 (滤 rerun-through 与豁免样本的断言域) ∧ 失败族 (failure|timed_out) ∧ 非 FN (有 failure 命中, 完全漏检归 FN 断言管) ∧ failure-intent 命中中无一来自非 restating 规则。每条目携带:
+`l0` summary 新增 `diagnostic_gaps` 数组: **逐样本清单**, 入选 = gated 域 (滤 rerun-through 与豁免样本的断言域) ∧ 失败族 (failure|timed_out) ∧ 非 FN (有 failure 命中, 完全漏检归 FN 断言管) ∧ failure-intent 命中中无一来自非 trivial 规则。每条目携带:
 
 - `repo / sample / conclusion / input_lines` — 定位 (与 fn detail 同一身份方案, 供差集去重);
 - `hit_rules` — 该样本命中的全部 signal 规则 (典型形态: 仅安全网 — 响应端上下文);
@@ -153,7 +156,7 @@ FN 与诊断覆盖率精确互补: FN 保证「有块」, 诊断覆盖率保证�
 
 运行期 = 纯 regex 逐行状态机 (spec §0 设计灵魂 / §2 公理 A1-A8), 本闭环全部发生在维护面 — 「运行期脱离 AI Agent, 维护期适量使用」由结构保证而非纪律约定: AI 被夹在两层确定性之间 (前面是确定性缺口探测器, 后面是确定性统计门禁), 自始至终没有判断权。
 
-消费方**今天即可用**的运行期实践 (零改动): skim 输出的 `blocks[].rules` 与已发布的 [rules-health.md](https://github.com/luochen1990/log-skimmer-rules/blob/reports/rules-health.md) restating 名单交叉 — 若全部 failure 块都来自 restating 规则, 视同「捕获 trivial」, 按 spec §3 判定矩阵的 fallback 纪律回退 rg 基线。
+消费方**今天即可用**的运行期实践 (零改动): skim 输出的 `blocks[].rules` 与已发布的 [rules-health.md](https://github.com/luochen1990/log-skimmer-rules/blob/reports/rules-health.md) trivial (原 restating) 名单交叉 — 若全部 failure 块都来自 trivial (群体) 规则, 视同「捕获 trivial」, 按 spec §3 判定矩阵的 fallback 纪律回退 rg 基线。
 
 **Phase 2 提案 (待规则仓协调, 未实施)**: 规则字段显式声明安全网角色 (`role: safety_net`), 引擎在 skim 协议增加 trivial 捕获提示字段 (advisory — 零块是结构承诺走 exit 3, trivial 捕获是统计嫌疑只提示不阻断), 使消费方无需外挂健康数据源。新增字段须配引擎支持 (deny_unknown_fields 拒载语义) 与 manifest 版本协商, 落地节奏随 rules 仓采纳决定。
 
@@ -168,15 +171,19 @@ FN/FP 的校验是 CI 元数据里的 job 结论 (日志内部伪造不了) — 
 ### 4.1 灌水面 (三种具体攻击, 共同点: 匹配「与结论共变、与真因无关」的常量型内容)
 
 - **A 失败路径回显规则**: 匹配「失败才出现的编排层回显」(crash 工件上传提示 / 失败通知行 / teardown 消息) 的 niche 规则 — P(触发|成功)=0 不碰 FP 门禁, P(触发|失败)≤0.2 分级 diagnostic, 覆盖率 +1, 真因信息为零。
-- **B 安全网拆分**: 把处处触发的 restating 安全网拆成 N 个互斥小片 (每片 ≤20% 失败样本), 每片单独过 diagnostic 线 — 并集覆盖不变, 覆盖率被纯指标手术推满, 语义零变化。
+- **B 安全网拆分**: 把处处触发的 trivial 安全网拆成 N 个互斥小片 (每片 ≤20% 失败样本), 每片单独过 diagnostic 线 — 并集覆盖不变, 覆盖率被纯指标手术推满, 语义零变化。
 - **C 小样本伪相关**: 975 失败样本里「出现于 ≥2 失败 ∧ 0 成功」的随机字符串在多重比较下必然存在, 写成规则即 diagnostic — 当前分级为点估计且无最小触发数, a=2 ∧ b=0 即算数。
 
 ### 4.2 三层防线
 
 **D1 统计加固 (引擎, 确定性 — 使 A/B/C 在分级处失效)**:
 
-1. **分级小样本加固**: diagnostic 判定加最小触发数 (a ≥ A_MIN), 且判级所用的 P_f/P_s 以区间保守化 (下界/上界, 具体统计量与 A_MIN 在落地 issue 于真实语料定标) — 攻击 C 的廉价小样本覆盖出局。
-2. **内容变异性判据** (content variability): 对规则在全语料上消费的全部样本行统计 `distinct / total` 比值 — 直接度量「匹配内容携带的样本级信息量」。比值趋近 0 (所有命中行几乎相同) 的规则判为**常量型**: 匹配内容对所有样本同构 = 零样本级信息, 不计诊断覆盖分子 (仍是合法规则 — 服务零块防线与定位)。回显串 (A) / 安全网碎片 (B) / 常量串 (C) 的命中行全部同构 → 比值趋 0 → 三种攻击一次失效。真实工具证据的命中行天然多样 — 且**刻意不做变量归一化** (不剥 hash/路径): 变量部分本身就是消费方使用的信息 (哪个文件/哪个单元), 归一化会把 `error: opening file '<hash>'…` 这类有效规则误判为常量 (需求方裁决 2026-10-28)。该判据把 restating 检测从「与结论的相关」深化到「匹配内容的信息量」— 无论有无攻击者都让指标更有效。已知局限 (保守方向可接受): 少数真实因果标记行本身是常量 (`Segmentation fault` / `Killed`) — 会被判常量型退出覆盖分子; 假降级只低估覆盖率 (安全), 假升级才灌水 (危险), 此类规则经 D2 审计/人工视角校正。
+规则计入覆盖分子 ⇔ spec_bits ≥ b ∧ ppv_lo ≥ p ∧ 非内容 trivial ∧ confirmed (提议; b/p 与晋升数 k 在落地 issue 于真实语料定标; confirmed 见 D1.3; boundary 现口径计入分子, 待 b 定标后重议)。
+
+1. **分级小样本加固**: diagnostic 判定加最小触发数 (a ≥ A_MIN), 且判级所用的 P_f/P_s 以区间保守化 (下界/上界, 具体统计量与 A_MIN 在落地 issue 于真实语料定标) — 攻击 C 的廉价小样本覆盖出局; 总句的 b = P_f 上界保守化阈值, p = PPV 下界 (ppv_lo) 所须达到的阈值。
+2. **内容变异性判据** (content variability): 对规则在全语料上消费的全部样本行统计 `distinct / total` 比值 — 直接度量「匹配内容携带的样本级信息量」。比值趋近 0 (所有命中行几乎相同) 的规则判为**常量型**: 匹配内容对所有样本同构 = 零样本级信息, 不计诊断覆盖分子 (仍是合法规则 — 服务零块防线与定位)。回显串 (A) / 安全网碎片 (B) / 常量串 (C) 的命中行全部同构 → 比值趋 0 → 三种攻击一次失效。真实工具证据的命中行天然多样 — 且**刻意不做变量归一化** (不剥 hash/路径): 变量部分本身就是消费方使用的信息 (哪个文件/哪个单元), 归一化会把 `error: opening file '<hash>'…` 这类有效规则误判为常量 (需求方裁决 2026-10-28)。该判据把 trivial 检测从「与结论的相关」深化到「匹配内容的信息量」— 无论有无攻击者都让指标更有效。已知局限 (保守方向可接受): 少数真实因果标记行本身是常量 (`Segmentation fault` / `Killed`) — 会被判常量型退出覆盖分子; 假降级只低估覆盖率 (安全), 假升级才灌水 (危险), 此类规则经 D2 审计/人工视角校正。
+3. **时间维晋升判据 (provisional → confirmed)**: 规则合入后先入 **provisional** 态 — 不计诊断覆盖分子; 当其在后续周拍中对 ≥k 个「首次进入语料晚于该规则合入」的新样本触发过, 转 **confirmed** 计入分子。语义: 信息是对未来的压缩, 不是对过去的记忆 — dg-responder 从 DG 清单起草的规则天然对着出生样本拟合, 必须证明能命中未见过的失败样本才算数; 过拟合规则在新样本上永不重燃, 永久 provisional, 与 dead_rules 清理路径衔接。实现前提: summary 记录样本 first-seen 周拍 (语料仓历史可推)。
+4. **确认比特率 (排序辅助 — 不做门禁)**: 规则在其「合入后新进样本」上的触发率 × spec_bits — 纯样本外测量的信息交付率。群体 trivial (spec_bits 趋 0) 与过拟合 (新样本触发率 0) 自然归零; 已知盲区: 杀不掉内容 trivial (常量回显可在真实子集上持续重燃), 故仅用于维护优先级排序, 不进覆盖分子判据。
 
 **D2 抽样审计 (人因, 周检分钟级 — 唯一的真值锚)**: 每周抽 k 个「本周新退出清单」样本 + k 个对照, 人工二元判定「skim 输出是否指出可行动的真因」→ 估计**诊断信息有效率** (带置信区间) 与诊断覆盖率并列发布; 两指标持续偏离 = 灌水或漂移**报警** (只报警不自动红 — 审计不裁决, 裁决仍归确定性门禁)。审计标签在规则 PR review 中已半自然积累 (人工 approve 隐含「该命中是真因」标注), 抽样把它系统化。
 
