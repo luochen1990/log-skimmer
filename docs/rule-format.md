@@ -148,7 +148,7 @@ min_engine_version: 0.1.0  # 选填。引擎版本下限, major.minor.patch 完�
 
 **A4 context 扩展**: 闭块后, block 向前扩 `context.before` 行、向后扩 `context.after` 行得到 fragment 的输出区间 (clamp 到日志边界)。context 只影响输出, 不影响状态机, 不参与与其他块的合并判定。
 
-**A5 合并**: 所有 signal fragment 按 `(start, end)` 排序; **重叠或相邻** (`next.start <= cur.block_end + 1`, 判定用 block 区间; `cur.block_end` = 当前输出块内各 fragment `block` 区间的 **hull 右端** (max 尾) — 嵌套区间 (后启先闭) 下末 fragment 尾不是块界, 按末元素取会漏合并致行重复呈现, #111) 合并为一个输出块 (output block)。输出块的 `start/end` = 各成员 fragment **输出区间** (block ∪ context 扩展, clamp 后) 的 hull。块内保留各 fragment 元数据。合并只发生在输出聚合层, 状态机层无感知。
+**A5 合并**: 所有 signal fragment 按 `(start, end)` 排序; **重叠或相邻** (`next.start <= cur.block_end + 1`; `cur.block_end` = 当前块内各 fragment `block` 区间的 **hull 右端** (max 尾) — 嵌套区间 (后启先闭) 下末 fragment 尾不是块界, #111) 合并为一个输出块 (output block)。输出块的 `start/end` = 各成员 fragment **输出区间** (block ∪ context 扩展, clamp 后) 的 hull。块内保留各 fragment 元数据。合并只发生在输出聚合层, 状态机层无感知。
 
 **A6 noise 规则**: `kind: noise` 的规则同样跑状态机; 其 fragment 覆盖的行从 signal 输出中**剔除** (与 signal 块重叠的行级剔除: 输出时 noise 行集做差集; signal fragment 元数据保留, 其文本按剔除后残行呈现, 若残行为空则整个 fragment 丢弃)。
 

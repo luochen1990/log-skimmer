@@ -1,4 +1,8 @@
-# wasm 产物级防线 (issue #113): forgejo runner 契约禁 nix develop, 防线放发布面 GHA; web 仓就绪后整体迁移
+# wasm 产物级防线 (issue #113): forgejo runner 契约禁 nix develop, 防线放发布面 GHA; web 仓就绪后整体迁移。
+# 本文件不被内部 forgejo 实例执行的前提 = .forgejo/workflows/ 恒在场 (forgejo
+# ListWorkflows 按目录优先级取首个存在者: .forgejo > .gitea > .github — 清空
+# .forgejo/workflows/ 的瞬间本文件会被内部实例拾起并因无 ubuntu-latest/外网
+# actions 而卡死, 依赖此不变量勿破坏)。
 name: wasm-check
 
 on:
@@ -20,20 +24,29 @@ on:
       - Cargo.toml
       - .cargo/config.toml
 
+# 纯构建校验, 零写需求 — 最小权限
+permissions:
+  contents: read
+
+# 同名分支新推送取消旧 run (同仓 forgejo ci-merge.yml 先例)
+concurrency:
+  group: wasm-check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   wasm-check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Rust stable
+      - name: Install Rust stable (with wasm32 target)
         uses: DTolnay/rust-toolchain@stable
-      - name: Add wasm32-unknown-unknown target
-        run: rustup target add wasm32-unknown-unknown
-      - name: Install Node.js 20
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Remove CN cargo mirror (overseas runner)
         run: rm -f .cargo/config.toml
       - name: Build wasm32 artifact

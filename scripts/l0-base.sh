@@ -17,13 +17,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASE_REF="${L0_BASE_REF:-origin/master}"
 WT="${L0_BASE_WT:-/tmp/opencode/l0-base-wt.$$}"
+# rm 守卫 (review #113 批): WT 可被 env 覆盖为任意路径, 无条件 rm -rf 会删掉
+#   覆盖值指向的真实目录 — 仅对 /tmp/opencode/ 下路径执行清理, 其余路径交给
+#   worktree prune / 宿主回收。
+case "$WT" in /tmp/opencode/*) rm -rf "$WT" ;; *) : ;; esac
 
 log() { printf '[l0-base %(%H:%M:%S)T] %s\n' -1 "$*" >&2; }
 
 git -C "$ROOT" fetch --quiet origin master 2>/dev/null || \
   { [ "$BASE_REF" = "master" ] || log "⚠ DUAL-TEST DEGRADED: fetch origin 失败 (离线?), base 用本地 ${BASE_REF}"; }
 
-rm -rf "$WT"
 git -C "$ROOT" worktree prune
 git -C "$ROOT" worktree add --detach --quiet "$WT" "$BASE_REF" 2>/dev/null || {
   log "WARN: base 检出失败 (ref ${BASE_REF} 不可得?), 退出非零供编排降级单测"

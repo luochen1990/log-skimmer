@@ -10,12 +10,18 @@ use std::path::PathBuf;
 /// 「带 scope 的旧规则文件经完整 load_rules 链正常装载且值被忽略」。
 const RULE: &str = "id: test-x\ntitle: t\ntool: test\nscope: global\npatterns:\n  - regex: '^error'\nkind: signal\n";
 
-/// 临时规则集目录: 单条合法规则 + 可选 manifest 内容。
-fn ruleset(name: &str, manifest: Option<&str>) -> PathBuf {
+/// 临时规则集目录: 任意规则体 (canonical RULE 覆盖不了的用例)。
+fn ruleset_with(name: &str, rule: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("log-skimmer-manifest-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test-x.yaml"), RULE).unwrap();
+    std::fs::write(dir.join("test-x.yaml"), rule).unwrap();
+    dir
+}
+
+/// 临时规则集目录: 单条合法规则 + 可选 manifest 内容。
+fn ruleset(name: &str, manifest: Option<&str>) -> PathBuf {
+    let dir = ruleset_with(name, RULE);
     if let Some(m) = manifest {
         std::fs::write(dir.join("manifest.yaml"), m).unwrap();
     }
@@ -119,10 +125,7 @@ fn manifest_bad_semver_rejected() {
 #[test]
 fn rule_unknown_field_rejected() {
     // 规则未知字段 → 拒载: 静默忽略会让规则语义偏移无感知 (issue #59 核心)
-    let dir = std::env::temp_dir().join("log-skimmer-manifest-rule-unknown");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test-x.yaml"), format!("{RULE}future_field: 1\n")).unwrap();
+    let dir = ruleset_with("rule-unknown", &format!("{RULE}future_field: 1\n"));
     let e = log_skimmer::load_rules(&dir).expect_err("规则未知字段须拒载");
     assert!(
         e.to_string().contains("future_field"),
@@ -136,14 +139,10 @@ fn pattern_unknown_field_rejected() {
     // (如 loop 误写成 loops → 静默退化为非循环单扩展) — deny_unknown_fields
     // 三级同契约 (Rule/Pattern/Context, issue #59), 嵌套层级单独锁定 (issue #112:
     // 规则级已测, pattern/context 级拒载分支此前无测试触达)。
-    let dir = std::env::temp_dir().join("log-skimmer-manifest-pattern-unknown");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(
-        dir.join("test-x.yaml"),
+    let dir = ruleset_with(
+        "pattern-unknown",
         "id: test-x\ntitle: t\ntool: test\nscope: global\nkind: signal\npatterns:\n  - regex: '^error'\n    bogus: 1\n",
-    )
-    .unwrap();
+    );
     let e = log_skimmer::load_rules(&dir).expect_err("pattern 未知字段须拒载");
     let msg = e.to_string();
     assert!(
@@ -157,14 +156,10 @@ fn pattern_unknown_field_rejected() {
 fn context_unknown_field_rejected() {
     // context 内未知字段 → 拒载 (同上, Context 级 — 拼错的边界扩展字段
     // 静默归零会让输出区间悄悄收窄)。
-    let dir = std::env::temp_dir().join("log-skimmer-manifest-context-unknown");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(
-        dir.join("test-x.yaml"),
-        format!("{RULE}context: {{before: 0, bogus: 1}}\n"),
-    )
-    .unwrap();
+    let dir = ruleset_with(
+        "context-unknown",
+        &format!("{RULE}context: {{before: 0, bogus: 1}}\n"),
+    );
     let e = log_skimmer::load_rules(&dir).expect_err("context 未知字段须拒载");
     let msg = e.to_string();
     assert!(
@@ -177,14 +172,10 @@ fn context_unknown_field_rejected() {
 #[test]
 fn rule_reserved_fields_accepted() {
     // spec §1 保留字段 structured-hint (YAML 连字符形态) / attribution 在场合法 (POC 不消费)
-    let dir = std::env::temp_dir().join("log-skimmer-manifest-reserved");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(
-        dir.join("test-x.yaml"),
-        format!("{RULE}structured-hint: null\nattribution: {{contributor: someone}}\n"),
-    )
-    .unwrap();
+    let dir = ruleset_with(
+        "reserved",
+        &format!("{RULE}structured-hint: null\nattribution: {{contributor: someone}}\n"),
+    );
     assert!(
         log_skimmer::load_rules(&dir).is_ok(),
         "保留字段在场须合法装载"

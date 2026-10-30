@@ -11,15 +11,18 @@
 #   - 正常双测完成路径末行输出成功标记 "dual-test: ok (base=<rev>)",
 #     标记缺席本身即异常信号 (base 不可得/构建失败/门禁红都不会有标记)。
 #   - base worktree/summary 路径带 pid 后缀 (防同 runner 并发 job 互踩),
-#     本脚本是这些路径的唯一 Owner, trap 统一清理。
+#     本脚本是这些路径的唯一 Owner (内联赋值会静默覆盖外部导出的同名 env,
+#     属有意 — 共享场景经下方 L0_BASE_WT 显式传递), trap 统一清理。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+mkdir -p /tmp/opencode # SUM 重定向的目录依赖显式化 (勿依赖 worktree add 的副作用)
 
 WT="/tmp/opencode/l0-base-wt.$$" # pid 后缀防并发互踩; 经 L0_BASE_WT 与 l0-base.sh 共享
-SUM="/tmp/l0-s-base.$$.json"
+SUM="/tmp/opencode/l0-s-base.$$.json"
 trap 'rm -rf "$WT" "$SUM"; git -C "$ROOT" worktree prune >/dev/null 2>&1 || :' EXIT
+trap 'exit 1' INT TERM # 非交互 bash 的 EXIT trap 不拦截信号致死, 转发以触发清理
 degraded() { echo "⚠ DUAL-TEST DEGRADED: $*" >&2; }
 
 cargo build --release -q
