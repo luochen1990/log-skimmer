@@ -148,7 +148,7 @@ min_engine_version: 0.1.0  # 选填。引擎版本下限, major.minor.patch 完�
 
 **A4 context 扩展**: 闭块后, block 向前扩 `context.before` 行、向后扩 `context.after` 行得到 fragment 的输出区间 (clamp 到日志边界)。context 只影响输出, 不影响状态机, 不参与与其他块的合并判定。
 
-**A5 合并**: 所有 signal fragment 按 `(start, end)` 排序; **重叠或相邻** (`next.start <= cur.block_end + 1`, 判定用 block 区间) 合并为一个输出块 (output block)。输出块的 `start/end` = 各成员 fragment **输出区间** (block ∪ context 扩展, clamp 后) 的 hull。块内保留各 fragment 元数据。合并只发生在输出聚合层, 状态机层无感知。
+**A5 合并**: 所有 signal fragment 按 `(start, end)` 排序; **重叠或相邻** (`next.start <= cur.block_end + 1`, 判定用 block 区间; `cur.block_end` = 当前输出块内各 fragment `block` 区间的 **hull 右端** (max 尾) — 嵌套区间 (后启先闭) 下末 fragment 尾不是块界, 按末元素取会漏合并致行重复呈现, #111) 合并为一个输出块 (output block)。输出块的 `start/end` = 各成员 fragment **输出区间** (block ∪ context 扩展, clamp 后) 的 hull。块内保留各 fragment 元数据。合并只发生在输出聚合层, 状态机层无感知。
 
 **A6 noise 规则**: `kind: noise` 的规则同样跑状态机; 其 fragment 覆盖的行从 signal 输出中**剔除** (与 signal 块重叠的行级剔除: 输出时 noise 行集做差集; signal fragment 元数据保留, 其文本按剔除后残行呈现, 若残行为空则整个 fragment 丢弃)。
 
@@ -207,7 +207,7 @@ L4: build failed
 - `start/end_line`: 合并块输出区间 hull (各成员 fragment 输出区间并集, 含 context 扩展; 1-based 含端点)。
 - `blocks[].rules`: 合并块成员规则 id 全集 (首次出现序去重) — 块级命中索引, 消费方不遍历 fragments 即可知道命中面。
 - fragment 的 `block` 是该规则自身消费区间 (无 context); `text` 含 context 扩展。
-- `output_lines` = 合并块总行数 (noise 剔除后) — **块级粒度**。
+- `output_lines` = 呈现行集基数 (各合并块呈现行号去重计数, noise 剔除后) — **块级粒度**; 折叠下的呈现口径裁决见 §3.R3。
 - `signature_output_lines` = 各 fragment block 首行 (锚行/签名行, 去重行号) 计数 — **签名行级粒度**。压缩比按两档粒度分列统计 (两数字差异大, 验收线不可混谈)。
 - `input_lines`/`output_lines` 在顶层与 `stats` 内**同值重复**: 实现现状的冗余 (顶层概要字段 + `stats` 自包含统计体), 非两套口径 — 消费方读任一侧等价。
 - `stats.boundary_violations`: §4「边界完整性 (机械)」违例记录数组, 元素 `{rule, line_no, text}`; 按状态机构造**恒空** (实现哨兵: block 尾行按构造必被该规则某 pattern 消费, 非空 = 引擎实现 bug) — 消费方正常无需读取, 示例中 `[]` 即常态形态。

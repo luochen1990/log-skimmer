@@ -204,6 +204,72 @@ fn a5_block_rules_dedupe_on_merge() {
     assert_eq!(res2.blocks[0].rules, vec!["t-d", "t-o"], "首次出现序去重");
 }
 
+// A5 嵌套 corner (issue #111): 跨规则嵌套 fragment 下 cur.block_end 取块内
+// block 区间 hull (非末 fragment 尾) — 取末元素尾会使嵌套于块内已含区间的
+// 后启 fragment 逃逸合并 → 同一行跨块重复呈现, 且 output_lines (集合口径)
+// 与实际打印行数不一致。人类可读输出 = 各块 span 逐行打印 (main.rs), 测试
+// 以「各块 span 行计重数」模拟打印面断言呈现无重复。
+
+/// 嵌套 corner 三规则构件: A 大跨度包络 (^x 系行全吞) + B/C 单锚嵌套于其内。
+fn nested_rules() -> Vec<Rule> {
+    flat(&[
+        rules("id: t-n1\ntitle: n\ntool: t\nkind: signal\npatterns:\n  - regex: '^BEGIN'\n  - regex: '^x'\n    loop: true\n"),
+        rules("id: t-n2\ntitle: n\ntool: t\nkind: signal\npatterns:\n  - regex: '^xB'\n  - regex: '^xb'\n    loop: true\n"),
+        rules("id: t-n3\ntitle: n\ntool: t\nkind: signal\npatterns:\n  - regex: '^xC'\n"),
+    ])
+}
+
+#[test]
+fn a5_merge_nested_fragments_use_hull() {
+    // A=(1,10) 整段包络, B=(2,5) 嵌套, C=(8,8) 嵌套且后于 B 闭块
+    let ls = lines(&["BEGIN", "xB", "xb", "xb", "xb", "x", "x", "xC", "x", "x"]);
+    let res = skim("-", &nested_rules(), &ls);
+    // 构造就位: A=(1,10) B=(2,5) C=(8,8), B/C 均嵌套于 A
+    assert_eq!(
+        res.blocks[0]
+            .fragments
+            .iter()
+            .map(|f| f.block)
+            .collect::<Vec<_>>(),
+        vec![(1, 10), (2, 5), (8, 8)],
+        "嵌套 fragment 构造就位 (修复前此处已成 2 块)"
+    );
+    assert_eq!(
+        res.blocks.len(),
+        1,
+        "C 起点落在块 hull (1,10) 内 → 并入同块"
+    );
+    assert_eq!((res.blocks[0].start_line, res.blocks[0].end_line), (1, 10));
+    // 呈现无重复: 行 8 恰出现一次; 打印行数 (计重数) == output_lines (集合基数)
+    let printed: Vec<usize> = res
+        .blocks
+        .iter()
+        .flat_map(|b| b.start_line..=b.end_line)
+        .collect();
+    assert_eq!(
+        printed.iter().filter(|l| **l == 8).count(),
+        1,
+        "行 8 恰呈现一次"
+    );
+    assert_eq!(res.output_lines, printed.len());
+    assert_eq!(res.output_lines, 10);
+}
+
+// A5 嵌套 corner 边界 (issue #111): hull 判定不过宽 — 后启 fragment 起点在块
+// hull 尾 +1 之外 (隔 ≥1 行) 时仍不合并。A=(1,6) B=(2,3) 嵌套, 块 hull 尾 6,
+// C=(8,8) 起点隔 1 行 → 独立成块。
+#[test]
+fn a5_merge_hull_not_overwide() {
+    let ls = lines(&["BEGIN", "xB", "xb", "x", "x", "x", "y", "xC"]);
+    let res = skim("-", &nested_rules(), &ls);
+    assert_eq!(
+        blocks_of(&res),
+        vec![(1, 6, vec!["t-n1", "t-n2"]), (8, 8, vec!["t-n3"])],
+        "next.start > 块 hull+1 → 不合并 (hull 判定无过宽)"
+    );
+    assert_eq!(res.output_lines, 7, "呈现行集为 1-6 并 8 共 7 行基数");
+}
+
 // A6 noise 剔除: noise 覆盖行从 signal 呈现中剔除; signal 全覆盖则丢弃。
 #[test]
 fn a6_noise_dedup() {

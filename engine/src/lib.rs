@@ -751,9 +751,12 @@ pub fn skim_with(
     signals.sort_by_key(|f| (f.block.0, f.block.1));
     let mut blocks: Vec<OutputBlock> = Vec::new();
     for f in signals {
-        let mergeable = blocks.last().is_some_and(|b| {
-            f.block.0 <= b.fragments.last().map(|x| x.block.1).unwrap_or(b.end_line) + 1
-        });
+        // cur.block_end = 块内 fragment block 区间的 hull 右端 (spec §2 A5):
+        // 嵌套区间 (后启先闭) 下按行序入块的末 fragment 尾不是块界, 取末元素
+        // 会漏合并 → 行重复呈现 + output_lines 与打印行数不一致 (issue #111)。
+        let mergeable = blocks
+            .last()
+            .is_some_and(|b| f.block.0 <= block_hull_end(b).unwrap_or(b.end_line) + 1);
         if mergeable {
             let b = blocks.last_mut().unwrap();
             b.end_line = b.end_line.max(f.out.1);
@@ -819,6 +822,14 @@ pub fn skim_with(
 // 输出层折叠 (spec §3.R)
 // ---------------------------------------------------------------------------
 
+/// 块内 fragment `block` 区间 hull 的右端 (max 尾)。嵌套区间 (后启先闭) 使
+/// 按行序入块的末 fragment 不必是 max 尾 — 按末元素取尾会低估块界 (issue #111)。
+/// A5 合并判定 (§2) 与折叠判定 `block_span` (§3.R1) 的 block 区间口径单点。
+/// fragments 非空是 OutputBlock 的构造不变式, None 仅供调用方防御性兜底。
+fn block_hull_end(b: &OutputBlock) -> Option<usize> {
+    b.fragments.iter().map(|f| f.block.1).max()
+}
+
 /// 块区间 hull (折叠判定用): 该块各 fragment `block` 区间的 min 首 / max 尾
 /// — context 扩展不参与 (spec §3.R1: 判定规则命中的语义邻接)。
 /// fragments 按行序入块, 但嵌套区间 (后启先闭) 使末元素不必是 max 尾, 须折叠。
@@ -829,11 +840,7 @@ fn block_span(b: &OutputBlock) -> (usize, usize) {
             .map(|f| f.block.0)
             .min()
             .unwrap_or(b.start_line),
-        b.fragments
-            .iter()
-            .map(|f| f.block.1)
-            .max()
-            .unwrap_or(b.end_line),
+        block_hull_end(b).unwrap_or(b.end_line),
     )
 }
 
