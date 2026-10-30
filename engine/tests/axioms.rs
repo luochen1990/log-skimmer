@@ -126,6 +126,28 @@ fn a4_context_extends_output_only() {
     assert_eq!(res2.blocks[0].start_line, 1);
 }
 
+// A4 clamp 末侧 (对称补全, issue #112): 锚在日志末行 + after>0 → 输出区间
+// 终点被 `.min(n)` 钳到末行 — 起点侧 `max(1)` 已有覆盖, 末侧分支此前无测试
+// 触达 (恒绿掩盖分支腐烂)。双侧 clamp 共同保证输出区间 ⊆ [1, n]。
+#[test]
+fn a4_context_clamps_end_to_last_line() {
+    let rs = rules(
+        "id: t-ce\ntitle: ce\ntool: t\nscope: global\nkind: signal\ncontext: {before: 1, after: 2}\npatterns:\n  - regex: '^boom'\n",
+    );
+    // 锚在第 3 行 (末行), block=(3,3); out = (3-1, min(3+2, 3)) = (2, 3)
+    let res = skim("-", &rs, &lines(&["a", "b", "boom"]));
+    assert_eq!(
+        res.blocks[0].fragments[0].block,
+        (3, 3),
+        "block 不受 context 影响"
+    );
+    assert_eq!(
+        (res.blocks[0].start_line, res.blocks[0].end_line),
+        (2, 3),
+        "after=2 越过末行 n=3 → 终点钳到末行, 不越界"
+    );
+}
+
 // A5 合并: block 重叠或相邻 (gap ≤ 1 行) 合并, 输出块区间 = 成员输出区间 hull。
 #[test]
 fn a5_merge_overlap_and_adjacent() {

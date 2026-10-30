@@ -379,6 +379,61 @@ fn gate_fails_on_fp_rate() {
     assert!(v.violations.iter().any(|x| x.kind == "fp-rate"));
 }
 
+/// 判定: gated 域零块样本 >0 → fail + zero-block violation (spec §4 零块=0,
+/// 结构承诺: 规则集对该日志失明)。断言域 = structural.zero_block (summarize
+/// 的 gated 分层产物, 此处手工置数直测判定分支 — 该红路径此前无测试触达,
+/// 真实语料恒绿掩盖分支腐烂, issue #112)。
+#[test]
+fn gate_fails_on_zero_block() {
+    let mut s = ok_summary();
+    s.structural.zero_block = 1;
+    let v = l0::gate(&s, None, false);
+    assert_eq!(v.verdict, "fail");
+    assert_eq!(
+        v.violations.iter().map(|x| x.kind).collect::<Vec<_>>(),
+        vec!["zero-block"],
+        "其余断言面全绿, 唯一违例 = 零块 (红路径归因唯一)"
+    );
+    assert!(
+        v.violations[0].note.contains("blind"),
+        "note 应指向失明语义 (结构承诺): {}",
+        v.violations[0].note
+    );
+    assert_eq!(
+        v.stats["zero_blocks"].as_u64(),
+        Some(1),
+        "verdict stats 携带哨兵计数 (消费方免二次采集)"
+    );
+
+    // 对称负例 (断言域分层, T-P2b-2): 豁免域零块镜像 exempt_zero_block
+    // 不进失败判定 — 置数不红
+    let mut s = ok_summary();
+    s.structural.exempt_zero_block = 2;
+    let v = l0::gate(&s, None, false);
+    assert_eq!(v.verdict, "pass", "exempt 组零块不进失败判定");
+}
+
+/// 判定: FP 率阈值**等值**语义 — 恰在验收线上 (==FP_MAX_PCT) 归通过侧。
+/// 判定用 `>` 严格大于, spec §4 措辞「验收线 ≤2%」与实现一致; 既有用例只采
+/// 了开区间两侧 (±0.1), 等值归属此前未锁定 — 本用例防比较运算符漂移成
+/// `>=` 无感知 (issue #112)。
+#[test]
+fn gate_fp_rate_at_threshold_passes() {
+    let mut s = ok_summary();
+    s.totals.fp_rate_pct = l0::FP_MAX_PCT;
+    let v = l0::gate(&s, None, false);
+    assert_eq!(
+        v.verdict,
+        "pass",
+        "FP == {}% 恰在验收线上: ≤ 语义归通过",
+        l0::FP_MAX_PCT
+    );
+    assert!(
+        !v.violations.iter().any(|x| x.kind == "fp-rate"),
+        "等值不产 fp-rate 违例"
+    );
+}
+
 /// 判定: 语料在场不足 (0<n<50; CLI 路径采集层已保证 n≥1) → fail — 防空转下限;
 /// note 分流两种读法 (issue #44): 定向验证小语料属预期 (正向信号 per_rule_hits),
 /// 全量语料下才是获取链路故障 — 不可单指控后者误导定向验证的贡献者。
@@ -473,6 +528,45 @@ fn gate_boundary_note_matches_a4_check() {
     assert!(!viol.note.contains("context"), "note: {}", viol.note);
 }
 
+/// 边界哨兵级联 e2e (issue #112 次级项): 样本级 boundary_violations 字段经
+/// summarize 聚合进 structural (全域口径) → gate 红 — 此前仅有 gate 侧手工
+/// 置数断言 (上方用例), 采集→聚合链路断了不会红。corpus-missing 同场属预期
+/// (单样本 1<50), 断言只锁定 boundary 违例在场。
+#[test]
+fn boundary_sentinel_flows_from_sample_to_gate() {
+    let c = l0::Collected {
+        rule_tools: BTreeMap::new(),
+        samples: vec![L0Sample {
+            input_lines: 2,
+            output_lines: 1,
+            signature_output_lines: 1,
+            failure_frags: 1,
+            failure_frag_lines: 1,
+            boundary_violations: 1,
+            ..lit("r/a", "failure", false)
+        }],
+        rule_ids: vec![],
+        orphans: vec![],
+        sidecars_missing_attempt: 0,
+    };
+    let s = l0::summarize(&c);
+    assert_eq!(
+        s.structural.boundary_violations, 1,
+        "样本级哨兵聚合进 structural (全域口径)"
+    );
+    let v = l0::gate(&s, None, false);
+    assert_eq!(v.verdict, "fail");
+    assert!(
+        v.violations.iter().any(|x| x.kind == "boundary"),
+        "哨兵非空级联为 boundary 违例"
+    );
+    assert_eq!(
+        v.stats["boundary_violations"].as_u64(),
+        Some(1),
+        "verdict stats 携带哨兵计数"
+    );
+}
+
 /// 判定: 双测压缩率退化 >2% → fail; base 缺 repo → drift 通知不判红。
 #[test]
 fn gate_dual_test_regression_and_drift() {
@@ -518,6 +612,34 @@ fn gate_dual_test_improvement_passes() {
     let v = l0::gate(&pr, Some(&base), false);
     assert_eq!(v.verdict, "pass");
     assert!(v.compression_compare.regressions.is_empty());
+}
+
+/// 判定: 双测退化阈值**等值**语义 — delta 恰为 -REGRESSION_MAX_PCT (-2.0%)
+/// 不判退化。判定用 `<` 严格小于, 「退化 >2% 判红」与实现一致 (幅度恰 2%
+/// 未越过线); 既有用例只采了开区间两侧 (-3.06% / +改善), 等值归属此前未
+/// 锁定 (issue #112)。构造: base 100% → pr 98%, (98-100)/100×100 = -2.0
+/// (f64 上取整回精确 -2.0, 先行断言证构造恰在线上)。
+#[test]
+fn gate_dual_test_delta_at_regression_line_not_red() {
+    let pr = ok_summary(); // per_repo "github.com/r/kept" = 98% 不动
+    let mut base = ok_summary();
+    base.per_repo
+        .get_mut("github.com/r/kept")
+        .unwrap()
+        .comp_blk_pct = 100.0;
+    let delta = (98.0 - 100.0) / 100.0 * 100.0;
+    assert!(
+        (delta + l0::REGRESSION_MAX_PCT).abs() < 1e-12,
+        "构造须恰在退化线上: {delta}"
+    );
+    let v = l0::gate(&pr, Some(&base), false);
+    assert!(
+        v.compression_compare.regressions.is_empty(),
+        "delta == -{}% 恰在线上, 不判退化",
+        l0::REGRESSION_MAX_PCT
+    );
+    assert!(!v.compression_compare.base_fail);
+    assert_eq!(v.verdict, "pass");
 }
 
 /// 配对可见性 (issue #46): 单侧在场样本 (fixture 钉双侧缺口形态) 不再静默 — 进

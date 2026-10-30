@@ -131,6 +131,50 @@ fn rule_unknown_field_rejected() {
 }
 
 #[test]
+fn pattern_unknown_field_rejected() {
+    // patterns[0] 内未知字段 → 拒载: pattern 级字段静默偏移是语义漂移入口
+    // (如 loop 误写成 loops → 静默退化为非循环单扩展) — deny_unknown_fields
+    // 三级同契约 (Rule/Pattern/Context, issue #59), 嵌套层级单独锁定 (issue #112:
+    // 规则级已测, pattern/context 级拒载分支此前无测试触达)。
+    let dir = std::env::temp_dir().join("log-skimmer-manifest-pattern-unknown");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("test-x.yaml"),
+        "id: test-x\ntitle: t\ntool: test\nscope: global\nkind: signal\npatterns:\n  - regex: '^error'\n    bogus: 1\n",
+    )
+    .unwrap();
+    let e = log_skimmer::load_rules(&dir).expect_err("pattern 未知字段须拒载");
+    let msg = e.to_string();
+    assert!(
+        msg.contains("unknown field"),
+        "须为 unknown field 语义: {msg}"
+    );
+    assert!(msg.contains("bogus"), "未知字段名须出现在报错: {msg}");
+}
+
+#[test]
+fn context_unknown_field_rejected() {
+    // context 内未知字段 → 拒载 (同上, Context 级 — 拼错的边界扩展字段
+    // 静默归零会让输出区间悄悄收窄)。
+    let dir = std::env::temp_dir().join("log-skimmer-manifest-context-unknown");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("test-x.yaml"),
+        format!("{RULE}context: {{before: 0, bogus: 1}}\n"),
+    )
+    .unwrap();
+    let e = log_skimmer::load_rules(&dir).expect_err("context 未知字段须拒载");
+    let msg = e.to_string();
+    assert!(
+        msg.contains("unknown field"),
+        "须为 unknown field 语义: {msg}"
+    );
+    assert!(msg.contains("bogus"), "未知字段名须出现在报错: {msg}");
+}
+
+#[test]
 fn rule_reserved_fields_accepted() {
     // spec §1 保留字段 structured-hint (YAML 连字符形态) / attribution 在场合法 (POC 不消费)
     let dir = std::env::temp_dir().join("log-skimmer-manifest-reserved");
