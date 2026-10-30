@@ -7,16 +7,21 @@
 # 缓存: 共享 CARGO_TARGET_DIR (CI 持久卷 / 本地 target) — base 与 PR 代码差异小,
 #   cargo 增量交替编译代价低。
 # 退化场景 (跑在 master 上, base=自身): diff 恒 0, 双测退化为单测 — 语义无损。
+# worktree 路径 (issue #112): 默认带 pid 后缀防同 runner 并发 job 互踩; 编排方
+#   (l0-run.sh) 经 L0_BASE_WT 传共享路径并负责清理 (worktree 须存活到 l0-run.sh
+#   消费完 base 采集链, 本脚本不自杀清理); 独立运行的泄漏件由宿主 /tmp 回收。
+# 降级哨兵 (issue #112): 降级不红但醒目可见 — "DUAL-TEST DEGRADED" 前缀供 CI
+#   日志 grep, 与 l0-run.sh 降级哨兵同族。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASE_REF="${L0_BASE_REF:-origin/master}"
-WT="/tmp/opencode/l0-base-wt"
+WT="${L0_BASE_WT:-/tmp/opencode/l0-base-wt.$$}"
 
 log() { printf '[l0-base %(%H:%M:%S)T] %s\n' -1 "$*" >&2; }
 
 git -C "$ROOT" fetch --quiet origin master 2>/dev/null || \
-  { [ "$BASE_REF" = "master" ] || log "WARN: fetch origin 失败 (离线?), 用本地 ${BASE_REF}"; }
+  { [ "$BASE_REF" = "master" ] || log "⚠ DUAL-TEST DEGRADED: fetch origin 失败 (离线?), base 用本地 ${BASE_REF}"; }
 
 rm -rf "$WT"
 git -C "$ROOT" worktree prune
