@@ -1,0 +1,50 @@
+# wasm 产物级防线 (issue #113): forgejo runner 契约禁 nix develop, 防线放发布面 GHA; web 仓就绪后整体迁移
+name: wasm-check
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - engine/**
+      - log-skimmer-wasm/**
+      - .github/workflows/wasm-check.yml
+      - Cargo.lock
+      - Cargo.toml
+      - .cargo/config.toml
+  pull_request:
+    paths:
+      - engine/**
+      - log-skimmer-wasm/**
+      - .github/workflows/wasm-check.yml
+      - Cargo.lock
+      - Cargo.toml
+      - .cargo/config.toml
+
+jobs:
+  wasm-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust stable
+        uses: DTolnay/rust-toolchain@stable
+      - name: Add wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Install Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Remove CN cargo mirror (overseas runner)
+        run: rm -f .cargo/config.toml
+      - name: Build wasm32 artifact
+        run: cargo build --release -p log-skimmer-wasm --target wasm32-unknown-unknown
+      - name: Build native CLI
+        run: cargo build --release -p log-skimmer
+      - name: Native skim --json (reconcile baseline)
+        run: >-
+          ./target/release/log-skimmer skim log-skimmer-wasm/tests/fixtures/ci-sample.log
+          --rules log-skimmer-wasm/tests/fixtures/rules --json > "$RUNNER_TEMP/native-skim.json"
+      - name: Reconcile wasm vs native CLI
+        run: >-
+          node log-skimmer-wasm/reconcile.mjs log-skimmer-wasm/tests/fixtures/rules
+          log-skimmer-wasm/tests/fixtures/ci-sample.log --native "$RUNNER_TEMP/native-skim.json"

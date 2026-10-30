@@ -18,7 +18,8 @@ rules-load:
 # 工具链直用 (无 wasm32 链接配置, 且禁 nix develop — AGENTS「CI」节), 并入即给
 # CI 契约引入新环境前置; ② check 链原则 = 快, wasm32 是另一目标的全程编译。
 # wasm crate 源码已受 check 覆盖 (clippy/test 按宿主目标编译); 本 recipe 验证
-# 的增量 = wasm32 实际编译链接 + ABI 端到端。产物级 CI 归未来 web 仓。
+# 的增量 = wasm32 实际编译链接 + ABI 端到端。产物级防线在发布面 GHA
+# (.github/workflows/wasm-check.yml), web 仓就绪后迁移。
 # 依赖 devShell 的 lld + nodejs (flake.nix)。改 log-skimmer-wasm/ 或 engine
 # 装载语义时本地跑。
 wasm-check:
